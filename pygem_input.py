@@ -192,8 +192,12 @@ if '-filled' in hugonnet_fn:
     hugonnet_mb_cn = 'mb_mwea'
     hugonnet_mb_err_cn = 'mb_mwea_err'
     hugonnet_rgi_glacno_cn = 'RGIId'
-    hugonnet_mb_clim_cn = 'mb_clim_mwea'
-    hugonnet_mb_clim_err_cn = 'mb_clim_mwea_err'
+    if '-facorrected' in hugonnet_fn:
+        hugonnet_mb_clim_cn = 'mb_clim_mwea'
+        hugonnet_mb_clim_err_cn = 'mb_clim_mwea_err'
+    else:
+        hugonnet_mb_clim_cn = 'mb_mwea'
+        hugonnet_mb_clim_err_cn = 'mb_mwea_err'
 else:
     hugonnet_mb_cn = 'dmdtda'
     hugonnet_mb_err_cn = 'err_dmdtda'
