@@ -15,13 +15,13 @@ from pygem.utils._funcs_selectglaciers import get_same_glaciers, glac_num_fromra
 
 #%% ===== MODEL SETUP DIRECTORY =====
 main_directory = os.getcwd()
-main_directory = '/Users/btober/Documents/pygem_data/Output/'      # file path hack if data is in different location from code
+#8main_directory = '/Users/btober/Documents/pygem_data/Output/'      # file path hack if data is in different location from code
 # Output directory
 output_filepath = main_directory + '/../Output/'
 model_run_date = datetime.today().strftime('%Y-%m-%d')
 
 #%% ===== GLACIER SELECTION =====
-rgi_regionsO1 = [13]                 # 1st order region number (RGI V6.0)
+rgi_regionsO1 = [1]                 # 1st order region number (RGI V6.0)
 rgi_regionsO2 = 'all'               # 2nd order region number (RGI V6.0)
 # RGI glacier number (RGI V6.0)
 #  Three options: (1) use glacier numbers for a given region (or 'all'), must have glac_no set to None
@@ -32,9 +32,9 @@ rgi_glac_number = 'all'
 
 glac_no_skip = None
 glac_no = None 
-glac_no = ['15.03733'] # Khumbu Glacier
-# glac_no = ['1.10689'] # Columbia Glacier
-# glac_no = ['1.03622'] # LeConte Glacier
+#glac_no = ['15.03732'] # Khumbu Glacier
+#glac_no = ['1.10689'] # Columbia Glacier
+glac_no = ['1.03622'] # LeConte Glacier
 
 
 if glac_no is not None:
@@ -46,10 +46,10 @@ min_glac_area_km2 = 0                 # Filter for size of glaciers to include (
 include_landterm = True                # Switch to include land-terminating glaciers
 include_laketerm = True                # Switch to include lake-terminating glaciers
 include_tidewater = True               # Switch to include marine-terminating glaciers
-include_calving = True                 # Switch to ignore calving and treat tidewater glaciers as land-terminating
+include_calving = False                 # Switch to ignore calving and treat tidewater glaciers as land-terminating
 
 oggm_base_url = 'https://cluster.klima.uni-bremen.de/~oggm/gdirs/oggm_v1.6/L1-L2_files/elev_bands/'
-logging_level = 'WORKFLOW'             # DEBUG, INFO, WARNING, ERROR, WORKFLOW, CRITICAL (recommended WORKFLOW)
+logging_level = 'DEBUG'             # DEBUG, INFO, WARNING, ERROR, WORKFLOW, CRITICAL (recommended WORKFLOW)
 oggm_border = 240                      # 10, 80, 160, 240 (recommend 240 if expecting glaciers for long runs where glaciers may grow)
 
 #%% ===== CLIMATE DATA AND TIME PERIODS ===== 
@@ -82,8 +82,8 @@ if hindcast:
 
 #%% ===== CALIBRATION OPTIONS =====
 # Calibration option ('emulator', 'MCMC', 'MCMC_fullsim' 'HH2015', 'HH2015mod')
-option_calibration = 'MCMC'
-
+#option_calibration = 'HH2015'
+option_calibration = 'emulator'
 # Prior distribution (specify filename or set equal to None)
 priors_reg_fullfn = main_directory + '/../Output/calibration/priors_region.csv'
 
@@ -186,8 +186,8 @@ elif option_calibration in ['MCMC', 'MCMC_fullsim']:
 # ----- Calibration Dataset -----
 # Hugonnet geodetic mass balance data
 hugonnet_fp = main_directory + '/../DEMs/Hugonnet2020/'
-#hugonnet_fn = 'df_pergla_global_20yr-filled.csv'
-hugonnet_fn = 'df_pergla_global_20yr-filled-FAcorrected.csv'
+hugonnet_fn = 'df_pergla_global_20yr-filled.csv'
+#hugonnet_fn = 'df_pergla_global_20yr-filled-FAcorrected.csv'
 if '-filled' in hugonnet_fn:
     hugonnet_mb_cn = 'mb_mwea'
     hugonnet_mb_err_cn = 'mb_mwea_err'
@@ -203,9 +203,10 @@ hugonnet_time2_cn = 't2'
 hugonnet_area_cn = 'area_km2'
 
 # ----- Frontal Ablation Dataset -----
-calving_fp = main_directory + '/../calving_data/analysis/'
-calving_fn = 'all-calving_cal_ind.csv'
-
+#calving_fp = main_directory + '/../calving_data/analysis/'
+calving_fp =  main_directory + '/../calving_data/'
+#calving_fn = 'all-calving_cal_ind.csv'
+calving_fn = 'frontalablation_data_test.csv'
 # ----- Ice thickness calibration parameter -----
 icethickness_cal_frac_byarea = 0.9  # Regional glacier area fraction that is used to calibrate the ice thickness
                                     #  e.g., 0.9 means only the largest 90% of glaciers by area will be used to calibrate
@@ -214,7 +215,7 @@ icethickness_cal_frac_byarea = 0.9  # Regional glacier area fraction that is use
 #%% ===== SIMULATION AND GLACIER DYNAMICS OPTIONS =====
 # Glacier dynamics scheme (options: 'OGGM', 'MassRedistributionCurves', None)
 option_dynamics = 'OGGM'
-    
+#option_dynamics = None
 # Bias adjustment option (options: 0, 1, 2, 3) 
 #  0: no adjustment
 #  1: new prec scheme and temp building on HH2015
@@ -224,7 +225,7 @@ option_bias_adjustment = 1
 
 # MCMC options
 if option_calibration == 'MCMC':
-    sim_iters = 1                  # number of simulations
+    sim_iters = 50                  # number of simulations
     sim_burn = 0                    # number of burn-in (if burn-in is done in MCMC sampling, then don't do here)
 else:
     sim_iters = 1                   # number of simulations
@@ -245,7 +246,7 @@ if option_dynamics in ['OGGM', 'MassRedistributionCurves']:
     cfl_number = 0.02
     cfl_number_calving = 0.01
     glena_reg_fullfn = main_directory + '/../Output/calibration/glena_region.csv'
-    use_reg_glena = True
+    use_reg_glena = False
     if use_reg_glena:
         assert os.path.exists(glena_reg_fullfn), 'Regional glens a calibration file does not exist.'
     else:
@@ -285,7 +286,7 @@ option_surfacetype_initial = 1
 #     appears to be a fairly reasonable assumption in High Mountain Asia.
 #  option 2 - use mean elevation
 include_firn = True                 # True: firn included, False: firn is modeled as snow
-include_debris = True               # True: account for debris with melt factors, False: do not account for debris
+include_debris = False               # True: account for debris with melt factors, False: do not account for debris
 
 # Downscaling model options
 # Reference elevation options for downscaling climate variables
