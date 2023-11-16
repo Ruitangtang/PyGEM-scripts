@@ -1286,7 +1286,7 @@ def main(list_packed_vars):
                         if ddfsnow is not None:
                             modelprms_copy['ddfsnow'] = float(ddfsnow)
                             modelprms_copy['ddfice'] = modelprms_copy['ddfsnow'] / pygem_prms.ddfsnow_iceratio
-#                        mb_mwea = mb_mwea_calc(gdir, modelprms_copy, glacier_rgi_table, fls=fls)
+                        # mb_mwea = mb_mwea_calc(gdir, modelprms_copy, glacier_rgi_table, fls=fls)
                         mb_mwea = run_emulator_mb(modelprms_copy)
                         return mb_mwea
 
@@ -1518,6 +1518,7 @@ def main(list_packed_vars):
                     txt_fn_fail = glacier_str + "-mcmc_fail.txt"
                     with open(mcmc_fail_fp + txt_fn_fail, "w") as text_file:
                         text_file.write(glacier_str + ' failed to complete MCMC')
+                    raise
             
             #%% ===== MCMC FULL SIMULATION CALIBRATION ======
             # Same as MCMC calibration option, but uses full model runs as opposed to an emulator.
