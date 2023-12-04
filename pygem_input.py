@@ -16,9 +16,9 @@ from pygem.utils._funcs_selectglaciers import get_same_glaciers, glac_num_fromra
 #%% ===== MODEL SETUP DIRECTORY =====
 #main_directory = os.getcwd()
 #main_directory = '/home/ruitang/PyGEM_2023/PyGEM-Test-Simple/Output/'      # file path hack if data is in different location from code
-main_directory = '/home/ruitang/PyGEM_2023/PyGEM-Test-Tidewater/Output/'      # file path hack if data is in different location from code
+main_directory = '/home/ruitang/PyGEM_2023/PyGEM-Test-Tidewater/Output_Sermeq_1/'      # file path hack if data is in different location from code
 # Output directory
-output_filepath = main_directory + '/../Output/'
+output_filepath = main_directory + '/../Output_Sermeq_1/'
 #output_filepath = main_directory + '/../PyGEM-Test-Simple/Output/'
 model_run_date = datetime.today().strftime('%Y-%m-%d')
 
@@ -88,7 +88,7 @@ if hindcast:
 option_calibration = 'emulator'
 #option_calibration = 'MCMC'
 # Prior distribution (specify filename or set equal to None)
-priors_reg_fullfn = main_directory + '/../Output/calibration/priors_region.csv'
+priors_reg_fullfn = main_directory + '/../Output_Sermeq_1/calibration/priors_region.csv'
 #priors_reg_fullfn = main_directory + '/../PyGEM-Test-Simple/Output/calibration/priors_region.csv'
 # Calibration-specific information for each calibration option
 if option_calibration == 'HH2015':
@@ -254,7 +254,7 @@ export_extra_vars = True            # Option to export extra variables (temp, pr
 if option_dynamics in ['OGGM', 'MassRedistributionCurves']:
     cfl_number = 0.02
     cfl_number_calving = 0.01
-    glena_reg_fullfn = main_directory + '/../Output/calibration/glena_region.csv'
+    glena_reg_fullfn = main_directory + '/../Output_Sermeq_1/calibration/glena_region.csv'
     #glena_reg_fullfn = main_directory + '/../PyGEM-Test-Simple/Output/calibration/glena_region.csv'
     use_reg_glena = True
     if use_reg_glena:
