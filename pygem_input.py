@@ -14,10 +14,12 @@ from pygem.utils._funcs_selectglaciers import get_same_glaciers, glac_num_fromra
 
 
 #%% ===== MODEL SETUP DIRECTORY =====
-main_directory = os.getcwd()
-#8main_directory = '/Users/btober/Documents/pygem_data/Output/'      # file path hack if data is in different location from code
+#main_directory = os.getcwd()
+#main_directory = '/home/ruitang/PyGEM_2023/PyGEM-Test-Simple/Output/'      # file path hack if data is in different location from code
+main_directory = '/home/ruitang/PyGEM_2023/PyGEM-Test-Tidewater/Output/'      # file path hack if data is in different location from code
 # Output directory
 output_filepath = main_directory + '/../Output/'
+#output_filepath = main_directory + '/../PyGEM-Test-Simple/Output/'
 model_run_date = datetime.today().strftime('%Y-%m-%d')
 
 #%% ===== GLACIER SELECTION =====
@@ -31,7 +33,7 @@ rgi_glac_number = 'all'
 # rgi_glac_number = glac_num_fromrange(1,10)
 
 glac_no_skip = None
-glac_no = None 
+#glac_no = None 
 #glac_no = ['15.03732'] # Khumbu Glacier
 #glac_no = ['1.10689'] # Columbia Glacier
 glac_no = ['1.03622'] # LeConte Glacier
@@ -46,7 +48,7 @@ min_glac_area_km2 = 0                 # Filter for size of glaciers to include (
 include_landterm = True                # Switch to include land-terminating glaciers
 include_laketerm = True                # Switch to include lake-terminating glaciers
 include_tidewater = True               # Switch to include marine-terminating glaciers
-include_calving = False                 # Switch to ignore calving and treat tidewater glaciers as land-terminating
+include_calving = True                 # Switch to ignore calving and treat tidewater glaciers as land-terminating
 
 oggm_base_url = 'https://cluster.klima.uni-bremen.de/~oggm/gdirs/oggm_v1.6/L1-L2_files/elev_bands/'
 logging_level = 'DEBUG'             # DEBUG, INFO, WARNING, ERROR, WORKFLOW, CRITICAL (recommended WORKFLOW)
@@ -65,7 +67,7 @@ if ref_spinupyears > 0:
 
 # GCM period used for simulation run 
 gcm_startyear = 2000                # first year of model run (simulation dataset)
-gcm_endyear = 2100                  # last year of model run (simulation dataset)
+gcm_endyear = 2020                  # last year of model run (simulation dataset)
 gcm_wateryear = 'calendar'          # options for years: 'calendar', 'hydro', 'custom'
 gcm_bc_startyear = 1981             # first year used for GCM bias correction
 gcm_spinupyears = 0                 # spin up years for simulation (output not set up for spinup years at present)
@@ -84,9 +86,10 @@ if hindcast:
 # Calibration option ('emulator', 'MCMC', 'MCMC_fullsim' 'HH2015', 'HH2015mod')
 #option_calibration = 'HH2015'
 option_calibration = 'emulator'
+#option_calibration = 'MCMC'
 # Prior distribution (specify filename or set equal to None)
 priors_reg_fullfn = main_directory + '/../Output/calibration/priors_region.csv'
-
+#priors_reg_fullfn = main_directory + '/../PyGEM-Test-Simple/Output/calibration/priors_region.csv'
 # Calibration-specific information for each calibration option
 if option_calibration == 'HH2015':
     tbias_init = 0
@@ -186,14 +189,19 @@ elif option_calibration in ['MCMC', 'MCMC_fullsim']:
 # ----- Calibration Dataset -----
 # Hugonnet geodetic mass balance data
 hugonnet_fp = main_directory + '/../DEMs/Hugonnet2020/'
+#hugonnet_fp = main_directory + '/../PyGEM-Test-Simple/DEMs/Hugonnet2020/'
 hugonnet_fn = 'df_pergla_global_20yr-filled.csv'
-#hugonnet_fn = 'df_pergla_global_20yr-filled-FAcorrected.csv'
+#hugonnet_fn = 'df_pergla_global_20yr-filled-facorrected.csv'
 if '-filled' in hugonnet_fn:
     hugonnet_mb_cn = 'mb_mwea'
     hugonnet_mb_err_cn = 'mb_mwea_err'
     hugonnet_rgi_glacno_cn = 'RGIId'
-    hugonnet_mb_clim_cn = 'mb_clim_mwea'
-    hugonnet_mb_clim_err_cn = 'mb_clim_mwea_err'
+    if '-facorrected' in hugonnet_fn:
+        hugonnet_mb_clim_cn = 'mb_clim_mwea'
+        hugonnet_mb_clim_err_cn = 'mb_clim_mwea_err'
+    else:
+        hugonnet_mb_clim_cn = 'mb_mwea'
+        hugonnet_mb_clim_err_cn = 'mb_mwea_err'
 else:
     hugonnet_mb_cn = 'dmdtda'
     hugonnet_mb_err_cn = 'err_dmdtda'
@@ -205,6 +213,7 @@ hugonnet_area_cn = 'area_km2'
 # ----- Frontal Ablation Dataset -----
 #calving_fp = main_directory + '/../calving_data/analysis/'
 calving_fp =  main_directory + '/../calving_data/'
+#calving_fp =  main_directory + '/../PyGEM-Test-Simple/calving_data/'
 #calving_fn = 'all-calving_cal_ind.csv'
 calving_fn = 'frontalablation_data_test.csv'
 # ----- Ice thickness calibration parameter -----
@@ -246,7 +255,8 @@ if option_dynamics in ['OGGM', 'MassRedistributionCurves']:
     cfl_number = 0.02
     cfl_number_calving = 0.01
     glena_reg_fullfn = main_directory + '/../Output/calibration/glena_region.csv'
-    use_reg_glena = False
+    #glena_reg_fullfn = main_directory + '/../PyGEM-Test-Simple/Output/calibration/glena_region.csv'
+    use_reg_glena = True
     if use_reg_glena:
         assert os.path.exists(glena_reg_fullfn), 'Regional glens a calibration file does not exist.'
     else:
@@ -326,6 +336,7 @@ elif option_refreezing == 'HH2015':
 # ERA5 (default reference climate data)
 if ref_gcm_name == 'ERA5':
     era5_fp = main_directory + '/../climate_data/ERA5/'
+    #era5_fp = main_directory + '/../PyGEM-Test-Simple/climate_data/ERA5/'
     era5_temp_fn = 'ERA5_temp_monthly.nc'
     era5_tempstd_fn = 'ERA5_tempstd_monthly.nc'
     era5_prec_fn = 'ERA5_totalprecip_monthly.nc'

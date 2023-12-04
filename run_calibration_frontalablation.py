@@ -42,20 +42,20 @@ else:
 
 
 #%% ----- MANUAL INPUT DATA -----
-regions = [1,3,4,5,7,9,17,19]
-#regions = [19]
+#regions = [1,3,4,5,7,9,17,19]
+regions = [1]
 
 overwrite = False
 output_fp = pygem_prms.main_directory + '/../calving_data/analysis/'
 
 option_merge_data = False        # Merge frontal ablation datasets and add mbclim data
-option_ind_calving_k = False    # Calibrate individual glaciers
+option_ind_calving_k = True    # Calibrate individual glaciers
 option_reg_calving_k = False    # Calibrate all glaciers regionally
 if option_reg_calving_k:
     drop_ind_glaciers = False # For region 9 decide if using individual glacier data or regional data
-option_merge_calving_k = False   # Merge all regions together
+option_merge_calving_k = False  # Merge all regions together
 option_update_mb_data = False   # Update gdirs with the new mass balance data
-option_plot_calving_k = True    # Plots of the calibration performance
+option_plot_calving_k = False    # Plots of the calibration performance
 option_scrap = False             # Scrap calculations
 
 frontal_ablation_Gta_cn = 'fa_gta_obs'
@@ -1171,7 +1171,8 @@ if option_ind_calving_k:
     
     # Load calving glacier data
     calving_fp = pygem_prms.main_directory + '/../calving_data/'
-    calving_fn = 'Northern_hemisphere_calving_flux_Kochtitzky_et_al_for_David_Rounce_with_melt_v14-wromainMB-w17_19.csv'
+    #calving_fn = 'Northern_hemisphere_calving_flux_Kochtitzky_et_al_for_David_Rounce_with_melt_v14-wromainMB-w17_19.csv'
+    calving_fn = 'frontalablation_data_test.csv'
     fa_glac_data = pd.read_csv(calving_fp + calving_fn)
     hugonnet_fn = 'df_pergla_global_20yr-filled.csv'
     mb_data = pd.read_csv(pygem_prms.hugonnet_fp + hugonnet_fn)
@@ -1202,11 +1203,18 @@ if option_ind_calving_k:
             if not fa_glac_data_reg.loc[nglac,'RGIId'] == 'all' and len(fa_glac_data_reg.loc[nglac,'RGIId']) == 14:
                 fa_glac_data_reg.loc[nglac,'glacno'] = (str(int(rgiid.split('-')[1].split('.')[0])) + '.' + 
                                                         rgiid.split('-')[1].split('.')[1])
-        
+        print('************01**********')
+        print(fa_glac_data_reg)
+
         # Drop observations that aren't of individual glaciers
         fa_glac_data_reg = fa_glac_data_reg.dropna(axis=0, subset=['glacno'])
+        
         fa_glac_data_reg.reset_index(inplace=True, drop=True)
+        print('************02**********')
+        print(fa_glac_data_reg)
         reg_calving_gta_obs = fa_glac_data_reg[frontal_ablation_Gta_cn].sum()
+        print('************03**********')
+        print(reg_calving_gta_obs)
         
         # Glacier numbers for model runs
         glacno_reg_wdata = sorted(list(fa_glac_data_reg.glacno.values))
@@ -1289,9 +1297,19 @@ if option_ind_calving_k:
                         mb_clim_mwea = mb_clim_reg_3std
                         area_m2 = output_df_all.loc[nglac,'area_km2'] * 1e6
                         mb_clim_gta = mwea_to_gta(mb_clim_mwea, area_m2)
+                        print('**********************************')
+                        print('**********mb_clim_mwea:***************')
+                        print(mb_clim_mwea)
+                        print('**********area_m2:***************')
+                        print(area_m2)                       
+                        print('**********mb_clim_gta:***************')
+                        print(mb_clim_gta)
                         mb_total_gta = output_df_all.loc[nglac,'mb_total_gta_obs']
-                        
+                        print('***************************************')
                         fa_gta_max = mb_clim_gta - mb_total_gta
+
+                        print('**********fa_gta_max: 01***************')
+                        print(fa_gta_max)
                         
                         output_df_all.loc[nglac,'fa_gta_max'] = fa_gta_max
                         output_df_all.loc[nglac,'mb_clim_mwea'] = mb_clim_mwea
@@ -1318,6 +1336,8 @@ if option_ind_calving_k:
                     
                     # Update the data
                     fa_gta_max = output_df_all.loc[nglac,'fa_gta_max']
+                    print('**********fa_gta_max***************')
+                    print(fa_gta_max)
                     if fa_glac_data_ind.loc[0,frontal_ablation_Gta_cn] > fa_gta_max:
                         reg_calving_gta_obs = fa_gta_max
                         fa_glac_data_ind.loc[0,frontal_ablation_Gta_cn] = fa_gta_max
@@ -1347,6 +1367,9 @@ if option_ind_calving_k:
                     # Record bounds
                     output_df_all.loc[nglac,'calving_flux_Gta_bndlow'] = reg_calving_gta_mod_bndlow
                     output_df_all.loc[nglac,'calving_flux_Gta_bndhigh'] = reg_calving_gta_mod_bndhigh
+                    print('***********************04**********************')
+                    print('reg_calving_gta_mod_bndlow',reg_calving_gta_mod_bndlow)
+                    print('reg_calving_gta_mod_bndlhigh',reg_calving_gta_mod_bndhigh)
                     
                     if debug:
                         print('  fa_data  [Gt/yr]:', np.round(reg_calving_gta_obs,4))
@@ -1461,10 +1484,14 @@ if option_ind_calving_k:
         if reg in [17]:
             output_df_all_good = output_df_all.loc[(output_df_all['calving_k'] < calving_k_bndhigh_set), :]
         else:
+            print('****************6***************')
+            print('fa_gta_obs',output_df_all['fa_gta_obs'])
+            print('fa_gta_max',output_df_all['fa_gta_max'])
             output_df_all_good = output_df_all.loc[(output_df_all['fa_gta_obs'] == output_df_all['fa_gta_max']) & 
                                                    (output_df_all['calving_k'] < calving_k_bndhigh_set), :]
         
         rgiids_good = list(output_df_all_good.RGIId)
+        print(rgiids_good)
             
         calving_k_reg_mean = output_df_all_good.calving_k.mean()
         print(' calving_k mean/med:', np.round(calving_k_reg_mean,2), 
@@ -1477,13 +1504,16 @@ if option_ind_calving_k:
         # ----- PLOT RESULTS FOR EACH GLACIER -----
         plot_max_raw = np.max([output_df_all_good.calving_flux_Gta.max(), output_df_all_good.fa_gta_obs.max()])
         plot_max = 10**np.ceil(np.log10(plot_max_raw))
-
+        
         plot_min_raw = np.max([output_df_all_good.calving_flux_Gta.min(), output_df_all_good.fa_gta_obs.min()])
         plot_min = 10**np.floor(np.log10(plot_min_raw))
         if plot_min < 1e-3:
             plot_min = 1e-4
 
         x_min, x_max = plot_min, plot_max
+
+        print(x_min)
+        print(x_max)
         
         fig, ax = plt.subplots(2, 2, squeeze=False, gridspec_kw = {'wspace':0.4, 'hspace':0.4})
         
@@ -1603,7 +1633,7 @@ if option_ind_calving_k:
                 
         # ----- EXPORT MODEL RESULTS -----
         output_df_all.to_csv(output_fp + output_fn, index=False)
-        
+        print('*****************The processing of glaciers with geodetic MB corrected for area asl losses finished********************')
         
         #%% ----- PROCESS MISSING GLACIERS WHERE GEODETIC MB IS NOT CORRECTED FOR AREA ABOVE SEA LEVEL LOSSES
         if reg in [1,3,4,5,7,9,17]:
@@ -1616,9 +1646,16 @@ if option_ind_calving_k:
             rgiids_processed = list(output_df_all.RGIId)
             rgiids_all = list(main_glac_rgi_all.RGIId)
             rgiids_missing = [x for x in rgiids_all if x not in rgiids_processed]
-            
             glac_no_missing = [x.split('-')[1] for x in rgiids_missing]
             main_glac_rgi_missing = modelsetup.selectglaciersrgitable(glac_no=glac_no_missing)
+            print('*****************Missing glacier********************')
+            print('main_glac_rgi_all',main_glac_rgi_all)
+            print('rgiids_processed',rgiids_processed)
+            print('rgiids_all',rgiids_all)
+            print('rgiids_missing',rgiids_missing)
+            print('glac_no_missing',glac_no_missing)
+            print('main_glac_rgi_missing',main_glac_rgi_missing)
+            print('*************************************')
             
             print(reg, len(glac_no_missing), main_glac_rgi_missing.Area.sum(), glac_no_missing)
             
