@@ -68,10 +68,10 @@ frontal_ablation_Gta_unc_cn = 'fa_gta_obs_unc'
 # calving_k_step = 0.2
 
 # the initial and boundary for the parameter tau0 (KPA), at the moment, just set tau0 as calving_k (just notation)
-calving_k_init = 150
-calving_k_bndlow = 100
-calving_k_bndhigh = 200
-calving_k_step = 5
+calving_k_init = 150e3
+calving_k_bndlow = 100e3
+calving_k_bndhigh = 200e3
+calving_k_step = 50
 
 nround_max = 5
 cfl_number = 0.01
