@@ -46,7 +46,7 @@ else:
 regions = [1]
 
 overwrite = False
-output_fp = pygem_prms.main_directory + '/../calving_data/analysis/'
+output_fp = pygem_prms.main_directory + '/../calving_data/analysis_sermeq/'
 
 option_merge_data = False        # Merge frontal ablation datasets and add mbclim data
 option_ind_calving_k = True    # Calibrate individual glaciers
@@ -1097,7 +1097,7 @@ if option_reg_calving_k:
             output_df['cfl_number'] = cfl_number
         
         
-        output_fp = pygem_prms.main_directory + '/../calving_data/analysis/'
+        output_fp = pygem_prms.main_directory + '/../calving_data/analysis_sermeq/'
         if not os.path.exists(output_fp):
             os.makedirs(output_fp)
         output_fn = str(reg) + '-calving_cal_reg.csv'
@@ -2376,7 +2376,7 @@ if option_merge_calving_k:
 if option_update_mb_data:
     
     # Load calving glacier data (already quality controlled during calibration)
-    calving_fp = pygem_prms.main_directory + '/../calving_data/analysis/'
+    calving_fp = pygem_prms.main_directory + '/../calving_data/analysis_sermeq/'
     calving_fn = 'all-calving_cal_ind.csv'
     assert os.path.exists(calving_fp + calving_fn), 'Calibrated frontal ablation output dataset does not exist'
     fa_glac_data = pd.read_csv(calving_fp + calving_fn)
