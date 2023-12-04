@@ -283,7 +283,8 @@ ddfice = ddfsnow / ddfsnow_iceratio # degree-day factor of ice [m w.e. d-1 degC-
 precgrad = 0.0001                   # precipitation gradient on glacier [m-1]
 lapserate = -0.0065                 # temperature lapse rate for both gcm to glacier and on glacier between elevation bins [K m-1]
 tsnow_threshold = 1                 # temperature threshold for snow [deg C] (HH2015 used 1.5 degC +/- 1 degC)
-calving_k = 0.7                     # frontal ablation rate [yr-1]
+#calving_k = 0.7                     # frontal ablation rate [yr-1]
+calving_k = 150                     # frontal ablation calibration parameters, tau0 [KPA]
 
 
 #%% ===== MASS BALANCE MODEL OPTIONS =====
