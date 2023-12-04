@@ -61,11 +61,18 @@ option_scrap = False             # Scrap calculations
 frontal_ablation_Gta_cn = 'fa_gta_obs'
 frontal_ablation_Gta_unc_cn = 'fa_gta_obs_unc'
 
-# Frontal ablation calibration parameter (yr-1)
-calving_k_init = 0.1
-calving_k_bndlow = 0.001
-calving_k_bndhigh = 5
-calving_k_step = 0.2
+# Frontal ablation calibration parameter (yr-1), k-calving
+# calving_k_init = 0.1
+# calving_k_bndlow = 0.001
+# calving_k_bndhigh = 5
+# calving_k_step = 0.2
+
+# the initial and boundary for the parameter tau0 (KPA), at the moment, just set tau0 as calving_k (just notation)
+calving_k_init = 150
+calving_k_bndlow = 100
+calving_k_bndhigh = 200
+calving_k_step = 5
+
 nround_max = 5
 cfl_number = 0.01
 invert_standard=False
