@@ -162,3 +162,7 @@ cython_debug/
 # OS generated files
 .DS_Store
 analysis_glac_monthly_binned_thick.ipynb
+
+
+# Ignore the parameters update in the pygem_input.py
+
