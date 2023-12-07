@@ -162,3 +162,7 @@ cython_debug/
 # OS generated files
 .DS_Store
 analysis_glac_monthly_binned_thick.ipynb
+
+# the input file and calibration modification
+pygem_input.py
+run_calibration_frontalablation.py

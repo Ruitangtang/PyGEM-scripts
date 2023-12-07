@@ -46,7 +46,7 @@ min_glac_area_km2 = 0                 # Filter for size of glaciers to include (
 include_landterm = True                # Switch to include land-terminating glaciers
 include_laketerm = True                # Switch to include lake-terminating glaciers
 include_tidewater = True               # Switch to include marine-terminating glaciers
-include_calving = False                 # Switch to ignore calving and treat tidewater glaciers as land-terminating
+include_calving = True 
 
 oggm_base_url = 'https://cluster.klima.uni-bremen.de/~oggm/gdirs/oggm_v1.6/L1-L2_files/elev_bands/'
 logging_level = 'DEBUG'             # DEBUG, INFO, WARNING, ERROR, WORKFLOW, CRITICAL (recommended WORKFLOW)
@@ -186,8 +186,8 @@ elif option_calibration in ['MCMC', 'MCMC_fullsim']:
 # ----- Calibration Dataset -----
 # Hugonnet geodetic mass balance data
 hugonnet_fp = main_directory + '/../DEMs/Hugonnet2020/'
-hugonnet_fn = 'df_pergla_global_20yr-filled.csv'
-#hugonnet_fn = 'df_pergla_global_20yr-filled-FAcorrected.csv'
+#hugonnet_fn = 'df_pergla_global_20yr-filled.csv'
+hugonnet_fn = 'df_pergla_global_20yr-filled-facorrected.csv'
 if '-filled' in hugonnet_fn:
     hugonnet_mb_cn = 'mb_mwea'
     hugonnet_mb_err_cn = 'mb_mwea_err'
@@ -207,10 +207,10 @@ hugonnet_time2_cn = 't2'
 hugonnet_area_cn = 'area_km2'
 
 # ----- Frontal Ablation Dataset -----
-#calving_fp = main_directory + '/../calving_data/analysis/'
-calving_fp =  main_directory + '/../calving_data/'
-#calving_fn = 'all-calving_cal_ind.csv'
-calving_fn = 'frontalablation_data_test.csv'
+calving_fp = main_directory + '/../calving_data/analysis/'
+#calving_fp =  main_directory + '/../calving_data/'
+calving_fn = 'all-calving_cal_ind.csv'
+#calving_fn = 'frontalablation_data_test.csv'
 # ----- Ice thickness calibration parameter -----
 icethickness_cal_frac_byarea = 0.9  # Regional glacier area fraction that is used to calibrate the ice thickness
                                     #  e.g., 0.9 means only the largest 90% of glaciers by area will be used to calibrate
