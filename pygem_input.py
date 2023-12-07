@@ -190,8 +190,8 @@ elif option_calibration in ['MCMC', 'MCMC_fullsim']:
 # Hugonnet geodetic mass balance data
 hugonnet_fp = main_directory + '/../DEMs/Hugonnet2020/'
 #hugonnet_fp = main_directory + '/../PyGEM-Test-Simple/DEMs/Hugonnet2020/'
-hugonnet_fn = 'df_pergla_global_20yr-filled.csv'
-#hugonnet_fn = 'df_pergla_global_20yr-filled-facorrected.csv'
+#hugonnet_fn = 'df_pergla_global_20yr-filled.csv'
+hugonnet_fn = 'df_pergla_global_20yr-filled-facorrected.csv'
 if '-filled' in hugonnet_fn:
     hugonnet_mb_cn = 'mb_mwea'
     hugonnet_mb_err_cn = 'mb_mwea_err'
@@ -211,11 +211,11 @@ hugonnet_time2_cn = 't2'
 hugonnet_area_cn = 'area_km2'
 
 # ----- Frontal Ablation Dataset -----
-#calving_fp = main_directory + '/../calving_data/analysis/'
-calving_fp =  main_directory + '/../calving_data/'
+calving_fp = main_directory + '/../calving_data/analysis_sermeq/'
+#calving_fp =  main_directory + '/../calving_data/'
 #calving_fp =  main_directory + '/../PyGEM-Test-Simple/calving_data/'
-#calving_fn = 'all-calving_cal_ind.csv'
-calving_fn = 'frontalablation_data_test.csv'
+calving_fn = 'all-calving_cal_ind.csv'
+#calving_fn = 'frontalablation_data_test.csv'
 # ----- Ice thickness calibration parameter -----
 icethickness_cal_frac_byarea = 0.9  # Regional glacier area fraction that is used to calibrate the ice thickness
                                     #  e.g., 0.9 means only the largest 90% of glaciers by area will be used to calibrate
@@ -284,7 +284,7 @@ precgrad = 0.0001                   # precipitation gradient on glacier [m-1]
 lapserate = -0.0065                 # temperature lapse rate for both gcm to glacier and on glacier between elevation bins [K m-1]
 tsnow_threshold = 1                 # temperature threshold for snow [deg C] (HH2015 used 1.5 degC +/- 1 degC)
 #calving_k = 0.7                     # frontal ablation rate [yr-1]
-calving_k = 150e3                     # frontal ablation calibration parameters, tau0 [KPA]
+calving_k = 1.5 #150e3                     # frontal ablation calibration parameters, tau0 [KPA]
 
 
 #%% ===== MASS BALANCE MODEL OPTIONS =====

@@ -49,12 +49,12 @@ overwrite = False
 output_fp = pygem_prms.main_directory + '/../calving_data/analysis_sermeq/'
 
 option_merge_data = False        # Merge frontal ablation datasets and add mbclim data
-option_ind_calving_k = True    # Calibrate individual glaciers
+option_ind_calving_k = False    # Calibrate individual glaciers
 option_reg_calving_k = False    # Calibrate all glaciers regionally
 if option_reg_calving_k:
     drop_ind_glaciers = False # For region 9 decide if using individual glacier data or regional data
 option_merge_calving_k = False  # Merge all regions together
-option_update_mb_data = False   # Update gdirs with the new mass balance data
+option_update_mb_data = True   # Update gdirs with the new mass balance data
 option_plot_calving_k = False    # Plots of the calibration performance
 option_scrap = False             # Scrap calculations
 
@@ -68,10 +68,10 @@ frontal_ablation_Gta_unc_cn = 'fa_gta_obs_unc'
 # calving_k_step = 0.2
 
 # the initial and boundary for the parameter tau0 (KPA), at the moment, just set tau0 as calving_k (just notation)
-calving_k_init = 150e3
-calving_k_bndlow = 100e3
-calving_k_bndhigh = 200e3
-calving_k_step = 50
+calving_k_init = 1.5#150e3
+calving_k_bndlow = 1#100e3
+calving_k_bndhigh = 2#200e3
+calving_k_step = 0.1 #10e3
 
 nround_max = 5
 cfl_number = 0.01
@@ -354,7 +354,7 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                                       )
             
             try:
-                _, diag = ev_model.run_until_and_store(nyears)
+                diag = ev_model.run_until_and_store(nyears)
                 ev_model.mb_model.glac_wide_volume_annual[-1] = diag.volume_m3[-1]
                 ev_model.mb_model.glac_wide_area_annual[-1] = diag.area_m2[-1]
                 
@@ -1494,6 +1494,7 @@ if option_ind_calving_k:
             print('****************6***************')
             print('fa_gta_obs',output_df_all['fa_gta_obs'])
             print('fa_gta_max',output_df_all['fa_gta_max'])
+            print('calving_k:',output_df_all['calving_k'])
             output_df_all_good = output_df_all.loc[(output_df_all['fa_gta_obs'] == output_df_all['fa_gta_max']) & 
                                                    (output_df_all['calving_k'] < calving_k_bndhigh_set), :]
         
