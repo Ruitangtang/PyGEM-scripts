@@ -1489,21 +1489,26 @@ def main(list_packed_vars):
                             
                         # new numerical scheme is SemiImplicitModel() but doesn't have frontal ablation yet
                         # FluxBasedModel is old numerical scheme but includes frontal ablation
-                        ev_model = FluxBasedModel(nfls, y0=0, mb_model=mbmod, 
+                        try:
+                            ev_model = FluxBasedModel(nfls, y0=0, mb_model=mbmod, 
                                                   glen_a=cfg.PARAMS['glen_a']*glen_a_multiplier, fs=fs,
                                                   is_tidewater=gdir.is_tidewater,
                                                   water_level=water_level
                                                   )
-                        
+                            print("evmodel assigned")
+                        except:
+                            print("calving law failed")
                         if debug:
                             graphics.plot_modeloutput_section(ev_model)
                             plt.show()
-
-                        try:                        
+                        try:                   
                             if oggm_version > 1.301:
+                                print("oggm ver >1.3")
                                 diag = ev_model.run_until_and_store(nyears)
+                                print("oggm ver >1.3 failed")
                             else:
                                 _, diag = ev_model.run_until_and_store(nyears)
+                                print("oggm run law failed")
                             ev_model.mb_model.glac_wide_volume_annual[-1] = diag.volume_m3[-1]
                             ev_model.mb_model.glac_wide_area_annual[-1] = diag.area_m2[-1]
                             
