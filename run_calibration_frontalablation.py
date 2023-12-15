@@ -1335,6 +1335,7 @@ if option_ind_calving_k:
             
             # ---- FIRST ROUND CALIBRATION -----
             # ----- OPTIMIZE CALVING_K BASED ON INDIVIDUAL GLACIER FRONTAL ABLATION DATA -----
+            print("main glac_rgi ", np.arange(main_glac_rgi.shape[0]))
             for nglac in np.arange(main_glac_rgi.shape[0]):
 
 #                if main_glac_rgi.loc[nglac,'RGIId'] in ['RGI60-03.00108']:

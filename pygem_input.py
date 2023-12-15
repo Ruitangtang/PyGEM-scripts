@@ -49,7 +49,7 @@ min_glac_area_km2 = 0                 # Filter for size of glaciers to include (
 include_landterm = True                # Switch to include land-terminating glaciers
 include_laketerm = True                # Switch to include lake-terminating glaciers
 include_tidewater = True               # Switch to include marine-terminating glaciers
-include_calving = True                 # Switch to ignore calving and treat tidewater glaciers as land-terminating
+include_calving = False               # Switch to ignore calving and treat tidewater glaciers as land-terminating
 
 oggm_base_url = 'https://cluster.klima.uni-bremen.de/~oggm/gdirs/oggm_v1.6/L1-L2_files/elev_bands/'
 #oggm_base_url = 'https://cluster.klima.uni-bremen.de/~oggm/gdirs/oggm_v1.6/L1-L2_files/centerlines'
@@ -438,11 +438,11 @@ else:
 option_leapyear = 0         # 1: include leap year days, 0: exclude leap years so February always has 28 days
 # User specified start/end dates
 #  note: start and end dates must refer to whole years
-startmonthday = '06-01'     # Only used with custom calendars
-endmonthday = '05-31'       # Only used with custom calendars
+startmonthday = '01-01'     # Only used with custom calendars,06-01
+endmonthday = '12-31'       # Only used with custom calendars,05-31
 wateryear_month_start = 10  # water year starting month
 winter_month_start = 10     # first month of winter (for HMA winter is October 1 - April 30)
-summer_month_start = 5      # first month of summer (for HMA summer is May 1 - Sept 30)
+summer_month_start = 5      # first month of summer (for HMA summer is May 1 - Sept 30) 
 option_dates = 1            # 1: use dates from date table (first of each month), 2: dates from climate data
 timestep = 'monthly'        # time step ('monthly' only option at present)
 
