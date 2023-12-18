@@ -55,7 +55,7 @@ if option_reg_calving_k:
     drop_ind_glaciers = False # For region 9 decide if using individual glacier data or regional data
 option_merge_calving_k = False   # Merge all regions together
 option_update_mb_data = True   # Update gdirs with the new mass balance data
-option_plot_calving_k = True    # Plots of the calibration performance
+option_plot_calving_k = False    # Plots of the calibration performance
 option_scrap = False             # Scrap calculations
 
 frontal_ablation_Gta_cn = 'fa_gta_obs'
@@ -1171,8 +1171,8 @@ if option_ind_calving_k:
     
     # Load calving glacier data
     calving_fp = pygem_prms.main_directory + '/../calving_data/'
-    #calving_fn = 'Northern_hemisphere_calving_flux_Kochtitzky_et_al_for_David_Rounce_with_melt_v14-wromainMB-w17_19.csv'
-    calving_fn = 'frontalablation_data_test.csv' 
+    calving_fn = 'Northern_hemisphere_calving_flux_Kochtitzky_et_al_for_David_Rounce_with_melt_v14-wromainMB-w17_19.csv'
+    #calving_fn = 'frontalablation_data_test.csv' 
     fa_glac_data = pd.read_csv(calving_fp + calving_fn)
     hugonnet_fn = 'df_pergla_global_20yr-filled.csv'
     mb_data = pd.read_csv(pygem_prms.hugonnet_fp + hugonnet_fn)

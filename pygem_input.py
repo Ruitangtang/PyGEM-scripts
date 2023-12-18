@@ -14,8 +14,9 @@ from pygem.utils._funcs_selectglaciers import get_same_glaciers, glac_num_fromra
 
 
 #%% ===== MODEL SETUP DIRECTORY =====
-main_directory = os.getcwd()
-#8main_directory = '/Users/btober/Documents/pygem_data/Output/'      # file path hack if data is in different location from code
+#main_directory = os.getcwd()
+#main_directory = '/home/ruitang/Astra_Ruitang_UIO/PyGEM_2023_Astra/Test_Tidewater/Test_Kcalving_Single/Output/'      # file path hack if data is in different location from code
+main_directory = '/home/ruitang/Astra_Ruitang_UIO/PyGEM_2023_Astra/Test_Tidewater/Test_kcalving_Region/Output/'      # file path hack if data is in different location from code
 # Output directory
 output_filepath = main_directory + '/../Output/'
 model_run_date = datetime.today().strftime('%Y-%m-%d')
@@ -34,7 +35,7 @@ glac_no_skip = None
 glac_no = None 
 #glac_no = ['15.03732'] # Khumbu Glacier
 #glac_no = ['1.10689'] # Columbia Glacier
-glac_no = ['1.03622'] # LeConte Glacier
+#glac_no = ['1.03622'] # LeConte Glacier
 
 
 if glac_no is not None:
@@ -43,10 +44,10 @@ if glac_no is not None:
 min_glac_area_km2 = 0                 # Filter for size of glaciers to include (km2). Set to 0 to include all.
 
 # Types of glaciers to include (True) or exclude (False)
-include_landterm = True                # Switch to include land-terminating glaciers
-include_laketerm = True                # Switch to include lake-terminating glaciers
+include_landterm = False                # Switch to include land-terminating glaciers
+include_laketerm = False                # Switch to include lake-terminating glaciers
 include_tidewater = True               # Switch to include marine-terminating glaciers
-include_calving = True 
+include_calving = True
 
 oggm_base_url = 'https://cluster.klima.uni-bremen.de/~oggm/gdirs/oggm_v1.6/L1-L2_files/elev_bands/'
 logging_level = 'DEBUG'             # DEBUG, INFO, WARNING, ERROR, WORKFLOW, CRITICAL (recommended WORKFLOW)
@@ -83,7 +84,8 @@ if hindcast:
 #%% ===== CALIBRATION OPTIONS =====
 # Calibration option ('emulator', 'MCMC', 'MCMC_fullsim' 'HH2015', 'HH2015mod')
 #option_calibration = 'HH2015'
-option_calibration = 'emulator'
+#option_calibration = 'emulator'
+option_calibration = 'MCMC'
 # Prior distribution (specify filename or set equal to None)
 priors_reg_fullfn = main_directory + '/../Output/calibration/priors_region.csv'
 
@@ -232,7 +234,7 @@ if option_calibration == 'MCMC':
     sim_iters = 50                  # number of simulations
     sim_burn = 0                    # number of burn-in (if burn-in is done in MCMC sampling, then don't do here)
 else:
-    sim_iters = 1                   # number of simulations
+    sim_iters = 50                   # number of simulations
 
 # Output filepath of simulations
 output_sim_fp = output_filepath + 'simulations/'
@@ -329,7 +331,7 @@ elif option_refreezing == 'HH2015':
 #%% ===== CLIMATE DATA FILEPATHS AND FILENAMES =====
 # ERA5 (default reference climate data)
 if ref_gcm_name == 'ERA5':
-    era5_fp = main_directory + '/../climate_data/ERA5/'
+    era5_fp = main_directory + '/../../climate_data/ERA5/'
     era5_temp_fn = 'ERA5_temp_monthly.nc'
     era5_tempstd_fn = 'ERA5_tempstd_monthly.nc'
     era5_prec_fn = 'ERA5_totalprecip_monthly.nc'
@@ -346,31 +348,31 @@ if ref_gcm_name == 'ERA5':
         assert os.path.exists(era5_fp + era5_tempstd_fn), 'ERA5 temperature std filepath does not exist'
 
 # CMIP5 (GCM data)
-cmip5_fp_var_prefix = main_directory + '/../climate_data/cmip5/'
+cmip5_fp_var_prefix = main_directory + '/../../climate_data/cmip5/'
 cmip5_fp_var_ending = '_r1i1p1_monNG/'
-cmip5_fp_fx_prefix = main_directory + '/../climate_data/cmip5/'
+cmip5_fp_fx_prefix = main_directory + '/../../climate_data/cmip5/'
 cmip5_fp_fx_ending = '_r0i0p0_fx/'
 
 # CMIP6 (GCM data)
-cmip6_fp_prefix = main_directory + '/../climate_data/cmip6/'
+cmip6_fp_prefix = main_directory + '/../../climate_data/cmip6/'
 
 # CESM2 Large Ensemble (GCM data)
-cesm2_fp_var_prefix = main_directory + '/../climate_data/cesm2/'
+cesm2_fp_var_prefix = main_directory + '/../../climate_data/cesm2/'
 cesm2_fp_var_ending = '_mon/'
-cesm2_fp_fx_prefix = main_directory + '/../climate_data/cesm2/'
+cesm2_fp_fx_prefix = main_directory + '/../../climate_data/cesm2/'
 cesm2_fp_fx_ending = '_fx/'
 
 # GFDL SPEAR Large Ensemble (GCM data)
-gfdl_fp_var_prefix = main_directory + '/../climate_data/gfdl/'
+gfdl_fp_var_prefix = main_directory + '/../../climate_data/gfdl/'
 gfdl_fp_var_ending = '_mon/'
-gfdl_fp_fx_prefix = main_directory + '/../climate_data/gfdl/'
+gfdl_fp_fx_prefix = main_directory + '/../../climate_data/gfdl/'
 gfdl_fp_fx_ending = '_fx/'
 
 
 #%% ===== GLACIER DATA (RGI, ICE THICKNESS, ETC.) =====
 # ----- RGI DATA -----
 # Filepath for RGI files
-rgi_fp = main_directory + '/../RGI/rgi60/00_rgi60_attribs/'
+rgi_fp = main_directory + '/../../RGI/rgi60/00_rgi60_attribs/'
 assert os.path.exists(rgi_fp), 'RGI filepath does not exist. PyGEM requires RGI data to run.'
 # Column names
 rgi_lat_colname = 'CenLat'
@@ -383,7 +385,7 @@ rgi_glacno_float_colname = 'RGIId_float'
 rgi_cols_drop = ['GLIMSId','BgnDate','EndDate','Status','Linkages','Name']
 
 # ----- ADDITIONAL DATA (hypsometry, ice thickness, width, debris) -----
-h_consensus_fp = main_directory + '/../IceThickness_Farinotti/composite_thickness_RGI60-all_regions/'
+h_consensus_fp = main_directory + '/../../IceThickness_Farinotti/composite_thickness_RGI60-all_regions/'
 # Filepath for the hypsometry files
 binsize = 10            # Elevation bin height [m]
 hyps_data = 'OGGM'      # Hypsometry dataset (OGGM; Maussion etal 2019)
@@ -437,8 +439,8 @@ molarmass_air = 0.0289644   # Molar mass of Earth's air [kg mol-1]
 
 
 #%% DEBUGGING OPTIONS
-debug_refreeze = False
-debug_mb = False
+debug_refreeze = True
+debug_mb = True
 
 
 # Pass variable to shell script
