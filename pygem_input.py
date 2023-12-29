@@ -17,7 +17,7 @@ from pygem.utils._funcs_selectglaciers import get_same_glaciers, glac_num_fromra
 #main_directory = os.getcwd()
 #main_directory = '/home/ruitang/PyGEM_2023/PyGEM-Test-Simple/Output/'      # file path hack if data is in different location from code
 #main_directory = '/home/ruitang/PyGEM_2023/PyGEM-Test-Tidewater/Output_Sermeq_1/'      # file path hack if data is in different location from code
-main_directory = '/home/ruitang/Astra_Ruitang_UIO/PyGEM_2023_Astra/Test_Tidewater/Test04_Sermeq/Output/'      # file path hack if data is in different location from code
+main_directory = '/home/ruitang/Astra_Ruitang_UIO/PyGEM_2023_Astra/Test_Tidewater/Test05_Sermeq/Output/'      # file path hack if data is in different location from code
 # Output directory
 output_filepath = main_directory + '/../Output/'
 #output_filepath = main_directory + '/../PyGEM-Test-Simple/Output/'
@@ -34,10 +34,10 @@ rgi_glac_number = 'all'
 # rgi_glac_number = glac_num_fromrange(1,10)
 
 glac_no_skip = None
-#glac_no = None 
+glac_no = None 
 #glac_no = ['15.03732'] # Khumbu Glacier
 #glac_no = ['1.10689'] # Columbia Glacier
-glac_no = ['1.03622'] # LeConte Glacier
+#glac_no = ['1.03622'] # LeConte Glacier
 
 
 if glac_no is not None:
@@ -46,15 +46,17 @@ if glac_no is not None:
 min_glac_area_km2 = 0                 # Filter for size of glaciers to include (km2). Set to 0 to include all.
 
 # Types of glaciers to include (True) or exclude (False)
-include_landterm = True                # Switch to include land-terminating glaciers
-include_laketerm = True                # Switch to include lake-terminating glaciers
+include_landterm = False                # Switch to include land-terminating glaciers
+include_laketerm = False                # Switch to include lake-terminating glaciers
 include_tidewater = True               # Switch to include marine-terminating glaciers
-include_calving = False               # Switch to ignore calving and treat tidewater glaciers as land-terminating
+include_calving = True               # Switch to ignore calving and treat tidewater glaciers as land-terminating
 
 oggm_base_url = 'https://cluster.klima.uni-bremen.de/~oggm/gdirs/oggm_v1.6/L1-L2_files/elev_bands/'
+#oggm_base_url = 'https://cluster.klima.uni-bremen.de/~oggm/gdirs/oggm_v1.6/L1-L2_files/elev_bands/'
+
 #oggm_base_url = 'https://cluster.klima.uni-bremen.de/~oggm/gdirs/oggm_v1.6/L1-L2_files/centerlines'
 logging_level = 'DEBUG'             # DEBUG, INFO, WARNING, ERROR, WORKFLOW, CRITICAL (recommended WORKFLOW)
-oggm_border = 80                      # 10, 80, 160, 240 (recommend 240 if expecting glaciers for long runs where glaciers may grow)
+oggm_border = 160                      # 10, 80, 160, 240 (recommend 240 if expecting glaciers for long runs where glaciers may grow)
 
 #%% ===== CLIMATE DATA AND TIME PERIODS ===== 
 # Reference period runs (reference period refers to the calibration period)

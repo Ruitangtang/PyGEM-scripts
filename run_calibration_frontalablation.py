@@ -200,6 +200,7 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
     output_df['calving_flux_Gta'] = np.nan
     output_df['oggm_dynamics'] = 0
     output_df['mb_mwea_fa_asl_lost'] = 0
+    print('********** main glacier rgi ********** is :',main_glac_rgi)
     for nglac in np.arange(main_glac_rgi.shape[0]):
         
         print('\n',main_glac_rgi.loc[main_glac_rgi.index.values[nglac],'RGIId'])
@@ -343,6 +344,7 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                                                                  glen_a=cfg.PARAMS['glen_a']*glen_a_multiplier, fs=fs)
                 print("⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅")
                 print("The find_inversion_calving_from_any_mb end")
+                print("the out claving is:",out_calving)
                 
                 #print("the calving_flux is",out_calving['calving_flux'])
                 
@@ -362,7 +364,7 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
             th = cls['hgt'][-1]
             vmin, vmax = cfg.PARAMS['free_board_marine_terminating']
             water_level = utils.clip_scalar(0, th - vmax, th - vmin)
-    
+            print('at the moment water level is :',water_level)
             #%%
             ev_model = FluxBasedModel(nfls, y0=0, mb_model=mbmod, 
                                       glen_a=cfg.PARAMS['glen_a']*glen_a_multiplier, fs=fs,
@@ -1240,7 +1242,7 @@ if option_ind_calving_k:
         print(fa_glac_data_reg)
         reg_calving_gta_obs = fa_glac_data_reg[frontal_ablation_Gta_cn].sum()
         print('************03**********')
-        print(reg_calving_gta_obs)
+        print('reg_calving_gta_obs is:',reg_calving_gta_obs)
         
         # Glacier numbers for model runs
         glacno_reg_wdata = sorted(list(fa_glac_data_reg.glacno.values))
@@ -1356,7 +1358,7 @@ if option_ind_calving_k:
                     # Update the data
                     fa_gta_max = output_df_all.loc[nglac,'fa_gta_max']
                     print('**********fa_gta_max***************')
-                    print(fa_gta_max)
+                    print('The glacier is:',rgiid_ind,'the max FA gta is:',fa_gta_max)
                     if fa_glac_data_ind.loc[0,frontal_ablation_Gta_cn] > fa_gta_max:
                         reg_calving_gta_obs = fa_gta_max
                         fa_glac_data_ind.loc[0,frontal_ablation_Gta_cn] = fa_gta_max
@@ -1364,7 +1366,7 @@ if option_ind_calving_k:
                     # Check bounds
                     bndlow_good = True
                     bndhigh_good = True
-                    print("before the reg_calving_flux")
+                    print("**********before the reg_calving_flux**********")
                     try:
                         print("do the reg_calving_flux_bndhigh: Start")
                         print("calving_k_bndhig:",calving_k_bndhigh)
@@ -1378,6 +1380,7 @@ if option_ind_calving_k:
                         bndhigh_good = False
                         reg_calving_gta_mod_bndhigh = None
                     try:
+                        print("do the reg_calving_flux_bndlow: Start")
                         print("calving_k_bndlow:",calving_k_bndlow)
                         output_df_bndlow, reg_calving_gta_mod_bndlow, reg_calving_gta_obs = (
                                 reg_calving_flux(main_glac_rgi_ind, calving_k_bndlow, fa_glac_data_reg=fa_glac_data_ind,
