@@ -160,7 +160,7 @@ if pygem_prms.option_calibration in ['MCMC', 'emulator']:
 
     def create_emulator(glacier_str, sims_df, y_cn, 
                         X_cns=['tbias','kp','ddfsnow'], 
-                        em_fp=pygem_prms.output_filepath + 'emulator/', debug=False):
+                        em_fp=pygem_prms.output_filepath + 'emulator/', debug=True):
         
         # This is required for the supercomputer such that resources aren't stolen from other cpus
         torch.set_num_threads(1)
