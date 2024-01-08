@@ -17,7 +17,7 @@ from pygem.utils._funcs_selectglaciers import get_same_glaciers, glac_num_fromra
 #main_directory = os.getcwd()
 #main_directory = '/home/ruitang/PyGEM_2023/PyGEM-Test-Simple/Output/'      # file path hack if data is in different location from code
 #main_directory = '/home/ruitang/PyGEM_2023/PyGEM-Test-Tidewater/Output_Sermeq_1/'      # file path hack if data is in different location from code
-main_directory = '/home/ruitang/Astra_Ruitang_UIO/PyGEM_2023_Astra/Test_Tidewater/Test05_Sermeq/Output/'      # file path hack if data is in different location from code
+main_directory = '/home/ruitang/Astra_Ruitang_UIO/PyGEM_2023_Astra/Test_Tidewater/Test06_Sermeq/Output/'      # file path hack if data is in different location from code
 # Output directory
 output_filepath = main_directory + '/../Output/'
 #output_filepath = main_directory + '/../PyGEM-Test-Simple/Output/'
@@ -49,7 +49,7 @@ min_glac_area_km2 = 0                 # Filter for size of glaciers to include (
 include_landterm = False                # Switch to include land-terminating glaciers
 include_laketerm = False                # Switch to include lake-terminating glaciers
 include_tidewater = True               # Switch to include marine-terminating glaciers
-include_calving = True               # Switch to ignore calving and treat tidewater glaciers as land-terminating
+include_calving = False               # Switch to ignore calving and treat tidewater glaciers as land-terminating
 
 oggm_base_url = 'https://cluster.klima.uni-bremen.de/~oggm/gdirs/oggm_v1.6/L1-L2_files/elev_bands/'
 #oggm_base_url = 'https://cluster.klima.uni-bremen.de/~oggm/gdirs/oggm_v1.6/L1-L2_files/elev_bands/'
