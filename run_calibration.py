@@ -31,7 +31,7 @@ from pygem.oggm_compat import single_flowline_glacier_directory, single_flowline
 import pygem.pygem_modelsetup as modelsetup
 from pygem.shop import debris, mbdata, icethickness
 
-#from oggm import cfg
+from oggm import cfg
 #from oggm import graphics
 #from oggm import tasks
 #from oggm import utils
@@ -368,23 +368,30 @@ def main(list_packed_vars):
     
     # ===== LOOP THROUGH GLACIERS TO RUN CALIBRATION =====
     for glac in range(main_glac_rgi.shape[0]):
-        
+        print("glacier:",glac,"start")
         if debug or glac == 0 or glac == main_glac_rgi.shape[0]:
             print(gcm_name,':', main_glac_rgi.loc[main_glac_rgi.index.values[glac],'RGIId'])
 
         # Select subsets of data
         glacier_rgi_table = main_glac_rgi.loc[main_glac_rgi.index.values[glac], :]
         glacier_str = '{0:0.5f}'.format(glacier_rgi_table['RGIId_float'])
+        print("===== the study glaciers are:",glacier_str)
 
         # ===== Load glacier data: area (km2), ice thickness (m), width (km) =====        
         try:
+            print("start to try download the dataset")
+            print("pygem_prms.include_calving",pygem_prms.include_calving)
             if not glacier_rgi_table['TermType'] in [1,5] or not pygem_prms.include_calving:
+                print("Start single_flowline: download the data dir")
                 gdir = single_flowline_glacier_directory(glacier_str, logging_level=pygem_prms.logging_level)
                 gdir.is_tidewater = False
+                print("End single_flowline: already download the data dir")
             else:
                 # set reset=True to overwrite non-calving directory that may already exist
+                #print("Start single_flowline: download the data dir")
                 gdir = single_flowline_glacier_directory_with_calving(glacier_str, logging_level=pygem_prms.logging_level, 
                                                                       reset=False)
+                #print("End single_flowline: already download the data dir")
                 gdir.is_tidewater = True
                 
             fls = gdir.read_pickle('inversion_flowlines')
@@ -463,6 +470,7 @@ def main(list_packed_vars):
 
         except:
             fls = None
+            print("do not download the dataset, gdir")
             
         if debug:
             assert os.path.exists(gdir.get_filepath('mb_obs')), 'Mass balance data missing. Check dataset and column names'
@@ -2556,8 +2564,8 @@ if __name__ == '__main__':
     else:
         debug = False
 
-#    cfg.initialize()
-#    cfg.PARAMS['use_multiprocessing']  = False
+    cfg.initialize()
+    cfg.PARAMS['use_multiprocessing']  = False
 #    if not 'pygem_modelprms' in cfg.BASENAMES:
 #        cfg.BASENAMES['pygem_modelprms'] = ('pygem_modelprms.pkl', 'PyGEM model parameters')
 
