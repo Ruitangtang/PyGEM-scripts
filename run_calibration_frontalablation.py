@@ -202,7 +202,7 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
     output_df['mb_mwea_fa_asl_lost'] = 0
     print('********** main glacier rgi ********** is :',main_glac_rgi)
     for nglac in np.arange(main_glac_rgi.shape[0]):
-        
+        print("*********************** The",nglac,"glacier ***********************")  
         print('\n',main_glac_rgi.loc[main_glac_rgi.index.values[nglac],'RGIId'])
 #        if main_glac_rgi.loc[nglac,'RGIId'] in ['RGI60-09.00855']:
         
@@ -216,7 +216,7 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                                                               logging_level='DEBUG',
                                                               reset=reset_gdir)
         #logging_level='CRITICAL',                                                      )
-        print("type of gdir is",os.listdir(gdir.dir))
+        print("contents of gdir are",os.listdir(gdir.dir))
         print("**********single_flowline_glacier_directory_with_calving End**********")
         gdir.is_tidewater = True
         cfg.PARAMS['use_kcalving_for_inversion'] = True
@@ -263,9 +263,9 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                     modelprms_dict = pickle.load(f)
                 modelprms_em = modelprms_dict['emulator']
                 kp_value = modelprms_em['kp'][0]
-                print("the initial kp_value is:",kp_value)
+                print("the initial kp_value from the emulator is:",kp_value)
                 tbias_value = modelprms_em['tbias'][0]
-                print("the initial tbias value is:",tbias_value)
+                print("the initial tbias value from the emulator is:",tbias_value)
                 
             # Otherwise use input parameters
             if kp_value is None:
@@ -365,6 +365,7 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
             vmin, vmax = cfg.PARAMS['free_board_marine_terminating']
             water_level = utils.clip_scalar(0, th - vmax, th - vmin)
             print('at the moment water level is :',water_level)
+            print("------------------ after the thickness inversion with calving, run the dynamics ------------------")
             #%%
             ev_model = FluxBasedModel(nfls, y0=0, mb_model=mbmod, 
                                       glen_a=cfg.PARAMS['glen_a']*glen_a_multiplier, fs=fs,
@@ -373,7 +374,9 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                                       )
             
             try:
+                print("***********************do the dynamic running with calving***********************")
                 diag = ev_model.run_until_and_store(nyears)
+                print("the volume_3 in the diag is :",diag.volume_m3)
                 ev_model.mb_model.glac_wide_volume_annual[-1] = diag.volume_m3[-1]
                 ev_model.mb_model.glac_wide_area_annual[-1] = diag.area_m2[-1]
                 
@@ -384,8 +387,11 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
 #                    if debug:
 #                        print('\n\ndiag.calving_m3:', diag.calving_m3.values)
 #                        print('calving_m3_since_y0:', ev_model.calving_m3_since_y0)
+                    print("the calving in the diag is :",diag.calving_m3)
                     calving_m3_annual = ((diag.calving_m3.values[1:] - diag.calving_m3.values[0:-1]) * 
                                          pygem_prms.density_ice / pygem_prms.density_water)
+                    print("calving_m3_annual is:",calving_m3_annual)
+                    print("the frontalablation is updated totally :",calving_m3_annual.shape[0])
                     for n in np.arange(calving_m3_annual.shape[0]):
                         ev_model.mb_model.glac_wide_frontalablation[12*n+11] = calving_m3_annual[n]
 
@@ -555,7 +561,9 @@ def run_opt_fa(main_glac_rgi_ind, calving_k, calving_k_bndlow, calving_k_bndhigh
     calving_k_bndlow_hold = np.copy(calving_k_bndlow)
     
     if debug:
+        print("**************run_opt_fa**************")
         print('  fa_model_init [Gt/yr] :', np.round(reg_calving_gta_mod,4))
+        print (' fa_obs_data [Gt/yr]:',np.round(reg_calving_gta_obs,4))
         
     # ----- Rough optimizer using calving_k_step to loop through parameters within bounds ------
     calving_k_last = calving_k
@@ -583,10 +591,14 @@ def run_opt_fa(main_glac_rgi_ind, calving_k, calving_k_bndlow, calving_k_bndhigh
             reg_calving_gta_mod_last = reg_calving_gta_mod.copy()
             
             if debug:
-                print(' increase calving_k_step:', calving_k_step)
+                print(' the calving_k_step is:', calving_k_step)
+                print('percent threshold aggrement :',perc_threshold_agreement)
+                print('fa threshold is :',fa_threshold)
             
             # Increase calving k
             calving_k += calving_k_step
+            if debug:
+                print("the calving k now is (increased):",calving_k)
             
             if calving_k > calving_k_bndhigh:
                 calving_k = calving_k_bndhigh
@@ -599,7 +611,7 @@ def run_opt_fa(main_glac_rgi_ind, calving_k, calving_k_bndlow, calving_k_bndhigh
                                  ignore_nan=False, debug=debug_reg_calving_fxn,
                                  calc_mb_geo_correction=calc_mb_geo_correction))
             if debug:
-                print('  fa_data  [Gt/yr]:', np.round(reg_calving_gta_obs,4))
+                print('  fa_obs_data  [Gt/yr]:', np.round(reg_calving_gta_obs,4))
                 print('  fa_model [Gt/yr] :', np.round(reg_calving_gta_mod,4))    
         
         # Set lower bound
@@ -656,13 +668,13 @@ def run_opt_fa(main_glac_rgi_ind, calving_k, calving_k_bndlow, calving_k_bndhigh
         calving_k_bndhigh = calving_k_last
         reg_calving_gta_mod_bndhigh = reg_calving_gta_mod_last
         
-        print('bnds:', calving_k_bndlow, calving_k_bndhigh)
-        print('bnds gt/yr:', reg_calving_gta_mod_bndlow, reg_calving_gta_mod_bndhigh)
+        print('calving k bnds:', calving_k_bndlow, calving_k_bndhigh)
+        print('calving modeling bnds gt/yr:', reg_calving_gta_mod_bndlow, reg_calving_gta_mod_bndhigh)
 
     # ----- Optimize further using mid-point "bisection" method -----
     # Consider replacing with scipy.optimize.brent
     if not np.isnan(output_df.loc[0,'calving_flux_Gta']):
-        
+        print("do the Optimize further using mid-point 'bisection' method")
         # Check if upper bound causes good fit
         if (np.abs(reg_calving_gta_mod_bndhigh - reg_calving_gta_obs) / reg_calving_gta_obs < perc_threshold_agreement
             or np.abs(reg_calving_gta_mod_bndhigh - reg_calving_gta_obs) < fa_threshold):
@@ -1231,17 +1243,17 @@ if option_ind_calving_k:
             if not fa_glac_data_reg.loc[nglac,'RGIId'] == 'all' and len(fa_glac_data_reg.loc[nglac,'RGIId']) == 14:
                 fa_glac_data_reg.loc[nglac,'glacno'] = (str(int(rgiid.split('-')[1].split('.')[0])) + '.' + 
                                                         rgiid.split('-')[1].split('.')[1])
-        print('************01**********')
-        print(fa_glac_data_reg)
+        print('************01********** the regional FA data is ready')
+        print("the regional FA data is:",fa_glac_data_reg)
 
         # Drop observations that aren't of individual glaciers
         fa_glac_data_reg = fa_glac_data_reg.dropna(axis=0, subset=['glacno'])
         
         fa_glac_data_reg.reset_index(inplace=True, drop=True)
-        print('************02**********')
-        print(fa_glac_data_reg)
+        print('************02********** after drop the nan, the regional FA is ready')
+        print("after dropping the nan, the regional FA data is:",fa_glac_data_reg)
         reg_calving_gta_obs = fa_glac_data_reg[frontal_ablation_Gta_cn].sum()
-        print('************03**********')
+        print('************03********** the total observed calving is (GT/A) ')
         print('reg_calving_gta_obs is:',reg_calving_gta_obs)
         
         # Glacier numbers for model runs
@@ -1263,11 +1275,11 @@ if option_ind_calving_k:
         mb_clim_reg_3std = mb_clim_reg_avg + 3*mb_clim_reg_std
         mb_clim_reg_max = np.max(mb_data_reg.mb_mwea)
         mb_clim_reg_3std_min = mb_clim_reg_avg - 3*mb_clim_reg_std
-        print('mb_clim_reg_avg:', np.round(mb_clim_reg_avg,2), '+/-', np.round(mb_clim_reg_std,2))
-        print('mb_clim_3std (neg):', np.round(mb_clim_reg_3std_min,2))
-        print('mb_clim_3std (pos):', np.round(mb_clim_reg_3std,2))
-        print('mb_clim_min:', np.round(mb_data_reg.mb_mwea.min(),2))
-        print('mb_clim_max:', np.round(mb_clim_reg_max,2))
+        print('observed mb_clim_reg_avg:', np.round(mb_clim_reg_avg,2), '+/-', np.round(mb_clim_reg_std,2))
+        print('observed mb_clim_3std (neg):', np.round(mb_clim_reg_3std_min,2))
+        print('observed mb_clim_3std (pos):', np.round(mb_clim_reg_3std,2))
+        print('observed mb_clim_min:', np.round(mb_data_reg.mb_mwea.min(),2))
+        print('observed mb_clim_max:', np.round(mb_clim_reg_max,2))
             
         if not os.path.exists(output_fp + output_fn) or overwrite:
 
@@ -1337,7 +1349,7 @@ if option_ind_calving_k:
             
             # ---- FIRST ROUND CALIBRATION -----
             # ----- OPTIMIZE CALVING_K BASED ON INDIVIDUAL GLACIER FRONTAL ABLATION DATA -----
-            print("main glac_rgi ", np.arange(main_glac_rgi.shape[0]))
+            print("--------glaciers will be calibrated are--------", np.arange(main_glac_rgi.shape[0]))
             for nglac in np.arange(main_glac_rgi.shape[0]):
 
 #                if main_glac_rgi.loc[nglac,'RGIId'] in ['RGI60-03.00108']:
@@ -1354,10 +1366,9 @@ if option_ind_calving_k:
                     rgiid_ind = main_glac_rgi_ind.loc[0,'RGIId']
                     fa_glac_data_ind = fa_glac_data_reg.loc[fa_glac_data_reg.RGIId == rgiid_ind, :]
                     fa_glac_data_ind.reset_index(inplace=True, drop=True)
-                    
+                    print("============================ FIRST ROUND CALIBRATION for the glacier :", rgiid_ind," ============================")
                     # Update the data
                     fa_gta_max = output_df_all.loc[nglac,'fa_gta_max']
-                    print('**********fa_gta_max***************')
                     print('The glacier is:',rgiid_ind,'the max FA gta is:',fa_gta_max)
                     if fa_glac_data_ind.loc[0,frontal_ablation_Gta_cn] > fa_gta_max:
                         reg_calving_gta_obs = fa_gta_max
@@ -1435,14 +1446,14 @@ if option_ind_calving_k:
                                                           fa_glac_data_ind, frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
                                                           prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
                                                           ignore_nan=False, debug=debug_reg_calving_fxn)
-                        print("***************************calving_k********************************",calving_k)
+                        print("*************************** do the further optimization,calving_k********************************",calving_k)
                         calving_k_med = np.copy(calving_k)
                         output_df_all.loc[nglac,'calving_k'] = output_df.loc[0,'calving_k']
                         output_df_all.loc[nglac,'calving_thick'] = output_df.loc[0,'calving_thick']
                         output_df_all.loc[nglac,'calving_flux_Gta'] = output_df.loc[0,'calving_flux_Gta']
                         output_df_all.loc[nglac,'no_errors'] = output_df.loc[0,'no_errors']
                         output_df_all.loc[nglac,'oggm_dynamics'] = output_df.loc[0,'oggm_dynamics']
-                    
+                        print("after the further optimization, the output is:",output_df,"the corresponding calving_k is:",calving_k)
                         #%% ----- ADD UNCERTAINTY -----
                         # Upper uncertainty
                         print('\n\n----- upper uncertainty:')
@@ -1469,6 +1480,7 @@ if option_ind_calving_k:
                         if fa_gta_obs_low < 0:
                             calving_k_nmadlow = calving_k_med - abs(calving_k_nmadhigh - calving_k_med)
                             if debug:
+                                print("the fa gta obs low is <0 ")
                                 print('calving_k:', np.round(calving_k_nmadlow,2), 'fa_data low:', np.round(fa_gta_obs_low,4))
                         else:
                             fa_glac_data_ind_low.loc[0,'fa_gta_obs'] = fa_gta_obs_low
@@ -1490,7 +1502,7 @@ if option_ind_calving_k:
                     
                         # Final
                         if debug:
-                            print('----- final -----')
+                            print('----- final : after optimization of the FA-----')
                             print(rgiid, 'calving_k (med/high/low/nmad):', np.round(calving_k_med,2), 
                                   np.round(calving_k_nmadhigh,2), np.round(calving_k_nmadlow,2), np.round(calving_k_nmad,2))
                     
@@ -1519,7 +1531,7 @@ if option_ind_calving_k:
         if reg in [17]:
             output_df_all_good = output_df_all.loc[(output_df_all['calving_k'] < calving_k_bndhigh_set), :]
         else:
-            print('****************6***************')
+            print('****************6*************** view diagnostics of good glaicers and they are not in region 17')
             print('fa_gta_obs',output_df_all['fa_gta_obs'])
             print('fa_gta_max',output_df_all['fa_gta_max'])
             print('calving_k:',output_df_all['calving_k'])
@@ -1527,10 +1539,10 @@ if option_ind_calving_k:
                                                    (output_df_all['calving_k'] < calving_k_bndhigh_set), :]
         
         rgiids_good = list(output_df_all_good.RGIId)
-        print(rgiids_good)
+        print("the 'GOOD' glaciers are:",rgiids_good)
             
         calving_k_reg_mean = output_df_all_good.calving_k.mean()
-        print(' calving_k mean/med:', np.round(calving_k_reg_mean,2), 
+        print(' calving_k mean/med of the good galciers :', np.round(calving_k_reg_mean,2), 
                                       np.round(np.median(output_df_all_good.calving_k),2))
         
         output_df_all['calving_flux_Gta_rnd1'] = output_df_all['calving_flux_Gta'].copy()
@@ -2433,9 +2445,9 @@ if option_update_mb_data:
             mb_data.loc[mb_idx,'mb_mwea'] = fa_glac_data.loc[nglac,'mb_total_mwea']
             mb_data.loc[mb_idx,'mb_clim_mwea'] = fa_glac_data.loc[nglac,'mb_clim_mwea']
             
-            print(rgiid, 'mb_mwea:', np.round(mb_data.loc[mb_idx,'mb_mwea'],2), 
-                  'mb_clim:', np.round(mb_data.loc[mb_idx,'mb_clim_mwea'],2), 
-                  'mb_romain:', np.round(mb_data.loc[mb_idx,'mb_romain_mwea'],2))
+            print(rgiid, 'mb_mwea (the updated total mb):', np.round(mb_data.loc[mb_idx,'mb_mwea'],2), 
+                  'mb_clim (updated climate mb considering calving):', np.round(mb_data.loc[mb_idx,'mb_clim_mwea'],2), 
+                  'mb_romain (the initial mb obs):', np.round(mb_data.loc[mb_idx,'mb_romain_mwea'],2))
 
     # Export the updated dataset
     mb_data.to_csv(pygem_prms.hugonnet_fp + hugonnet_fn.replace('.csv','-facorrected.csv'), index=False)
