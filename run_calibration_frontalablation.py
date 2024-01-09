@@ -1658,6 +1658,7 @@ if option_ind_calving_k:
         rgiids_bndhigh = list(output_df_all.loc[output_df_all['calving_k'] == calving_k_bndhigh_set,'RGIId'].values)
         for nglac, rgiid in enumerate(output_df_all.RGIId):
             if rgiid in rgiids_bndhigh:
+                print(">>>>>>>>>>>> do the recalibration for the glaciers with the high calving k (calving_k_bndhigh) replaced by the median value of all good glaciers <<<<<<<<<<<<<")
                 # Estimate frontal ablation for poor glaciers extrapolated from good ones
                 main_glac_rgi_ind = main_glac_rgi.loc[main_glac_rgi.RGIId == rgiid,:]
                 main_glac_rgi_ind.reset_index(inplace=True, drop=True)
@@ -1681,7 +1682,7 @@ if option_ind_calving_k:
                 
         # ----- EXPORT MODEL RESULTS -----
         output_df_all.to_csv(output_fp + output_fn, index=False)
-        print('*****************The processing of glaciers with geodetic MB corrected for area asl losses finished********************')
+        print('*****************The processing of calibration calving_k and model calving of good glaciers is finished********************')
         
         #%% ----- PROCESS MISSING GLACIERS WHERE GEODETIC MB IS NOT CORRECTED FOR AREA ABOVE SEA LEVEL LOSSES
         if reg in [1,3,4,5,7,9,17]:
@@ -1696,13 +1697,13 @@ if option_ind_calving_k:
             rgiids_missing = [x for x in rgiids_all if x not in rgiids_processed]
             glac_no_missing = [x.split('-')[1] for x in rgiids_missing]
             main_glac_rgi_missing = modelsetup.selectglaciersrgitable(glac_no=glac_no_missing)
-            print('*****************Missing glacier********************')
-            print('main_glac_rgi_all',main_glac_rgi_all)
+            print('*****************Missing glacier (without observed FA data)********************')
+            print('main_glac_rgi_all in the RGI are',main_glac_rgi_all)
             print('rgiids_processed',rgiids_processed)
-            print('rgiids_all',rgiids_all)
-            print('rgiids_missing',rgiids_missing)
+            print('rgiids_all of glaciers in RGI',rgiids_all)
+            print('rgiids_missing IS ',rgiids_missing)
             print('glac_no_missing',glac_no_missing)
-            print('main_glac_rgi_missing',main_glac_rgi_missing)
+            print('the information of the missing glacier main_glac_rgi_missing',main_glac_rgi_missing)
             print('*************************************')
             
             print(reg, len(glac_no_missing), main_glac_rgi_missing.Area.sum(), glac_no_missing)

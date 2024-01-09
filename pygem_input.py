@@ -49,7 +49,7 @@ min_glac_area_km2 = 0                 # Filter for size of glaciers to include (
 include_landterm = False                # Switch to include land-terminating glaciers
 include_laketerm = False                # Switch to include lake-terminating glaciers
 include_tidewater = True               # Switch to include marine-terminating glaciers
-include_calving = False               # Switch to ignore calving and treat tidewater glaciers as land-terminating
+include_calving = True               # Switch to ignore calving and treat tidewater glaciers as land-terminating
 
 oggm_base_url = 'https://cluster.klima.uni-bremen.de/~oggm/gdirs/oggm_v1.6/L1-L2_files/elev_bands/'
 #oggm_base_url = 'https://cluster.klima.uni-bremen.de/~oggm/gdirs/oggm_v1.6/L1-L2_files/elev_bands/'
