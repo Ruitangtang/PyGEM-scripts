@@ -31,7 +31,7 @@ from pygem.oggm_compat import single_flowline_glacier_directory, single_flowline
 import pygem.pygem_modelsetup as modelsetup
 from pygem.shop import debris, mbdata, icethickness
 
-#from oggm import cfg
+from oggm import cfg
 #from oggm import graphics
 #from oggm import tasks
 #from oggm import utils
@@ -2556,8 +2556,8 @@ if __name__ == '__main__':
     else:
         debug = False
 
-#    cfg.initialize()
-#    cfg.PARAMS['use_multiprocessing']  = False
+    cfg.initialize()
+    cfg.PARAMS['use_multiprocessing']  = False
 #    if not 'pygem_modelprms' in cfg.BASENAMES:
 #        cfg.BASENAMES['pygem_modelprms'] = ('pygem_modelprms.pkl', 'PyGEM model parameters')
 
