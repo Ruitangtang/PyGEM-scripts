@@ -16,7 +16,8 @@ from pygem.utils._funcs_selectglaciers import get_same_glaciers, glac_num_fromra
 #%% ===== MODEL SETUP DIRECTORY =====
 #main_directory = os.getcwd()
 #main_directory = '/home/ruitang/Astra_Ruitang_UIO/PyGEM_2023_Astra/Test_Tidewater/Test_Kcalving_Single/Output/'      # file path hack if data is in different location from code
-main_directory = '/home/ruitang/Astra_Ruitang_UIO/PyGEM_2023_Astra/Test_Tidewater/Test_kcalving_Region/Output/'      # file path hack if data is in different location from code
+#main_directory = '/home/ruitang/Astra_Ruitang_UIO/PyGEM_2023_Astra/Test_Tidewater/Test_kcalving_Region/Output/'
+main_directory = '/home/ruitang/Astra_Ruitang_UIO/PyGEM_2023_Astra/Test_Tidewater/Test_Kcalving_2Tidewater/Output/'      # file path hack if data is in different location from code
 # Output directory
 output_filepath = main_directory + '/../Output/'
 model_run_date = datetime.today().strftime('%Y-%m-%d')
@@ -51,7 +52,7 @@ include_calving = True
 
 oggm_base_url = 'https://cluster.klima.uni-bremen.de/~oggm/gdirs/oggm_v1.6/L1-L2_files/elev_bands/'
 logging_level = 'DEBUG'             # DEBUG, INFO, WARNING, ERROR, WORKFLOW, CRITICAL (recommended WORKFLOW)
-oggm_border = 240                      # 10, 80, 160, 240 (recommend 240 if expecting glaciers for long runs where glaciers may grow)
+oggm_border = 160                      # 10, 80, 160, 240 (recommend 240 if expecting glaciers for long runs where glaciers may grow)
 
 #%% ===== CLIMATE DATA AND TIME PERIODS ===== 
 # Reference period runs (reference period refers to the calibration period)
@@ -66,7 +67,7 @@ if ref_spinupyears > 0:
 
 # GCM period used for simulation run 
 gcm_startyear = 2000                # first year of model run (simulation dataset)
-gcm_endyear = 2100                  # last year of model run (simulation dataset)
+gcm_endyear = 2019                  # last year of model run (simulation dataset)
 gcm_wateryear = 'calendar'          # options for years: 'calendar', 'hydro', 'custom'
 gcm_bc_startyear = 1981             # first year used for GCM bias correction
 gcm_spinupyears = 0                 # spin up years for simulation (output not set up for spinup years at present)
