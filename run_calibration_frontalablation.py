@@ -200,6 +200,7 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
     output_df['calving_flux_Gta'] = np.nan
     output_df['oggm_dynamics'] = 0
     output_df['mb_mwea_fa_asl_lost'] = 0
+    print('============================= run reg_calving_flux =============================')
     print('********** main glacier rgi ********** is :',main_glac_rgi)
     for nglac in np.arange(main_glac_rgi.shape[0]):
         print("*********************** The",nglac,"glacier ***********************")  
