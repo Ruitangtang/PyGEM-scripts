@@ -8,6 +8,7 @@ Calibrate frontal ablation parameters for tidewater glaciers
 import os
 import pickle
 import sys
+import traceback
 
 # External libraries
 import pandas as pd
@@ -50,12 +51,12 @@ overwrite = False
 output_fp = pygem_prms.main_directory + '/../calving_data/analysis/'
 
 option_merge_data = False        # Merge frontal ablation datasets and add mbclim data
-option_ind_calving_k = True    # Calibrate individual glaciers
+option_ind_calving_k = False    # Calibrate individual glaciers
 option_reg_calving_k = False    # Calibrate all glaciers regionally
 if option_reg_calving_k:
     drop_ind_glaciers = False # For region 9 decide if using individual glacier data or regional data
 option_merge_calving_k = False  # Merge all regions together
-option_update_mb_data = False   # Update gdirs with the new mass balance data
+option_update_mb_data = True   # Update gdirs with the new mass balance data
 option_plot_calving_k = False    # Plots of the calibration performance
 option_scrap = False             # Scrap calculations
 
@@ -393,8 +394,9 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                                          pygem_prms.density_ice / pygem_prms.density_water)
                     print("calving_m3_annual is:",calving_m3_annual)
                     print("the frontalablation is updated totally :",calving_m3_annual.shape[0])
+                    print(calving_m3_annual.shape[0],len(ev_model.mb_model.glac_wide_frontalablation))
                     for n in np.arange(calving_m3_annual.shape[0]):
-                        ev_model.mb_model.glac_wide_frontalablation[12*n+11] = calving_m3_annual[n]
+                        ev_model.mb_model.glac_wide_frontalablation[n] = calving_m3_annual[n]
 
                     # Glacier-wide total mass balance (m3 w.e.)
                     ev_model.mb_model.glac_wide_massbaltotal = (
@@ -435,6 +437,7 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                 if gdir.is_tidewater:
                     if debug:
                         print('OGGM dynamics failed, using mass redistribution curves')
+                        print(traceback.format_exc())
                                                     # Mass redistribution curves glacier dynamics model
                     ev_model = MassRedistributionCurveModel(
                                     nfls, mb_model=mbmod, y0=0,
@@ -1455,7 +1458,7 @@ if option_ind_calving_k:
                         output_df_all.loc[nglac,'no_errors'] = output_df.loc[0,'no_errors']
                         output_df_all.loc[nglac,'oggm_dynamics'] = output_df.loc[0,'oggm_dynamics']
                         print("after the further optimization, the output is:",output_df,"the corresponding calving_k is:",calving_k)
-                        #%% ----- ADD UNCERTAINTY -----
+                        # ----- ADD UNCERTAINTY -----
                         # Upper uncertainty
                         print('\n\n----- upper uncertainty:')
                         fa_glac_data_ind_high = fa_glac_data_ind.copy()
@@ -1686,160 +1689,203 @@ if option_ind_calving_k:
         print('*****************The processing of calibration calving_k and model calving of good glaciers is finished********************')
         
         #%% ----- PROCESS MISSING GLACIERS WHERE GEODETIC MB IS NOT CORRECTED FOR AREA ABOVE SEA LEVEL LOSSES
-        if reg in [1,3,4,5,7,9,17]:
+        if reg in [3,4,5,7,9,17]: # took out 1 for testing
+
+
             output_fn_missing = output_fn.replace('.csv','-missing.csv')
             
             main_glac_rgi_all = modelsetup.selectglaciersrgitable(rgi_regionsO1=[reg], rgi_regionsO2='all', 
                                                                   rgi_glac_number='all', 
                                                                   include_landterm=False, include_laketerm=False, 
                                                                   include_tidewater=True)
+            print(main_glac_rgi_all)
             rgiids_processed = list(output_df_all.RGIId)
             rgiids_all = list(main_glac_rgi_all.RGIId)
             rgiids_missing = [x for x in rgiids_all if x not in rgiids_processed]
             glac_no_missing = [x.split('-')[1] for x in rgiids_missing]
-            main_glac_rgi_missing = modelsetup.selectglaciersrgitable(glac_no=glac_no_missing)
-            print('*****************Missing glacier (without observed FA data)********************')
-            print('main_glac_rgi_all in the RGI are',main_glac_rgi_all)
-            print('rgiids_processed',rgiids_processed)
-            print('rgiids_all of glaciers in RGI',rgiids_all)
-            print('rgiids_missing IS ',rgiids_missing)
-            print('glac_no_missing',glac_no_missing)
-            print('the information of the missing glacier main_glac_rgi_missing',main_glac_rgi_missing)
-            print('*************************************')
-            
-            print(reg, len(glac_no_missing), main_glac_rgi_missing.Area.sum(), glac_no_missing)
-            
-            if not os.path.exists(output_fp + output_fn_missing) or overwrite:
-    
-                # Add regions for median subsets
-                output_df_all['O1Region'] = [int(x.split('-')[1].split('.')[0]) for x in output_df_all.RGIId]
+            try:
+                main_glac_rgi_missing = modelsetup.selectglaciersrgitable(glac_no=glac_no_missing)
+                flag_missing=1
+            except:
+                flag_missing=0
+                if debug:
+                    print(traceback.format_exc())
+            if flag_missing == 1:
+                print('*****************Missing glacier (without observed FA data)********************')
+                print('main_glac_rgi_all in the RGI are',main_glac_rgi_all)
+                print('rgiids_processed',rgiids_processed)
+                print('rgiids_all of glaciers in RGI',rgiids_all)
+                print('rgiids_missing IS ',rgiids_missing)
+                print('glac_no_missing',glac_no_missing)
+                print('the information of the missing glacier main_glac_rgi_missing',main_glac_rgi_missing)
+                print('*************************************')
                 
-                # Update mass balance data
-                output_df_missing = pd.DataFrame(np.zeros((len(rgiids_missing),len(output_df_all.columns))), columns=output_df_all.columns)
-                output_df_missing['RGIId'] = rgiids_missing
-                output_df_missing['fa_gta_obs'] = np.nan
-                rgi_area_dict = dict(zip(main_glac_rgi_missing.RGIId, main_glac_rgi_missing.Area))
-                output_df_missing['area_km2'] = output_df_missing['RGIId'].map(rgi_area_dict)
-                rgi_mbobs_dict = dict(zip(mb_data['RGIId'],mb_data['mb_mwea']))
-                output_df_missing['mb_clim_mwea_obs'] = output_df_missing['RGIId'].map(rgi_mbobs_dict)
-                output_df_missing['mb_clim_gta_obs'] = [mwea_to_gta(output_df_missing.loc[x,'mb_clim_mwea_obs'],
-                                                                    output_df_missing.loc[x,'area_km2']*1e6) for x in output_df_missing.index]
-                output_df_missing['mb_total_mwea_obs'] = output_df_missing['mb_clim_mwea_obs']
-                output_df_missing['mb_total_gta_obs'] = output_df_missing['mb_total_gta_obs']
-    
-                # Start with median value
-                calving_k_med = np.median(output_df_all.loc[output_df_all['O1Region']==reg,'calving_k'])
-                for nglac, rgiid in enumerate(rgiids_missing):
-                    
-#                    if rgiid in ['RGI60-01.21008']:
-                    for batman in [0]:
-                        main_glac_rgi_ind = modelsetup.selectglaciersrgitable(glac_no=[rgiid.split('-')[1]])
-                        # Estimate frontal ablation for missing glaciers
-                        output_df, reg_calving_gta_mod, reg_calving_gta_obs = (
-                                reg_calving_flux(main_glac_rgi_ind, calving_k_med, debug=True, calc_mb_geo_correction=True))
-                        
-                        # Adjust climatic mass balance to account for the losses due to frontal ablation
-                        #  add this loss because it'll come from frontal ablation instead of climatic mass balance
-                        mb_clim_fa_corrected = (output_df_missing.loc[nglac,'mb_clim_mwea_obs'] + 
-                                                output_df.loc[0,'mb_mwea_fa_asl_lost'])
-                        
-                        mb_clim_reg_95 = (mb_clim_reg_avg + 1.96*mb_clim_reg_std)
-    
-                        print('mb_clim (raw):', np.round(output_df_missing.loc[nglac,'mb_clim_mwea_obs'],2))
-                        print('mb_clim (fa_corrected):', np.round(mb_clim_fa_corrected,2))
-                        print('mb_clim (reg 95%):', np.round(mb_clim_reg_95,2))
-                        print('mb_total (95% min):', np.round(mb_clim_reg_3std_min,2))
-                        
-                        # Set nmad to median value - correct if value reduced
-#                        calving_k_nmad_missing = 1.4826*median_abs_deviation(output_df_all_good.calving_k)
-                        calving_k_nmad_missing = np.median(output_df_all_good.calving_k_nmad)
-                        output_df_missing.loc[nglac,'calving_k_nmad'] = calving_k_nmad_missing
-                        
-                        if mb_clim_fa_corrected < mb_clim_reg_95:
-                            for cn in ['calving_k', 'calving_thick', 'calving_flux_Gta', 'no_errors', 'oggm_dynamics']:
-                                output_df_missing.loc[nglac,cn] = output_df.loc[0,cn]
-                            output_df_missing.loc[nglac,'mb_clim_mwea'] = mb_clim_fa_corrected
-                            output_df_missing.loc[nglac,'mb_clim_gta'] = mwea_to_gta(output_df_missing.loc[nglac,'mb_clim_mwea'], 
-                                                                                     output_df_missing.loc[nglac,'area_km2']*1e6)
-                            output_df_missing.loc[nglac,'mb_total_gta'] = (output_df_missing.loc[nglac,'mb_clim_gta'] - 
-                                                                           output_df_missing.loc[nglac,'calving_flux_Gta'])
-                            output_df_missing.loc[nglac,'mb_total_mwea'] = gta_to_mwea(output_df_missing.loc[nglac,'mb_total_gta'], 
-                                                                                       output_df_missing.loc[nglac,'area_km2']*1e6)
-                        
-                        if mb_clim_fa_corrected > mb_clim_reg_95:
-                            
-                            # Calibrate frontal ablation based on fa_mwea_max
-                            #  i.e., the maximum frontal ablation that is consistent with reasonable mb_clim
-                            fa_mwea_max = mb_clim_reg_95 - output_df_missing.loc[nglac,'mb_clim_mwea_obs']
-                            
-                            # Reset bounds
-                            calving_k = calving_k_med
-                            calving_k_bndlow = np.copy(calving_k_bndlow_set)
-                            calving_k_bndhigh = np.copy(calving_k_bndhigh_set)
-                            calving_k_step = np.copy(calving_k_step_set)
-                            
-                            # Select individual glacier
-                            rgiid_ind = main_glac_rgi_ind.loc[0,'RGIId']
-                            fa_glac_data_ind = pd.DataFrame(np.zeros((1,len(fa_glac_data_reg.columns))), 
-                                                            columns=fa_glac_data_reg.columns)
-                            fa_glac_data_ind.loc[0,'RGIId'] = rgiid_ind
+                print(reg, len(glac_no_missing), main_glac_rgi_missing.Area.sum(), glac_no_missing)
+                
+                if not os.path.exists(output_fp + output_fn_missing) or overwrite:
         
-                            # Check bounds
-                            bndlow_good = True
-                            bndhigh_good = True
-                            try:
-                                output_df_bndhigh, reg_calving_gta_mod_bndhigh, reg_calving_gta_obs = (
-                                        reg_calving_flux(main_glac_rgi_ind, calving_k_bndhigh, fa_glac_data_reg=fa_glac_data_ind, 
-                                                         frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
-                                                         prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
-                                                         ignore_nan=False, debug=debug_reg_calving_fxn, calc_mb_geo_correction=True))
-                            except:
-                                bndhigh_good = False
-                                reg_calving_gta_mod_bndhigh = None
-            
-                            try:
-                                output_df_bndlow, reg_calving_gta_mod_bndlow, reg_calving_gta_obs = (
-                                        reg_calving_flux(main_glac_rgi_ind, calving_k_bndlow, fa_glac_data_reg=fa_glac_data_ind,
-                                                         frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
-                                                         prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
-                                                         ignore_nan=False, debug=debug_reg_calving_fxn, calc_mb_geo_correction=True))
-                            except:
-                                bndlow_good = False
-                                reg_calving_gta_mod_bndlow = None
-                                
-                            print('mb_mwea_fa_asl_lost_bndhigh:', output_df_bndhigh.loc[0,'mb_mwea_fa_asl_lost'])
-                            print('mb_mwea_fa_asl_lost_bndlow:', output_df_bndlow.loc[0,'mb_mwea_fa_asl_lost'])
-                  
-                            # Record bounds
-                            output_df_missing.loc[nglac,'calving_flux_Gta_bndlow'] = reg_calving_gta_mod_bndlow
-                            output_df_missing.loc[nglac,'calving_flux_Gta_bndhigh'] = reg_calving_gta_mod_bndhigh
+                    # Add regions for median subsets
+                    output_df_all['O1Region'] = [int(x.split('-')[1].split('.')[0]) for x in output_df_all.RGIId]
+                    
+                    # Update mass balance data
+                    output_df_missing = pd.DataFrame(np.zeros((len(rgiids_missing),len(output_df_all.columns))), columns=output_df_all.columns)
+                    output_df_missing['RGIId'] = rgiids_missing
+                    output_df_missing['fa_gta_obs'] = np.nan
+                    rgi_area_dict = dict(zip(main_glac_rgi_missing.RGIId, main_glac_rgi_missing.Area))
+                    output_df_missing['area_km2'] = output_df_missing['RGIId'].map(rgi_area_dict)
+                    rgi_mbobs_dict = dict(zip(mb_data['RGIId'],mb_data['mb_mwea']))
+                    output_df_missing['mb_clim_mwea_obs'] = output_df_missing['RGIId'].map(rgi_mbobs_dict)
+                    output_df_missing['mb_clim_gta_obs'] = [mwea_to_gta(output_df_missing.loc[x,'mb_clim_mwea_obs'],
+                                                                        output_df_missing.loc[x,'area_km2']*1e6) for x in output_df_missing.index]
+                    output_df_missing['mb_total_mwea_obs'] = output_df_missing['mb_clim_mwea_obs']
+                    output_df_missing['mb_total_gta_obs'] = output_df_missing['mb_total_gta_obs']
+        
+                    # Start with median value
+                    calving_k_med = np.median(output_df_all.loc[output_df_all['O1Region']==reg,'calving_k'])
+                    for nglac, rgiid in enumerate(rgiids_missing):
+                        
+    #                    if rgiid in ['RGI60-01.21008']:
+                        for batman in [0]:
+                            main_glac_rgi_ind = modelsetup.selectglaciersrgitable(glac_no=[rgiid.split('-')[1]])
+                            # Estimate frontal ablation for missing glaciers
+                            output_df, reg_calving_gta_mod, reg_calving_gta_obs = (
+                                    reg_calving_flux(main_glac_rgi_ind, calving_k_med, debug=True, calc_mb_geo_correction=True))
                             
-                            if debug:
-                                print('  fa_model_bndlow [Gt/yr] :', reg_calving_gta_mod_bndlow)
-                                print('  fa_model_bndhigh [Gt/yr] :', reg_calving_gta_mod_bndhigh)
+                            # Adjust climatic mass balance to account for the losses due to frontal ablation
+                            #  add this loss because it'll come from frontal ablation instead of climatic mass balance
+                            mb_clim_fa_corrected = (output_df_missing.loc[nglac,'mb_clim_mwea_obs'] + 
+                                                    output_df.loc[0,'mb_mwea_fa_asl_lost'])
+                            
+                            mb_clim_reg_95 = (mb_clim_reg_avg + 1.96*mb_clim_reg_std)
+        
+                            print('mb_clim (raw):', np.round(output_df_missing.loc[nglac,'mb_clim_mwea_obs'],2))
+                            print('mb_clim (fa_corrected):', np.round(mb_clim_fa_corrected,2))
+                            print('mb_clim (reg 95%):', np.round(mb_clim_reg_95,2))
+                            print('mb_total (95% min):', np.round(mb_clim_reg_3std_min,2))
+                            
+                            # Set nmad to median value - correct if value reduced
+    #                        calving_k_nmad_missing = 1.4826*median_abs_deviation(output_df_all_good.calving_k)
+                            calving_k_nmad_missing = np.median(output_df_all_good.calving_k_nmad)
+                            output_df_missing.loc[nglac,'calving_k_nmad'] = calving_k_nmad_missing
+                            
+                            if mb_clim_fa_corrected < mb_clim_reg_95:
+                                for cn in ['calving_k', 'calving_thick', 'calving_flux_Gta', 'no_errors', 'oggm_dynamics']:
+                                    output_df_missing.loc[nglac,cn] = output_df.loc[0,cn]
+                                output_df_missing.loc[nglac,'mb_clim_mwea'] = mb_clim_fa_corrected
+                                output_df_missing.loc[nglac,'mb_clim_gta'] = mwea_to_gta(output_df_missing.loc[nglac,'mb_clim_mwea'], 
+                                                                                        output_df_missing.loc[nglac,'area_km2']*1e6)
+                                output_df_missing.loc[nglac,'mb_total_gta'] = (output_df_missing.loc[nglac,'mb_clim_gta'] - 
+                                                                            output_df_missing.loc[nglac,'calving_flux_Gta'])
+                                output_df_missing.loc[nglac,'mb_total_mwea'] = gta_to_mwea(output_df_missing.loc[nglac,'mb_total_gta'], 
+                                                                                        output_df_missing.loc[nglac,'area_km2']*1e6)
+                            
+                            if mb_clim_fa_corrected > mb_clim_reg_95:
                                 
+                                # Calibrate frontal ablation based on fa_mwea_max
+                                #  i.e., the maximum frontal ablation that is consistent with reasonable mb_clim
+                                fa_mwea_max = mb_clim_reg_95 - output_df_missing.loc[nglac,'mb_clim_mwea_obs']
+                                
+                                # Reset bounds
+                                calving_k = calving_k_med
+                                calving_k_bndlow = np.copy(calving_k_bndlow_set)
+                                calving_k_bndhigh = np.copy(calving_k_bndhigh_set)
+                                calving_k_step = np.copy(calving_k_step_set)
+                                
+                                # Select individual glacier
+                                rgiid_ind = main_glac_rgi_ind.loc[0,'RGIId']
+                                fa_glac_data_ind = pd.DataFrame(np.zeros((1,len(fa_glac_data_reg.columns))), 
+                                                                columns=fa_glac_data_reg.columns)
+                                fa_glac_data_ind.loc[0,'RGIId'] = rgiid_ind
+            
+                                # Check bounds
+                                bndlow_good = True
+                                bndhigh_good = True
+                                try:
+                                    output_df_bndhigh, reg_calving_gta_mod_bndhigh, reg_calving_gta_obs = (
+                                            reg_calving_flux(main_glac_rgi_ind, calving_k_bndhigh, fa_glac_data_reg=fa_glac_data_ind, 
+                                                            frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
+                                                            prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
+                                                            ignore_nan=False, debug=debug_reg_calving_fxn, calc_mb_geo_correction=True))
+                                except:
+                                    bndhigh_good = False
+                                    reg_calving_gta_mod_bndhigh = None
+                
+                                try:
+                                    output_df_bndlow, reg_calving_gta_mod_bndlow, reg_calving_gta_obs = (
+                                            reg_calving_flux(main_glac_rgi_ind, calving_k_bndlow, fa_glac_data_reg=fa_glac_data_ind,
+                                                            frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
+                                                            prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
+                                                            ignore_nan=False, debug=debug_reg_calving_fxn, calc_mb_geo_correction=True))
+                                except:
+                                    bndlow_good = False
+                                    reg_calving_gta_mod_bndlow = None
                                     
-                            run_opt = True
-                            if fa_mwea_max > 0:
-                                if bndhigh_good and bndlow_good:
-                                    if fa_mwea_max < output_df_bndlow.loc[0,'mb_mwea_fa_asl_lost']:
-                                        # Adjust climatic mass balance to note account for the losses due to frontal ablation
-                                        mb_clim_fa_corrected = (output_df_missing.loc[nglac,'mb_clim_mwea_obs'] + 
-                                                                output_df_bndlow.loc[0,'mb_mwea_fa_asl_lost'])
-                                        # Record output
-                                        for cn in ['calving_k', 'calving_thick', 'calving_flux_Gta', 'no_errors', 'oggm_dynamics']:
-                                            output_df_missing.loc[nglac,cn] = output_df_bndlow.loc[0,cn]
-                                        output_df_missing.loc[nglac,'mb_clim_mwea'] = mb_clim_fa_corrected
-                                        output_df_missing.loc[nglac,'mb_clim_gta'] = mwea_to_gta(output_df_missing.loc[nglac,'mb_clim_mwea'], 
-                                                                                                 output_df_missing.loc[nglac,'area_km2']*1e6)
-                                        output_df_missing.loc[nglac,'mb_total_gta'] = (output_df_missing.loc[nglac,'mb_clim_gta'] - 
-                                                                                       output_df_missing.loc[nglac,'calving_flux_Gta'])
-                                        output_df_missing.loc[nglac,'mb_total_mwea'] = gta_to_mwea(output_df_missing.loc[nglac,'mb_total_gta'], 
-                                                                                                   output_df_missing.loc[nglac,'area_km2']*1e6)
+                                print('mb_mwea_fa_asl_lost_bndhigh:', output_df_bndhigh.loc[0,'mb_mwea_fa_asl_lost'])
+                                print('mb_mwea_fa_asl_lost_bndlow:', output_df_bndlow.loc[0,'mb_mwea_fa_asl_lost'])
+                    
+                                # Record bounds
+                                output_df_missing.loc[nglac,'calving_flux_Gta_bndlow'] = reg_calving_gta_mod_bndlow
+                                output_df_missing.loc[nglac,'calving_flux_Gta_bndhigh'] = reg_calving_gta_mod_bndhigh
+                                
+                                if debug:
+                                    print('  fa_model_bndlow [Gt/yr] :', reg_calving_gta_mod_bndlow)
+                                    print('  fa_model_bndhigh [Gt/yr] :', reg_calving_gta_mod_bndhigh)
+                                    
                                         
-                                        run_opt = False
-                                    
-                                    elif output_df_bndhigh.loc[0,'mb_mwea_fa_asl_lost'] == output_df_bndlow.loc[0,'mb_mwea_fa_asl_lost']:
+                                run_opt = True
+                                if fa_mwea_max > 0:
+                                    if bndhigh_good and bndlow_good:
+                                        if fa_mwea_max < output_df_bndlow.loc[0,'mb_mwea_fa_asl_lost']:
+                                            # Adjust climatic mass balance to note account for the losses due to frontal ablation
+                                            mb_clim_fa_corrected = (output_df_missing.loc[nglac,'mb_clim_mwea_obs'] + 
+                                                                    output_df_bndlow.loc[0,'mb_mwea_fa_asl_lost'])
+                                            # Record output
+                                            for cn in ['calving_k', 'calving_thick', 'calving_flux_Gta', 'no_errors', 'oggm_dynamics']:
+                                                output_df_missing.loc[nglac,cn] = output_df_bndlow.loc[0,cn]
+                                            output_df_missing.loc[nglac,'mb_clim_mwea'] = mb_clim_fa_corrected
+                                            output_df_missing.loc[nglac,'mb_clim_gta'] = mwea_to_gta(output_df_missing.loc[nglac,'mb_clim_mwea'], 
+                                                                                                    output_df_missing.loc[nglac,'area_km2']*1e6)
+                                            output_df_missing.loc[nglac,'mb_total_gta'] = (output_df_missing.loc[nglac,'mb_clim_gta'] - 
+                                                                                        output_df_missing.loc[nglac,'calving_flux_Gta'])
+                                            output_df_missing.loc[nglac,'mb_total_mwea'] = gta_to_mwea(output_df_missing.loc[nglac,'mb_total_gta'], 
+                                                                                                    output_df_missing.loc[nglac,'area_km2']*1e6)
+                                            
+                                            run_opt = False
+                                        
+                                        elif output_df_bndhigh.loc[0,'mb_mwea_fa_asl_lost'] == output_df_bndlow.loc[0,'mb_mwea_fa_asl_lost']:
+                                            # Adjust climatic mass balance to note account for the losses due to frontal ablation
+                                            mb_clim_fa_corrected = (output_df_missing.loc[nglac,'mb_clim_mwea_obs'] + 
+                                                                    output_df.loc[0,'mb_mwea_fa_asl_lost'])
+                                            # Record output
+                                            for cn in ['calving_k', 'calving_thick', 'calving_flux_Gta', 'no_errors', 'oggm_dynamics']:
+                                                output_df_missing.loc[nglac,cn] = output_df.loc[0,cn]
+                                            output_df_missing.loc[nglac,'mb_clim_mwea'] = mb_clim_fa_corrected
+                                            output_df_missing.loc[nglac,'mb_clim_gta'] = mwea_to_gta(output_df_missing.loc[nglac,'mb_clim_mwea'], 
+                                                                                                    output_df_missing.loc[nglac,'area_km2']*1e6)
+                                            output_df_missing.loc[nglac,'mb_total_gta'] = (output_df_missing.loc[nglac,'mb_clim_gta'] - 
+                                                                                        output_df_missing.loc[nglac,'calving_flux_Gta'])
+                                            output_df_missing.loc[nglac,'mb_total_mwea'] = gta_to_mwea(output_df_missing.loc[nglac,'mb_total_gta'], 
+                                                                                                    output_df_missing.loc[nglac,'area_km2']*1e6)
+                                            run_opt = False
+                                        
+                                    if run_opt:
+                #                        mb_clim_fa_corrected = (output_df_missing.loc[nglac,'mb_clim_mwea_obs'] + 
+                #                                                output_df.loc[0,'mb_mwea_fa_asl_lost'])
+                                        print('\n\n\n-------')
+                                        print('mb_clim_obs:', np.round(output_df_missing.loc[nglac,'mb_clim_mwea_obs'],2))
+                                        print('mb_clim_fa_corrected:', np.round(mb_clim_fa_corrected,2))
+                                        
+                                        calving_k_step_missing = (calving_k_med - calving_k_bndlow) / 20
+                                        calving_k_next = calving_k - calving_k_step_missing
+                                        while output_df.loc[0,'mb_mwea_fa_asl_lost'] > fa_mwea_max and calving_k_next > 0:
+                                            calving_k -= calving_k_step_missing
+                                            
+                                            # Estimate frontal ablation for missing glaciers
+                                            output_df, reg_calving_gta_mod, reg_calving_gta_obs = (
+                                                    reg_calving_flux(main_glac_rgi_ind, calving_k, debug=True, calc_mb_geo_correction=True))
+                                            
+                                            calving_k_next = calving_k - calving_k_step_missing
+                
                                         # Adjust climatic mass balance to note account for the losses due to frontal ablation
                                         mb_clim_fa_corrected = (output_df_missing.loc[nglac,'mb_clim_mwea_obs'] + 
                                                                 output_df.loc[0,'mb_mwea_fa_asl_lost'])
@@ -1848,23 +1894,21 @@ if option_ind_calving_k:
                                             output_df_missing.loc[nglac,cn] = output_df.loc[0,cn]
                                         output_df_missing.loc[nglac,'mb_clim_mwea'] = mb_clim_fa_corrected
                                         output_df_missing.loc[nglac,'mb_clim_gta'] = mwea_to_gta(output_df_missing.loc[nglac,'mb_clim_mwea'], 
-                                                                                                 output_df_missing.loc[nglac,'area_km2']*1e6)
+                                                                                                output_df_missing.loc[nglac,'area_km2']*1e6)
                                         output_df_missing.loc[nglac,'mb_total_gta'] = (output_df_missing.loc[nglac,'mb_clim_gta'] - 
-                                                                                       output_df_missing.loc[nglac,'calving_flux_Gta'])
+                                                                                    output_df_missing.loc[nglac,'calving_flux_Gta'])
                                         output_df_missing.loc[nglac,'mb_total_mwea'] = gta_to_mwea(output_df_missing.loc[nglac,'mb_total_gta'], 
-                                                                                                   output_df_missing.loc[nglac,'area_km2']*1e6)
-                                        run_opt = False
-                                     
-                                if run_opt:
-            #                        mb_clim_fa_corrected = (output_df_missing.loc[nglac,'mb_clim_mwea_obs'] + 
-            #                                                output_df.loc[0,'mb_mwea_fa_asl_lost'])
-                                    print('\n\n\n-------')
-                                    print('mb_clim_obs:', np.round(output_df_missing.loc[nglac,'mb_clim_mwea_obs'],2))
-                                    print('mb_clim_fa_corrected:', np.round(mb_clim_fa_corrected,2))
-                                    
+                                                                                                output_df_missing.loc[nglac,'area_km2']*1e6)     
+                                        
+                                        print('mb_clim_fa_corrected (updated):', np.round(mb_clim_fa_corrected,2))
+                                
+                                # If mass balance is higher than 95% threshold, then just make sure correction is reasonable (no more than 10%)
+                                else:
+                                    calving_k = calving_k_med
                                     calving_k_step_missing = (calving_k_med - calving_k_bndlow) / 20
                                     calving_k_next = calving_k - calving_k_step_missing
-                                    while output_df.loc[0,'mb_mwea_fa_asl_lost'] > fa_mwea_max and calving_k_next > 0:
+                                    while (output_df.loc[0,'mb_mwea_fa_asl_lost'] > 0.1*output_df_missing.loc[nglac,'mb_clim_mwea_obs'] and 
+                                        calving_k_next > 0):
                                         calving_k -= calving_k_step_missing
                                         
                                         # Estimate frontal ablation for missing glaciers
@@ -1881,54 +1925,23 @@ if option_ind_calving_k:
                                         output_df_missing.loc[nglac,cn] = output_df.loc[0,cn]
                                     output_df_missing.loc[nglac,'mb_clim_mwea'] = mb_clim_fa_corrected
                                     output_df_missing.loc[nglac,'mb_clim_gta'] = mwea_to_gta(output_df_missing.loc[nglac,'mb_clim_mwea'], 
-                                                                                             output_df_missing.loc[nglac,'area_km2']*1e6)
+                                                                                            output_df_missing.loc[nglac,'area_km2']*1e6)
                                     output_df_missing.loc[nglac,'mb_total_gta'] = (output_df_missing.loc[nglac,'mb_clim_gta'] - 
-                                                                                   output_df_missing.loc[nglac,'calving_flux_Gta'])
+                                                                                output_df_missing.loc[nglac,'calving_flux_Gta'])
                                     output_df_missing.loc[nglac,'mb_total_mwea'] = gta_to_mwea(output_df_missing.loc[nglac,'mb_total_gta'], 
-                                                                                               output_df_missing.loc[nglac,'area_km2']*1e6)     
+                                                                                            output_df_missing.loc[nglac,'area_km2']*1e6)       
                                     
                                     print('mb_clim_fa_corrected (updated):', np.round(mb_clim_fa_corrected,2))
-                            
-                            # If mass balance is higher than 95% threshold, then just make sure correction is reasonable (no more than 10%)
-                            else:
-                                calving_k = calving_k_med
-                                calving_k_step_missing = (calving_k_med - calving_k_bndlow) / 20
-                                calving_k_next = calving_k - calving_k_step_missing
-                                while (output_df.loc[0,'mb_mwea_fa_asl_lost'] > 0.1*output_df_missing.loc[nglac,'mb_clim_mwea_obs'] and 
-                                       calving_k_next > 0):
-                                    calving_k -= calving_k_step_missing
                                     
-                                    # Estimate frontal ablation for missing glaciers
-                                    output_df, reg_calving_gta_mod, reg_calving_gta_obs = (
-                                            reg_calving_flux(main_glac_rgi_ind, calving_k, debug=True, calc_mb_geo_correction=True))
                                     
-                                    calving_k_next = calving_k - calving_k_step_missing
-        
-                                # Adjust climatic mass balance to note account for the losses due to frontal ablation
-                                mb_clim_fa_corrected = (output_df_missing.loc[nglac,'mb_clim_mwea_obs'] + 
-                                                        output_df.loc[0,'mb_mwea_fa_asl_lost'])
-                                # Record output
-                                for cn in ['calving_k', 'calving_thick', 'calving_flux_Gta', 'no_errors', 'oggm_dynamics']:
-                                    output_df_missing.loc[nglac,cn] = output_df.loc[0,cn]
-                                output_df_missing.loc[nglac,'mb_clim_mwea'] = mb_clim_fa_corrected
-                                output_df_missing.loc[nglac,'mb_clim_gta'] = mwea_to_gta(output_df_missing.loc[nglac,'mb_clim_mwea'], 
-                                                                                         output_df_missing.loc[nglac,'area_km2']*1e6)
-                                output_df_missing.loc[nglac,'mb_total_gta'] = (output_df_missing.loc[nglac,'mb_clim_gta'] - 
-                                                                               output_df_missing.loc[nglac,'calving_flux_Gta'])
-                                output_df_missing.loc[nglac,'mb_total_mwea'] = gta_to_mwea(output_df_missing.loc[nglac,'mb_total_gta'], 
-                                                                                           output_df_missing.loc[nglac,'area_km2']*1e6)       
-                                
-                                print('mb_clim_fa_corrected (updated):', np.round(mb_clim_fa_corrected,2))
-                                
-                                
-                                # Adjust calving_k_nmad if calving_k is very low to avoid poor values
-                                if output_df_missing.loc[nglac,'calving_k'] < calving_k_nmad_missing:
-                                    output_df_missing.loc[nglac,'calving_k_nmad'] = output_df_missing.loc[nglac,'calving_k'] - calving_k_bndlow_set    
-          
-                # Export 
-                output_df_missing.to_csv(output_fp + output_fn_missing, index=False)
-            else:
-                output_df_missing = pd.read_csv(output_fp + output_fn_missing)
+                                    # Adjust calving_k_nmad if calving_k is very low to avoid poor values
+                                    if output_df_missing.loc[nglac,'calving_k'] < calving_k_nmad_missing:
+                                        output_df_missing.loc[nglac,'calving_k_nmad'] = output_df_missing.loc[nglac,'calving_k'] - calving_k_bndlow_set    
+            
+                    # Export 
+                    output_df_missing.to_csv(output_fp + output_fn_missing, index=False)
+                else:
+                    output_df_missing = pd.read_csv(output_fp + output_fn_missing)
             
         
         #%% ----- CORRECTION FOR TOTAL MASS BALANCE IN ANTARCTICA/SUBANTARCTIC -----
@@ -1961,207 +1974,215 @@ if option_ind_calving_k:
             rgiids_missing = [x for x in rgiids_all if x not in rgiids_processed]
             
             glac_no_missing = [x.split('-')[1] for x in rgiids_missing]
-            main_glac_rgi_missing = modelsetup.selectglaciersrgitable(glac_no=glac_no_missing)
+            #main_glac_rgi_missing = modelsetup.selectglaciersrgitable(glac_no=glac_no_missing)
+            try:
+                main_glac_rgi_missing = modelsetup.selectglaciersrgitable(glac_no=glac_no_missing)
+                flag_missing=1
+            except:
+                flag_missing=0
+                if debug:
+                    print(traceback.format_exc())
+            if flag_missing == 1:
             
-            print(reg, len(glac_no_missing), main_glac_rgi_missing.Area.sum(), glac_no_missing)
-            
-            if not os.path.exists(output_fp + output_fn_missing) or overwrite:
+                print(reg, len(glac_no_missing), main_glac_rgi_missing.Area.sum(), glac_no_missing)
                 
-                # Add regions for median subsets
-                output_df_all['O1Region'] = [int(x.split('-')[1].split('.')[0]) for x in output_df_all.RGIId]
-                
-                # Update mass balance data
-                output_df_missing = pd.DataFrame(np.zeros((len(rgiids_missing),len(output_df_all.columns))), columns=output_df_all.columns)
-                output_df_missing['RGIId'] = rgiids_missing
-                output_df_missing['fa_gta_obs'] = np.nan
-                rgi_area_dict = dict(zip(main_glac_rgi_missing.RGIId, main_glac_rgi_missing.Area))
-                output_df_missing['area_km2'] = output_df_missing['RGIId'].map(rgi_area_dict)
-                rgi_mbobs_dict = dict(zip(mb_data['RGIId'],mb_data['mb_mwea']))
-                output_df_missing['mb_clim_mwea_obs'] = output_df_missing['RGIId'].map(rgi_mbobs_dict)
-                output_df_missing['mb_clim_gta_obs'] = [mwea_to_gta(output_df_missing.loc[x,'mb_clim_mwea_obs'],
-                                                                    output_df_missing.loc[x,'area_km2']*1e6) for x in output_df_missing.index]
-                output_df_missing['mb_total_mwea_obs'] = output_df_missing['mb_clim_mwea_obs']
-                output_df_missing['mb_total_gta_obs'] = output_df_missing['mb_clim_gta_obs']
-                
-                # Uncertainty with calving_k based on regional calibration
-#                calving_k_nmad_missing = 1.4826 * median_abs_deviation(output_df_all.calving_k)
-                calving_k_nmad_missing = np.median(output_df_all_good.calving_k_nmad)
-                output_df_missing['calving_k_nmad'] = calving_k_nmad_missing
-                
-                # Check that climatic mass balance is reasonable
-                mb_clim_reg_95 = (mb_clim_reg_avg + 1.96*mb_clim_reg_std)
-                
-                # Start with median value
-                calving_k_med = np.median(output_df_all.loc[output_df_all['O1Region']==reg,'calving_k'])
-                for nglac, rgiid in enumerate(rgiids_missing):
+                if not os.path.exists(output_fp + output_fn_missing) or overwrite:
                     
-#                    if rgiid in ['RGI60-19.00227']:
-#                    if rgiid in ['RGI60-19.01721']:
-#                    glacno = rgiid.split('-')[1]
-#                    if glacno in ['19.01721', '19.00418', '19.00169', '19.00156', '19.00029', '19.00746', '19.00707', 
-#                                 '19.00748', '19.00113', '19.00562', '19.00160', '19.00432', '19.00417', '19.00103']:
-#                    if glacno in ['19.00707']:
-                    for batman in [0]:
-                        main_glac_rgi_ind = modelsetup.selectglaciersrgitable(glac_no=[rgiid.split('-')[1]])
-                        area_km2 = main_glac_rgi_ind.loc[0,'Area']
-                        # Estimate frontal ablation for missing glaciers
-                        output_df, reg_calving_gta_mod, reg_calving_gta_obs = (
-                                reg_calving_flux(main_glac_rgi_ind, calving_k_med, debug=True, calc_mb_geo_correction=True))
+                    # Add regions for median subsets
+                    output_df_all['O1Region'] = [int(x.split('-')[1].split('.')[0]) for x in output_df_all.RGIId]
+                    
+                    # Update mass balance data
+                    output_df_missing = pd.DataFrame(np.zeros((len(rgiids_missing),len(output_df_all.columns))), columns=output_df_all.columns)
+                    output_df_missing['RGIId'] = rgiids_missing
+                    output_df_missing['fa_gta_obs'] = np.nan
+                    rgi_area_dict = dict(zip(main_glac_rgi_missing.RGIId, main_glac_rgi_missing.Area))
+                    output_df_missing['area_km2'] = output_df_missing['RGIId'].map(rgi_area_dict)
+                    rgi_mbobs_dict = dict(zip(mb_data['RGIId'],mb_data['mb_mwea']))
+                    output_df_missing['mb_clim_mwea_obs'] = output_df_missing['RGIId'].map(rgi_mbobs_dict)
+                    output_df_missing['mb_clim_gta_obs'] = [mwea_to_gta(output_df_missing.loc[x,'mb_clim_mwea_obs'],
+                                                                        output_df_missing.loc[x,'area_km2']*1e6) for x in output_df_missing.index]
+                    output_df_missing['mb_total_mwea_obs'] = output_df_missing['mb_clim_mwea_obs']
+                    output_df_missing['mb_total_gta_obs'] = output_df_missing['mb_clim_gta_obs']
+                    
+                    # Uncertainty with calving_k based on regional calibration
+    #                calving_k_nmad_missing = 1.4826 * median_abs_deviation(output_df_all.calving_k)
+                    calving_k_nmad_missing = np.median(output_df_all_good.calving_k_nmad)
+                    output_df_missing['calving_k_nmad'] = calving_k_nmad_missing
+                    
+                    # Check that climatic mass balance is reasonable
+                    mb_clim_reg_95 = (mb_clim_reg_avg + 1.96*mb_clim_reg_std)
+                    
+                    # Start with median value
+                    calving_k_med = np.median(output_df_all.loc[output_df_all['O1Region']==reg,'calving_k'])
+                    for nglac, rgiid in enumerate(rgiids_missing):
                         
-                        # ASSUME THE TOTAL MASS BALANCE EQUALS THE GEODETIC MASS BALANCE CORRECTED FOR THE FA BELOW SEA LEVEL
-                        mb_total_mwea = output_df_missing.loc[nglac,'mb_total_mwea_obs']
-                        mb_fa_mwea = gta_to_mwea(output_df.loc[0,'calving_flux_Gta'], area_km2*1e6)
-                        mb_clim_mwea = mb_total_mwea + mb_fa_mwea
-                        
-                        print('mb_total_mwea:', np.round(mb_total_mwea,2))
-                        print('mb_clim_mwea:', np.round(mb_clim_mwea,2))
-                        print('mb_fa_mwea:', np.round(mb_fa_mwea,2))
-                        print('mb_clim (reg 95%):', np.round(mb_clim_reg_95,2))
-#                        print('mb_total (95% min):', np.round(mb_clim_reg_3std_min,2))                        
-                        
-                        if mb_clim_mwea < mb_clim_reg_95:
-                            for cn in ['calving_k', 'calving_thick', 'calving_flux_Gta', 'no_errors', 'oggm_dynamics']:
-                                output_df_missing.loc[nglac,cn] = output_df.loc[0,cn]
-                            output_df_missing.loc[nglac,'mb_clim_mwea'] = mb_clim_mwea
-                            output_df_missing.loc[nglac,'mb_clim_gta'] = mwea_to_gta(output_df_missing.loc[nglac,'mb_clim_mwea'], area_km2*1e6)
-                            output_df_missing.loc[nglac,'mb_total_mwea'] = mb_total_mwea 
-                            output_df_missing.loc[nglac,'mb_total_gta'] = mwea_to_gta(output_df_missing.loc[nglac,'mb_total_gta'], area_km2*1e6)
-                        else:
-
-                            # Calibrate frontal ablation based on fa_mwea_max
-                            #  i.e., the maximum frontal ablation that is consistent with reasonable mb_clim
-                            fa_mwea_max = mb_fa_mwea - (mb_clim_mwea - mb_clim_reg_95)
+    #                    if rgiid in ['RGI60-19.00227']:
+    #                    if rgiid in ['RGI60-19.01721']:
+    #                    glacno = rgiid.split('-')[1]
+    #                    if glacno in ['19.01721', '19.00418', '19.00169', '19.00156', '19.00029', '19.00746', '19.00707', 
+    #                                 '19.00748', '19.00113', '19.00562', '19.00160', '19.00432', '19.00417', '19.00103']:
+    #                    if glacno in ['19.00707']:
+                        for batman in [0]:
+                            main_glac_rgi_ind = modelsetup.selectglaciersrgitable(glac_no=[rgiid.split('-')[1]])
+                            area_km2 = main_glac_rgi_ind.loc[0,'Area']
+                            # Estimate frontal ablation for missing glaciers
+                            output_df, reg_calving_gta_mod, reg_calving_gta_obs = (
+                                    reg_calving_flux(main_glac_rgi_ind, calving_k_med, debug=True, calc_mb_geo_correction=True))
                             
-                            # If mb_clim_mwea is already greater than mb_clim_reg_95, then going to have this be positive
-                            #  therefore, correct it to only let it be 10% of the positive mb_total such that it stays "reasonable"
-                            if fa_mwea_max < 0:
-                                print('\n  too positive, limiting fa_mwea_max to 10% mb_total_mwea')
-                                fa_mwea_max = 0.1*mb_total_mwea
+                            # ASSUME THE TOTAL MASS BALANCE EQUALS THE GEODETIC MASS BALANCE CORRECTED FOR THE FA BELOW SEA LEVEL
+                            mb_total_mwea = output_df_missing.loc[nglac,'mb_total_mwea_obs']
+                            mb_fa_mwea = gta_to_mwea(output_df.loc[0,'calving_flux_Gta'], area_km2*1e6)
+                            mb_clim_mwea = mb_total_mwea + mb_fa_mwea
                             
-                            # Reset bounds
-                            calving_k = np.copy(calving_k_med)
-                            calving_k_bndlow = np.copy(calving_k_bndlow_set)
-                            calving_k_bndhigh = np.copy(calving_k_bndhigh_set)
-                            calving_k_step = np.copy(calving_k_step_set)
+                            print('mb_total_mwea:', np.round(mb_total_mwea,2))
+                            print('mb_clim_mwea:', np.round(mb_clim_mwea,2))
+                            print('mb_fa_mwea:', np.round(mb_fa_mwea,2))
+                            print('mb_clim (reg 95%):', np.round(mb_clim_reg_95,2))
+    #                        print('mb_total (95% min):', np.round(mb_clim_reg_3std_min,2))                        
                             
-                            # Select individual glacier
-                            rgiid_ind = main_glac_rgi_ind.loc[0,'RGIId']
-                            fa_glac_data_ind = pd.DataFrame(np.zeros((1,len(fa_glac_data_reg.columns))), 
-                                                            columns=fa_glac_data_reg.columns)
-                            fa_glac_data_ind.loc[0,'RGIId'] = rgiid_ind
-        
-                            # Check bounds
-                            bndlow_good = True
-                            bndhigh_good = True
-                            try:
-                                output_df_bndhigh, reg_calving_gta_mod_bndhigh, reg_calving_gta_obs = (
-                                        reg_calving_flux(main_glac_rgi_ind, calving_k_bndhigh, fa_glac_data_reg=fa_glac_data_ind, 
-                                                         frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
-                                                         prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
-                                                         ignore_nan=False, debug=debug_reg_calving_fxn, calc_mb_geo_correction=True))
-                            except:
-                                bndhigh_good = False
-                                reg_calving_gta_mod_bndhigh = None
-            
-                            try:
-                                output_df_bndlow, reg_calving_gta_mod_bndlow, reg_calving_gta_obs = (
-                                        reg_calving_flux(main_glac_rgi_ind, calving_k_bndlow, fa_glac_data_reg=fa_glac_data_ind,
-                                                         frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
-                                                         prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
-                                                         ignore_nan=False, debug=debug_reg_calving_fxn, calc_mb_geo_correction=True))
-                            except:
-                                bndlow_good = False
-                                reg_calving_gta_mod_bndlow = None
-                                
-                            # Record bounds
-                            output_df_missing.loc[nglac,'calving_flux_Gta_bndlow'] = reg_calving_gta_mod_bndlow
-                            output_df_missing.loc[nglac,'calving_flux_Gta_bndhigh'] = reg_calving_gta_mod_bndhigh
-                            
-                            if debug:
-                                print('  fa_model_bndlow [mwea] :', np.round(gta_to_mwea(reg_calving_gta_mod_bndlow, area_km2*1e6),2))
-                                print('  fa_model_bndhigh [mwea] :', np.round(gta_to_mwea(reg_calving_gta_mod_bndhigh,area_km2*1e6),2))
-                                print('  fa_mwea_cal [mwea]:', np.round(fa_mwea_max,2))
-                                 
-                            if bndhigh_good and bndlow_good:
-
-                                print('\n-------')
-                                print('mb_clim_mwea:', np.round(mb_clim_mwea,2))
-
-                                calving_k_step_missing = (calving_k_med - calving_k_bndlow) / 20
-                                calving_k_next = calving_k - calving_k_step_missing
-                                ncount = 0
-                                while mb_fa_mwea > fa_mwea_max and calving_k_next > 0:
-                                    calving_k -= calving_k_step_missing
-                                    
-                                    if ncount == 0:
-                                        reset_gdir=True
-                                    else:
-                                        reset_gdir=False
-                                    # Estimate frontal ablation for missing glaciers
-                                    output_df, reg_calving_gta_mod, reg_calving_gta_obs = (
-                                            reg_calving_flux(main_glac_rgi_ind, calving_k, debug=True, calc_mb_geo_correction=True,
-                                                             reset_gdir=reset_gdir))
-                                    
-                                    mb_fa_mwea = gta_to_mwea(output_df.loc[0,'calving_flux_Gta'],  area_km2*1e6)
-                                    
-                                    calving_k_next = calving_k - calving_k_step_missing
-                                    
-                                    print(calving_k, 'mb_fa_mwea:', np.round(mb_fa_mwea,2), 'mb_fa_mwea_max:', np.round(fa_mwea_max,2))
-                                    
-                                # Record output
-                                for cn in ['calving_k', 'calving_thick', 'calving_flux_Gta', 'no_errors', 'oggm_dynamics']:
-                                    output_df_missing.loc[nglac,cn] = output_df.loc[0,cn]
-                                
-                                mb_clim_mwea = mb_total_mwea + mb_fa_mwea
-                                
-                                print('mb_total_mwea:', np.round(mb_total_mwea,2))
-                                print('mb_clim_mwea:', np.round(mb_clim_mwea,2))
-                                print('mb_fa_mwea:', np.round(mb_fa_mwea,2))
-                                print('mb_clim (reg 95%):', np.round(mb_clim_reg_95,2))
-
+                            if mb_clim_mwea < mb_clim_reg_95:
                                 for cn in ['calving_k', 'calving_thick', 'calving_flux_Gta', 'no_errors', 'oggm_dynamics']:
                                     output_df_missing.loc[nglac,cn] = output_df.loc[0,cn]
                                 output_df_missing.loc[nglac,'mb_clim_mwea'] = mb_clim_mwea
                                 output_df_missing.loc[nglac,'mb_clim_gta'] = mwea_to_gta(output_df_missing.loc[nglac,'mb_clim_mwea'], area_km2*1e6)
                                 output_df_missing.loc[nglac,'mb_total_mwea'] = mb_total_mwea 
-                                output_df_missing.loc[nglac,'mb_total_gta'] = mwea_to_gta(output_df_missing.loc[nglac,'mb_total_mwea'], area_km2*1e6)
+                                output_df_missing.loc[nglac,'mb_total_gta'] = mwea_to_gta(output_df_missing.loc[nglac,'mb_total_gta'], area_km2*1e6)
+                            else:
 
-                        # Adjust calving_k_nmad if calving_k is very low to avoid poor values
-                        if output_df_missing.loc[nglac,'calving_k'] < calving_k_nmad_missing:
-                            output_df_missing.loc[nglac,'calving_k_nmad'] = output_df_missing.loc[nglac,'calving_k'] - calving_k_bndlow_set  
+                                # Calibrate frontal ablation based on fa_mwea_max
+                                #  i.e., the maximum frontal ablation that is consistent with reasonable mb_clim
+                                fa_mwea_max = mb_fa_mwea - (mb_clim_mwea - mb_clim_reg_95)
                                 
-#                        # Check uncertainty based on NMAD
-#                        calving_k_plusnmad = calving_k_med + calving_k_nmad
-#                        output_df, reg_calving_gta_mod, reg_calving_gta_obs = (
-#                                reg_calving_flux(main_glac_rgi_ind, calving_k_plusnmad, debug=True, calc_mb_geo_correction=True))
-#                        mb_fa_mwea = gta_to_mwea(output_df.loc[0,'calving_flux_Gta'],  area_km2*1e6)
-#                        print('mb_fa_mwea (calving_k + nmad):', np.round(mb_fa_mwea,2))
-#                        
-#                        calving_k_minusnmad = calving_k_med - calving_k_nmad
-#                        output_df, reg_calving_gta_mod, reg_calving_gta_obs = (
-#                                reg_calving_flux(main_glac_rgi_ind, calving_k_minusnmad, debug=True, calc_mb_geo_correction=True))
-#                        mb_fa_mwea = gta_to_mwea(output_df.loc[0,'calving_flux_Gta'],  area_km2*1e6)
-#                        print('mb_fa_mwea (calving_k - nmad):', np.round(mb_fa_mwea,2))
+                                # If mb_clim_mwea is already greater than mb_clim_reg_95, then going to have this be positive
+                                #  therefore, correct it to only let it be 10% of the positive mb_total such that it stays "reasonable"
+                                if fa_mwea_max < 0:
+                                    print('\n  too positive, limiting fa_mwea_max to 10% mb_total_mwea')
+                                    fa_mwea_max = 0.1*mb_total_mwea
+                                
+                                # Reset bounds
+                                calving_k = np.copy(calving_k_med)
+                                calving_k_bndlow = np.copy(calving_k_bndlow_set)
+                                calving_k_bndhigh = np.copy(calving_k_bndhigh_set)
+                                calving_k_step = np.copy(calving_k_step_set)
+                                
+                                # Select individual glacier
+                                rgiid_ind = main_glac_rgi_ind.loc[0,'RGIId']
+                                fa_glac_data_ind = pd.DataFrame(np.zeros((1,len(fa_glac_data_reg.columns))), 
+                                                                columns=fa_glac_data_reg.columns)
+                                fa_glac_data_ind.loc[0,'RGIId'] = rgiid_ind
+            
+                                # Check bounds
+                                bndlow_good = True
+                                bndhigh_good = True
+                                try:
+                                    output_df_bndhigh, reg_calving_gta_mod_bndhigh, reg_calving_gta_obs = (
+                                            reg_calving_flux(main_glac_rgi_ind, calving_k_bndhigh, fa_glac_data_reg=fa_glac_data_ind, 
+                                                            frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
+                                                            prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
+                                                            ignore_nan=False, debug=debug_reg_calving_fxn, calc_mb_geo_correction=True))
+                                except:
+                                    bndhigh_good = False
+                                    reg_calving_gta_mod_bndhigh = None
+                
+                                try:
+                                    output_df_bndlow, reg_calving_gta_mod_bndlow, reg_calving_gta_obs = (
+                                            reg_calving_flux(main_glac_rgi_ind, calving_k_bndlow, fa_glac_data_reg=fa_glac_data_ind,
+                                                            frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
+                                                            prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
+                                                            ignore_nan=False, debug=debug_reg_calving_fxn, calc_mb_geo_correction=True))
+                                except:
+                                    bndlow_good = False
+                                    reg_calving_gta_mod_bndlow = None
+                                    
+                                # Record bounds
+                                output_df_missing.loc[nglac,'calving_flux_Gta_bndlow'] = reg_calving_gta_mod_bndlow
+                                output_df_missing.loc[nglac,'calving_flux_Gta_bndhigh'] = reg_calving_gta_mod_bndhigh
+                                
+                                if debug:
+                                    print('  fa_model_bndlow [mwea] :', np.round(gta_to_mwea(reg_calving_gta_mod_bndlow, area_km2*1e6),2))
+                                    print('  fa_model_bndhigh [mwea] :', np.round(gta_to_mwea(reg_calving_gta_mod_bndhigh,area_km2*1e6),2))
+                                    print('  fa_mwea_cal [mwea]:', np.round(fa_mwea_max,2))
+                                    
+                                if bndhigh_good and bndlow_good:
 
-#                        calving_k_values = [0.001, 0.01, 0.1, 0.15, 0.18, 0.2, 0.25, 0.3, 0.35]
-#                        mb_fa_mwea_list = []
-#                        for calving_k in calving_k_values:
-#                            output_df, reg_calving_gta_mod, reg_calving_gta_obs = (
-#                                reg_calving_flux(main_glac_rgi_ind, calving_k, debug=True, calc_mb_geo_correction=True))
-#                            mb_fa_mwea = gta_to_mwea(output_df.loc[0,'calving_flux_Gta'],  area_km2*1e6)
-#                            mb_fa_mwea_list.append(mb_fa_mwea)
-#                            print(calving_k, 'mb_fa_mwea (calving_k - nmad):', np.round(mb_fa_mwea,2))
-#                        # Set up your plot (and/or subplots)
-#                        fig, ax = plt.subplots(1, 1, squeeze=False, sharex=False, sharey=False, gridspec_kw = {'wspace':0.4, 'hspace':0.15})
-#                        ax[0,0].scatter(calving_k_values, mb_fa_mwea_list, color='k', linewidth=1, zorder=2, label='plot1')
-#                        ax[0,0].set_xlabel('calving_k', size=12)     
-#                        ax[0,0].set_ylabel('mb_fa_mwea', size=12)
-#                        plt.show()
+                                    print('\n-------')
+                                    print('mb_clim_mwea:', np.round(mb_clim_mwea,2))
 
-                # Export 
-                output_df_missing.to_csv(output_fp + output_fn_missing, index=False)
-            else:
-                output_df_missing = pd.read_csv(output_fp + output_fn_missing)
+                                    calving_k_step_missing = (calving_k_med - calving_k_bndlow) / 20
+                                    calving_k_next = calving_k - calving_k_step_missing
+                                    ncount = 0
+                                    while mb_fa_mwea > fa_mwea_max and calving_k_next > 0:
+                                        calving_k -= calving_k_step_missing
+                                        
+                                        if ncount == 0:
+                                            reset_gdir=True
+                                        else:
+                                            reset_gdir=False
+                                        # Estimate frontal ablation for missing glaciers
+                                        output_df, reg_calving_gta_mod, reg_calving_gta_obs = (
+                                                reg_calving_flux(main_glac_rgi_ind, calving_k, debug=True, calc_mb_geo_correction=True,
+                                                                reset_gdir=reset_gdir))
+                                        
+                                        mb_fa_mwea = gta_to_mwea(output_df.loc[0,'calving_flux_Gta'],  area_km2*1e6)
+                                        
+                                        calving_k_next = calving_k - calving_k_step_missing
+                                        
+                                        print(calving_k, 'mb_fa_mwea:', np.round(mb_fa_mwea,2), 'mb_fa_mwea_max:', np.round(fa_mwea_max,2))
+                                        
+                                    # Record output
+                                    for cn in ['calving_k', 'calving_thick', 'calving_flux_Gta', 'no_errors', 'oggm_dynamics']:
+                                        output_df_missing.loc[nglac,cn] = output_df.loc[0,cn]
+                                    
+                                    mb_clim_mwea = mb_total_mwea + mb_fa_mwea
+                                    
+                                    print('mb_total_mwea:', np.round(mb_total_mwea,2))
+                                    print('mb_clim_mwea:', np.round(mb_clim_mwea,2))
+                                    print('mb_fa_mwea:', np.round(mb_fa_mwea,2))
+                                    print('mb_clim (reg 95%):', np.round(mb_clim_reg_95,2))
+
+                                    for cn in ['calving_k', 'calving_thick', 'calving_flux_Gta', 'no_errors', 'oggm_dynamics']:
+                                        output_df_missing.loc[nglac,cn] = output_df.loc[0,cn]
+                                    output_df_missing.loc[nglac,'mb_clim_mwea'] = mb_clim_mwea
+                                    output_df_missing.loc[nglac,'mb_clim_gta'] = mwea_to_gta(output_df_missing.loc[nglac,'mb_clim_mwea'], area_km2*1e6)
+                                    output_df_missing.loc[nglac,'mb_total_mwea'] = mb_total_mwea 
+                                    output_df_missing.loc[nglac,'mb_total_gta'] = mwea_to_gta(output_df_missing.loc[nglac,'mb_total_mwea'], area_km2*1e6)
+
+                            # Adjust calving_k_nmad if calving_k is very low to avoid poor values
+                            if output_df_missing.loc[nglac,'calving_k'] < calving_k_nmad_missing:
+                                output_df_missing.loc[nglac,'calving_k_nmad'] = output_df_missing.loc[nglac,'calving_k'] - calving_k_bndlow_set  
+                                    
+    #                        # Check uncertainty based on NMAD
+    #                        calving_k_plusnmad = calving_k_med + calving_k_nmad
+    #                        output_df, reg_calving_gta_mod, reg_calving_gta_obs = (
+    #                                reg_calving_flux(main_glac_rgi_ind, calving_k_plusnmad, debug=True, calc_mb_geo_correction=True))
+    #                        mb_fa_mwea = gta_to_mwea(output_df.loc[0,'calving_flux_Gta'],  area_km2*1e6)
+    #                        print('mb_fa_mwea (calving_k + nmad):', np.round(mb_fa_mwea,2))
+    #                        
+    #                        calving_k_minusnmad = calving_k_med - calving_k_nmad
+    #                        output_df, reg_calving_gta_mod, reg_calving_gta_obs = (
+    #                                reg_calving_flux(main_glac_rgi_ind, calving_k_minusnmad, debug=True, calc_mb_geo_correction=True))
+    #                        mb_fa_mwea = gta_to_mwea(output_df.loc[0,'calving_flux_Gta'],  area_km2*1e6)
+    #                        print('mb_fa_mwea (calving_k - nmad):', np.round(mb_fa_mwea,2))
+
+    #                        calving_k_values = [0.001, 0.01, 0.1, 0.15, 0.18, 0.2, 0.25, 0.3, 0.35]
+    #                        mb_fa_mwea_list = []
+    #                        for calving_k in calving_k_values:
+    #                            output_df, reg_calving_gta_mod, reg_calving_gta_obs = (
+    #                                reg_calving_flux(main_glac_rgi_ind, calving_k, debug=True, calc_mb_geo_correction=True))
+    #                            mb_fa_mwea = gta_to_mwea(output_df.loc[0,'calving_flux_Gta'],  area_km2*1e6)
+    #                            mb_fa_mwea_list.append(mb_fa_mwea)
+    #                            print(calving_k, 'mb_fa_mwea (calving_k - nmad):', np.round(mb_fa_mwea,2))
+    #                        # Set up your plot (and/or subplots)
+    #                        fig, ax = plt.subplots(1, 1, squeeze=False, sharex=False, sharey=False, gridspec_kw = {'wspace':0.4, 'hspace':0.15})
+    #                        ax[0,0].scatter(calving_k_values, mb_fa_mwea_list, color='k', linewidth=1, zorder=2, label='plot1')
+    #                        ax[0,0].set_xlabel('calving_k', size=12)     
+    #                        ax[0,0].set_ylabel('mb_fa_mwea', size=12)
+    #                        plt.show()
+
+                    # Export 
+                    output_df_missing.to_csv(output_fp + output_fn_missing, index=False)
+                else:
+                    output_df_missing = pd.read_csv(output_fp + output_fn_missing)
 
         #%% ----- CORRECTION FOR TOTAL MASS BALANCE IN ANTARCTICA/SUBANTARCTIC  (OLD)-----
 #        #  only apply in this region because poorer data quality (i.e., few observations)
