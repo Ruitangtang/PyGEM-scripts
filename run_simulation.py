@@ -1756,11 +1756,11 @@ def main(list_packed_vars):
                             #%% Dynamic running step
                             # if the dynamic step is monthly, the volume is monthly, need to be calculated as annual
                             Dynamic_step_Monthly =True
-                            if Dynamic_step_Monthly :
-                                mb_mwea_diag = ((diag.volume_m3.values[-1] - diag.volume_m3.values[0]) 
-                                                / area_initial / nyears/12 * pygem_prms.density_ice / pygem_prms.density_water)
-                            else:
-                                mb_mwea_diag = ((diag.volume_m3.values[-1] - diag.volume_m3.values[0]) 
+                            # if Dynamic_step_Monthly :
+                            #     mb_mwea_diag = ((diag.volume_m3.values[-1] - diag.volume_m3.values[0]) 
+                            #                     / area_initial / nyears/12 * pygem_prms.density_ice / pygem_prms.density_water)
+                            # else:
+                            mb_mwea_diag = ((diag.volume_m3.values[-1] - diag.volume_m3.values[0]) 
                                                 / area_initial / nyears * pygem_prms.density_ice / pygem_prms.density_water)
                             #%%                            
                             mb_mwea_mbmod = mbmod.glac_wide_massbaltotal.sum() / area_initial / nyears
@@ -1813,9 +1813,9 @@ def main(list_packed_vars):
                             Dynamic_step_Monthly =True
                             try:
                                 if Dynamic_step_Monthly:
-                                    area_m2_annual = (((diag.area_m2.values[:-1]).reshape(-1,12))[:,-1]).flatten()
-                                    volume_m3_annual =(((diag.volume_m3.values[:-1]).reshape(-1,12))[:,-1]).flatten()
-                                    volume_bsl_annual = (((diag.volume_bsl_m3.values[:-1]).reshape(-1,12))[:,-1]).flatten()
+                                    area_m2_annual = (((diag.area_m2.values[:-1]).reshape(-1,12))[:,0]).flatten()
+                                    volume_m3_annual =(((diag.volume_m3.values[:-1]).reshape(-1,12))[:,0]).flatten()
+                                    volume_bsl_annual = (((diag.volume_bsl_m3.values[:-1]).reshape(-1,12))[:,0]).flatten()
 
                                     output_glac_area_annual[:, n_iter] =np.append(area_m2_annual,diag.area_m2.values[-1])
                                     output_glac_mass_annual[:, n_iter] = (np.append(volume_m3_annual,diag.volume_m3.values[-1]))* pygem_prms.density_ice
