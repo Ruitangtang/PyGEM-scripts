@@ -390,7 +390,7 @@ def main(list_packed_vars):
                 # set reset=True to overwrite non-calving directory that may already exist
                 #print("Start single_flowline: download the data dir")
                 gdir = single_flowline_glacier_directory_with_calving(glacier_str, logging_level=pygem_prms.logging_level, 
-                                                                      reset=False)
+                                                                      reset=True)
                 #print("End single_flowline: already download the data dir")
                 gdir.is_tidewater = True
                 
