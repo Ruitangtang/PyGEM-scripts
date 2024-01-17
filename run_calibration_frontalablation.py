@@ -46,17 +46,17 @@ else:
 #regions = [1,3,4,5,7,9,17,19]
 regions = [1]
 
-overwrite = False
+overwrite = True
 #output_fp = pygem_prms.main_directory + '/../calving_data/analysis_sermeq/'
 output_fp = pygem_prms.main_directory + '/../calving_data/analysis/'
 
 option_merge_data = False        # Merge frontal ablation datasets and add mbclim data
-option_ind_calving_k = False    # Calibrate individual glaciers
+option_ind_calving_k = True    # Calibrate individual glaciers
 option_reg_calving_k = False    # Calibrate all glaciers regionally
 if option_reg_calving_k:
     drop_ind_glaciers = False # For region 9 decide if using individual glacier data or regional data
 option_merge_calving_k = False  # Merge all regions together
-option_update_mb_data = True   # Update gdirs with the new mass balance data
+option_update_mb_data = False   # Update gdirs with the new mass balance data
 option_plot_calving_k = False    # Plots of the calibration performance
 option_scrap = False             # Scrap calculations
 
@@ -71,7 +71,7 @@ frontal_ablation_Gta_unc_cn = 'fa_gta_obs_unc'
 
 # the initial and boundary for the parameter tau0 (KPA), at the moment, just set tau0 as calving_k (just notation)
 calving_k_init = 1.5#150e3
-calving_k_bndlow = 1#100e3
+calving_k_bndlow = 0#100e3
 calving_k_bndhigh = 2.5#200e3
 calving_k_step = 0.1 #10e3
 
