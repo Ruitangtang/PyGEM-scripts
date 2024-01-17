@@ -17,7 +17,7 @@ from pygem.utils._funcs_selectglaciers import get_same_glaciers, glac_num_fromra
 #main_directory = os.getcwd()
 #main_directory = '/home/ruitang/PyGEM_2023/PyGEM-Test-Simple/Output/'      # file path hack if data is in different location from code
 #main_directory = '/home/ruitang/PyGEM_2023/PyGEM-Test-Tidewater/Output_Sermeq_1/'      # file path hack if data is in different location from code
-main_directory = '/home/ruitang/Astra_Ruitang_UIO/PyGEM_2023_Astra/Test_Tidewater/Test06_Sermeq/Output/'      # file path hack if data is in different location from code
+main_directory = '/home/ruitang/Astra_Ruitang_UIO/PyGEM_2023_Astra/Test_Tidewater/Test08_Sermeq/Output/'      # file path hack if data is in different location from code
 # Output directory
 output_filepath = main_directory + '/../Output/'
 #output_filepath = main_directory + '/../PyGEM-Test-Simple/Output/'
@@ -89,8 +89,8 @@ if hindcast:
 #%% ===== CALIBRATION OPTIONS =====
 # Calibration option ('emulator', 'MCMC', 'MCMC_fullsim' 'HH2015', 'HH2015mod')
 #option_calibration = 'HH2015'
-#option_calibration = 'emulator'
-option_calibration = 'MCMC'
+option_calibration = 'emulator'
+#option_calibration = 'MCMC'
 # Prior distribution (specify filename or set equal to None)
 priors_reg_fullfn = main_directory + '/../Output/calibration/priors_region.csv'
 #priors_reg_fullfn = main_directory + '/../PyGEM-Test-Simple/Output/calibration/priors_region.csv'
@@ -121,7 +121,7 @@ elif option_calibration == 'HH2015mod':
     
 elif option_calibration == 'emulator':
     emulator_sims = 100             # Number of simulations to develop the emulator
-    overwrite_em_sims = False       # Overwrite emulator simulations
+    overwrite_em_sims = True       # Overwrite emulator simulations
     opt_hh2015_mod = True           # Option to also perform the HH2015_mod calibration using the emulator
     emulator_fp = output_filepath + 'emulator/'
     tbias_step = 0.5                # tbias step size
@@ -194,8 +194,8 @@ elif option_calibration in ['MCMC', 'MCMC_fullsim']:
 # Hugonnet geodetic mass balance data
 hugonnet_fp = main_directory + '/../DEMs/Hugonnet2020/'
 #hugonnet_fp = main_directory + '/../PyGEM-Test-Simple/DEMs/Hugonnet2020/'
-#hugonnet_fn = 'df_pergla_global_20yr-filled.csv'
-hugonnet_fn = 'df_pergla_global_20yr-filled-facorrected.csv'
+hugonnet_fn = 'df_pergla_global_20yr-filled.csv'
+#hugonnet_fn = 'df_pergla_global_20yr-filled-facorrected.csv'
 if '-filled' in hugonnet_fn:
     hugonnet_mb_cn = 'mb_mwea'
     hugonnet_mb_err_cn = 'mb_mwea_err'
@@ -216,11 +216,11 @@ hugonnet_area_cn = 'area_km2'
 
 # ----- Frontal Ablation Dataset -----
 #calving_fp = main_directory + '/../calving_data/analysis_sermeq/'
-#calving_fp =  main_directory + '/../calving_data/'
+calving_fp =  main_directory + '/../calving_data/'
 calving_fp =  main_directory + '/../calving_data/analysis/'
 #calving_fp =  main_directory + '/../PyGEM-Test-Simple/calving_data/'
-calving_fn = 'all-calving_cal_ind.csv'
-#calving_fn = 'frontalablation_data_test.csv'
+#calving_fn = 'all-calving_cal_ind.csv'
+calving_fn = 'frontalablation_data_test.csv'
 # ----- Ice thickness calibration parameter -----
 icethickness_cal_frac_byarea = 0.9  # Regional glacier area fraction that is used to calibrate the ice thickness
                                     #  e.g., 0.9 means only the largest 90% of glaciers by area will be used to calibrate
@@ -423,7 +423,7 @@ hyps_data = 'OGGM'      # Hypsometry dataset (OGGM; Maussion etal 2019)
 # Hypsometry data pre-processed by OGGM
 if hyps_data == 'OGGM':
     oggm_gdir_fp = main_directory + '/../oggm_gdirs/'
-    overwrite_gdirs = False
+    overwrite_gdirs = True
     has_internet = True
 
 # Debris datasets
@@ -442,7 +442,7 @@ option_leapyear = 0         # 1: include leap year days, 0: exclude leap years s
 #  note: start and end dates must refer to whole years
 startmonthday = '01-01'     # Only used with custom calendars,06-01
 endmonthday = '12-31'       # Only used with custom calendars,05-31
-wateryear_month_start = 10  # water year starting month
+wateryear_month_start = 1  # water year starting month
 winter_month_start = 10     # first month of winter (for HMA winter is October 1 - April 30)
 summer_month_start = 5      # first month of summer (for HMA summer is May 1 - Sept 30) 
 option_dates = 1            # 1: use dates from date table (first of each month), 2: dates from climate data
