@@ -17,7 +17,7 @@ from pygem.utils._funcs_selectglaciers import get_same_glaciers, glac_num_fromra
 #main_directory = os.getcwd()
 #main_directory = '/home/ruitang/PyGEM_2023/PyGEM-Test-Simple/Output/'      # file path hack if data is in different location from code
 #main_directory = '/home/ruitang/PyGEM_2023/PyGEM-Test-Tidewater/Output_Sermeq_1/'      # file path hack if data is in different location from code
-main_directory = '/home/ruitang/Astra_Ruitang_UIO/PyGEM_2023_Astra/Test_Tidewater/Test08_Sermeq/Output/'      # file path hack if data is in different location from code
+main_directory = '/home/ruitang/OGGM-Ruitang/Results/Test_KS/Output/'      # file path hack if data is in different location from code
 # Output directory
 output_filepath = main_directory + '/../Output/'
 #output_filepath = main_directory + '/../PyGEM-Test-Simple/Output/'
@@ -49,7 +49,7 @@ min_glac_area_km2 = 0                 # Filter for size of glaciers to include (
 include_landterm = False                # Switch to include land-terminating glaciers
 include_laketerm = False                # Switch to include lake-terminating glaciers
 include_tidewater = True               # Switch to include marine-terminating glaciers
-include_calving = True               # Switch to ignore calving and treat tidewater glaciers as land-terminating
+include_calving = True               # Switch to ignore calving and treat tidewater glaciers as land-terminating 
 
 oggm_base_url = 'https://cluster.klima.uni-bremen.de/~oggm/gdirs/oggm_v1.6/L1-L2_files/elev_bands/'
 #oggm_base_url = 'https://cluster.klima.uni-bremen.de/~oggm/gdirs/oggm_v1.6/L1-L2_files/elev_bands/'
@@ -89,8 +89,8 @@ if hindcast:
 #%% ===== CALIBRATION OPTIONS =====
 # Calibration option ('emulator', 'MCMC', 'MCMC_fullsim' 'HH2015', 'HH2015mod')
 #option_calibration = 'HH2015'
-option_calibration = 'emulator'
-#option_calibration = 'MCMC'
+#option_calibration = 'emulator'
+option_calibration = 'MCMC'
 # Prior distribution (specify filename or set equal to None)
 priors_reg_fullfn = main_directory + '/../Output/calibration/priors_region.csv'
 #priors_reg_fullfn = main_directory + '/../PyGEM-Test-Simple/Output/calibration/priors_region.csv'
@@ -194,8 +194,8 @@ elif option_calibration in ['MCMC', 'MCMC_fullsim']:
 # Hugonnet geodetic mass balance data
 hugonnet_fp = main_directory + '/../DEMs/Hugonnet2020/'
 #hugonnet_fp = main_directory + '/../PyGEM-Test-Simple/DEMs/Hugonnet2020/'
-hugonnet_fn = 'df_pergla_global_20yr-filled.csv'
-#hugonnet_fn = 'df_pergla_global_20yr-filled-facorrected.csv'
+#hugonnet_fn = 'df_pergla_global_20yr-filled.csv'
+hugonnet_fn = 'df_pergla_global_20yr-filled-facorrected.csv'
 if '-filled' in hugonnet_fn:
     hugonnet_mb_cn = 'mb_mwea'
     hugonnet_mb_err_cn = 'mb_mwea_err'
@@ -216,11 +216,11 @@ hugonnet_area_cn = 'area_km2'
 
 # ----- Frontal Ablation Dataset -----
 #calving_fp = main_directory + '/../calving_data/analysis_sermeq/'
-calving_fp =  main_directory + '/../calving_data/'
+#calving_fp =  main_directory + '/../calving_data/'
 calving_fp =  main_directory + '/../calving_data/analysis/'
 #calving_fp =  main_directory + '/../PyGEM-Test-Simple/calving_data/'
-#calving_fn = 'all-calving_cal_ind.csv'
-calving_fn = 'frontalablation_data_test.csv'
+calving_fn = 'all-calving_cal_ind.csv'
+#calving_fn = 'frontalablation_data_test.csv'
 # ----- Ice thickness calibration parameter -----
 icethickness_cal_frac_byarea = 0.9  # Regional glacier area fraction that is used to calibrate the ice thickness
                                     #  e.g., 0.9 means only the largest 90% of glaciers by area will be used to calibrate
@@ -342,7 +342,8 @@ elif option_refreezing == 'HH2015':
 # ERA5 (default reference climate data)
 if ref_gcm_name == 'ERA5':
     #era5_fp = main_directory + '/../climate_data/ERA5/'
-    era5_fp = main_directory + '/../../climate_data/ERA5/'
+    #era5_fp = main_directory + '/../../climate_data/ERA5/'
+    era5_fp = '/home/ruitang/GeoFag_Ruitang/Test_Tidewater/climate_data/ERA5/'
 
     #era5_fp = main_directory + '/../PyGEM-Test-Simple/climate_data/ERA5/'
     era5_temp_fn = 'ERA5_temp_monthly.nc'
@@ -363,6 +364,7 @@ if ref_gcm_name == 'ERA5':
 # CMIP5 (GCM data)
 #cmip5_fp_var_prefix = main_directory + '/../climate_data/cmip5/'
 cmip5_fp_var_prefix = main_directory + '/../../climate_data/cmip5/'
+
 
 cmip5_fp_var_ending = '_r1i1p1_monNG/'
 #cmip5_fp_fx_prefix = main_directory + '/../climate_data/cmip5/'
@@ -399,7 +401,8 @@ gfdl_fp_fx_ending = '_fx/'
 # ----- RGI DATA -----
 # Filepath for RGI files
 #rgi_fp = main_directory + '/../RGI/rgi60/00_rgi60_attribs/'
-rgi_fp = main_directory + '/../../RGI/rgi60/00_rgi60_attribs/'
+#rgi_fp = main_directory + '/../../RGI/rgi60/00_rgi60_attribs/'
+rgi_fp = '/home/ruitang/GeoFag_Ruitang/Test_Tidewater/RGI/rgi60/00_rgi60_attribs/'
 
 assert os.path.exists(rgi_fp), 'RGI filepath does not exist. PyGEM requires RGI data to run.'
 # Column names
@@ -414,7 +417,9 @@ rgi_cols_drop = ['GLIMSId','BgnDate','EndDate','Status','Linkages','Name']
 
 # ----- ADDITIONAL DATA (hypsometry, ice thickness, width, debris) -----
 #h_consensus_fp = main_directory + '/../IceThickness_Farinotti/composite_thickness_RGI60-all_regions/'
-h_consensus_fp = main_directory + '/../../IceThickness_Farinotti/composite_thickness_RGI60-all_regions/'
+#h_consensus_fp = main_directory + '/../../IceThickness_Farinotti/composite_thickness_RGI60-all_regions/'
+h_consensus_fp = '/home/ruitang/GeoFag_Ruitang/Test_Tidewater/IceThickness_Farinotti/composite_thickness_RGI60-all_regions/'
+
 # Filepath for the hypsometry files
 binsize = 10            # Elevation bin height [m]
 hyps_data = 'OGGM'      # Hypsometry dataset (OGGM; Maussion etal 2019)
