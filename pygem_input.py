@@ -89,8 +89,8 @@ if hindcast:
 #%% ===== CALIBRATION OPTIONS =====
 # Calibration option ('emulator', 'MCMC', 'MCMC_fullsim' 'HH2015', 'HH2015mod')
 #option_calibration = 'HH2015'
-option_calibration = 'emulator'
-#option_calibration = 'MCMC'
+#option_calibration = 'emulator'
+option_calibration = 'MCMC'
 # Prior distribution (specify filename or set equal to None)
 priors_reg_fullfn = main_directory + '/../Output/calibration/priors_region.csv'
 #priors_reg_fullfn = main_directory + '/../PyGEM-Test-Simple/Output/calibration/priors_region.csv'
@@ -194,8 +194,8 @@ elif option_calibration in ['MCMC', 'MCMC_fullsim']:
 # Hugonnet geodetic mass balance data
 hugonnet_fp = main_directory + '/../DEMs/Hugonnet2020/'
 #hugonnet_fp = main_directory + '/../PyGEM-Test-Simple/DEMs/Hugonnet2020/'
-hugonnet_fn = 'df_pergla_global_20yr-filled.csv'
-#hugonnet_fn = 'df_pergla_global_20yr-filled-facorrected.csv'
+#hugonnet_fn = 'df_pergla_global_20yr-filled.csv'
+hugonnet_fn = 'df_pergla_global_20yr-filled-facorrected.csv'
 if '-filled' in hugonnet_fn:
     hugonnet_mb_cn = 'mb_mwea'
     hugonnet_mb_err_cn = 'mb_mwea_err'
@@ -216,11 +216,11 @@ hugonnet_area_cn = 'area_km2'
 
 # ----- Frontal Ablation Dataset -----
 #calving_fp = main_directory + '/../calving_data/analysis_sermeq/'
-calving_fp =  main_directory + '/../calving_data/'
+#calving_fp =  main_directory + '/../calving_data/'
 calving_fp =  main_directory + '/../calving_data/analysis/'
 #calving_fp =  main_directory + '/../PyGEM-Test-Simple/calving_data/'
-#calving_fn = 'all-calving_cal_ind.csv'
-calving_fn = 'frontalablation_data_test.csv'
+calving_fn = 'all-calving_cal_ind.csv'
+#calving_fn = 'frontalablation_data_test.csv'
 # ----- Ice thickness calibration parameter -----
 icethickness_cal_frac_byarea = 0.9  # Regional glacier area fraction that is used to calibrate the ice thickness
                                     #  e.g., 0.9 means only the largest 90% of glaciers by area will be used to calibrate
