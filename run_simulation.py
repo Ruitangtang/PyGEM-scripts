@@ -1300,8 +1300,8 @@ def main(list_packed_vars):
                             calving_k_values = np.array([calving_k])
                         else:
                             calving_k_values = calving_k + np.random.normal(loc=0, scale=calving_k_nmad, size=sim_iters)
-                            #calving_k_values[calving_k_values < 0.001] = 0.001
-                            calving_k_values[calving_k_values < 0.001] = 0.0001
+                            calving_k_values[calving_k_values < 0.001] = 0.001
+                            #calving_k_values[calving_k_values < 0.001] = 0.0001
                             calving_k_values[calving_k_values > 5] = 5
                             
 #                            calving_k_values[:] = calving_k
