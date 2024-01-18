@@ -207,7 +207,7 @@ if pygem_prms.option_calibration in ['MCMC', 'emulator']:
                 f, ax = plt.subplots(1, 1, figsize=(4, 4))
                 ax.plot(y_test.numpy()[idx], y_pred.mean.numpy()[idx], 'k*')
                 ax.fill_between(y_test.numpy()[idx], lower.numpy()[idx], upper.numpy()[idx], alpha=0.5)
-                plt.show()
+                #plt.show()
     
         # ----- Find optimal model hyperparameters -----
         model.train()
@@ -249,7 +249,7 @@ if pygem_prms.option_calibration in ['MCMC', 'emulator']:
                 ax.plot(y_test.numpy()[idx], y_pred.mean.numpy()[idx], 'k*')
                 ax.fill_between(y_test.numpy()[idx], lower.numpy()[idx], upper.numpy()[idx], 
                                 alpha=0.5)
-                plt.show()
+                #plt.show()
     
         if debug:
             # Compare user-defined parameter sets within the emulator
@@ -272,7 +272,7 @@ if pygem_prms.option_calibration in ['MCMC', 'emulator']:
                 ax.set_ylabel('PyGEM MB (mwea)')
             elif y_cn == 'nbinyrs_negmbclim':
                 ax.set_ylabel('nbinyrs_negmbclim (-)')
-            plt.show()
+            #plt.show()
     
             # Compare the modeled and emulated mass balances
             y_em_norm = model(torch.tensor(X_norm).to(torch.float)).mean.detach().numpy()
@@ -289,7 +289,7 @@ if pygem_prms.option_calibration in ['MCMC', 'emulator']:
             elif y_cn == 'nbinyrs_negmbclim':
                 ax.set_xlabel('emulator nbinyrs_negmbclim (-)')
                 ax.set_ylabel('PyGEM nbinyrs_negmbclim (-)')
-            plt.show()
+            #plt.show()
             
         # ----- EXPORT EMULATOR -----
         # Save emulator (model state, x_train, y_train, etc.)
