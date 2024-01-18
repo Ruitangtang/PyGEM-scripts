@@ -51,12 +51,12 @@ overwrite = True
 output_fp = pygem_prms.main_directory + '/../calving_data/analysis/'
 
 option_merge_data = False        # Merge frontal ablation datasets and add mbclim data
-option_ind_calving_k = True    # Calibrate individual glaciers
+option_ind_calving_k = False    # Calibrate individual glaciers
 option_reg_calving_k = False    # Calibrate all glaciers regionally
 if option_reg_calving_k:
     drop_ind_glaciers = False # For region 9 decide if using individual glacier data or regional data
 option_merge_calving_k = False  # Merge all regions together
-option_update_mb_data = False   # Update gdirs with the new mass balance data
+option_update_mb_data = True   # Update gdirs with the new mass balance data
 option_plot_calving_k = False    # Plots of the calibration performance
 option_scrap = False             # Scrap calculations
 
