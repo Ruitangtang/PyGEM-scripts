@@ -1520,7 +1520,7 @@ def main(list_packed_vars):
                             if oggm_version > 1.301:
                                 print("oggm ver >1.3")
                                 try:
-                                    diag = ev_model.run_until_and_store(nyears)
+                                    diag = ev_model.run_until_and_store(nyears,store_monthly_step='monthly')
                                 except:
                                     print("oggm ver >1.3, run_until_and store failed")
                             else:
