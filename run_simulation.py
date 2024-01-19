@@ -455,7 +455,7 @@ def create_xrdataset(glacier_rgi_table, dates_table, option_wateryear=pygem_prms
                     'units': 'm ',
                     'temporal_resolution': 'monthly',
                     'comment': (
-                            'length change caused by calving and retreate')},
+                            'length')},
             'glac_massbaltotal_monthly': {
                     'long_name': 'glacier-wide total mass balance, in water equivalent',
                     'units': 'm3',
@@ -533,7 +533,7 @@ def create_xrdataset(glacier_rgi_table, dates_table, option_wateryear=pygem_prms
                         'units': 'm',
                         'temporal_resolution': 'monthly',
                         'comment': (
-                                'glacier length change rate,caused by calving and retreate')},
+                                'glacier length ')},
                 'glac_massbaltotal_monthly_mad': {
                         'long_name': 'glacier-wide total mass balance, in water equivalent, median absolute deviation',
                         'units': 'm3',
@@ -1393,7 +1393,7 @@ def main(list_packed_vars):
                 output_glac_runoff_monthly = np.zeros((dates_table.shape[0], sim_iters)) * np.nan
                 output_glac_snowline_monthly = np.zeros((dates_table.shape[0], sim_iters)) * np.nan
                 output_glac_area_annual = np.zeros((year_values.shape[0], sim_iters)) * np.nan
-                output_glac_length_annual = np.zeros((year_values.shape[0], sim_iters)) * np.nan
+                #output_glac_length_annual = np.zeros((year_values.shape[0], sim_iters)) * np.nan
                 output_glac_mass_annual = np.zeros((year_values.shape[0], sim_iters)) * np.nan
                 output_glac_mass_bsl_annual = np.zeros((year_values.shape[0], sim_iters)) * np.nan
                 output_glac_mass_change_ignored_annual = np.zeros((year_values.shape[0], sim_iters))
@@ -1818,7 +1818,7 @@ def main(list_packed_vars):
                             output_glac_refreeze_monthly[:, n_iter] = mbmod.glac_wide_refreeze
                             output_glac_melt_monthly[:, n_iter] = mbmod.glac_wide_melt
                             output_glac_frontalablation_monthly[:, n_iter] = mbmod.glac_wide_frontalablation
-                            output_glac_length_monthly[:, n_iter] = diag.length_m.values
+                            output_glac_length_monthly[:, n_iter] = diag.length_m.values[:-1]
                             output_glac_massbaltotal_monthly[:, n_iter] = mbmod.glac_wide_massbaltotal
                             output_glac_runoff_monthly[:, n_iter] = mbmod.glac_wide_runoff
                             output_glac_snowline_monthly[:, n_iter] = mbmod.glac_wide_snowline
@@ -1841,12 +1841,12 @@ def main(list_packed_vars):
                                     volume_bsl_annual = (((diag.volume_bsl_m3.values[:-1]).reshape(-1,12))[:,0]).flatten()
 
                                     output_glac_area_annual[:, n_iter] =np.append(area_m2_annual,diag.area_m2.values[-1])
-                                    output_glac_length_annual[:, n_iter] =np.append(length_m_annual,diag.length_m.values[-1])
+                                    #output_glac_length_annual[:, n_iter] =np.append(length_m_annual,diag.length_m.values[-1])
                                     output_glac_mass_annual[:, n_iter] = (np.append(volume_m3_annual,diag.volume_m3.values[-1]))* pygem_prms.density_ice
                                     output_glac_mass_bsl_annual[:, n_iter] = (np.append(volume_bsl_annual,diag.volume_bsl_m3.values[-1]))* pygem_prms.density_ice
                                 else:
                                     output_glac_area_annual[:, n_iter] = diag.area_m2.values
-                                    output_glac_length_annual[:, n_iter] = diag.length_m.values
+                                    #output_glac_length_annual[:, n_iter] = diag.length_m.values
                                     output_glac_mass_annual[:, n_iter] = diag.volume_m3.values * pygem_prms.density_ice
                                     output_glac_mass_bsl_annual[:, n_iter] = diag.volume_bsl_m3.values * pygem_prms.density_ice
                             except:
@@ -1947,7 +1947,7 @@ def main(list_packed_vars):
                             # Output statistics
                             output_glac_runoff_monthly_stats = calc_stats_array(output_glac_runoff_monthly)
                             output_glac_area_annual_stats = calc_stats_array(output_glac_area_annual)
-                            output_glac_length_annual_stats = calc_stats_array(output_glac_length_annual)
+                            #output_glac_length_annual_stats = calc_stats_array(output_glac_length_annual)
                             output_glac_mass_annual_stats = calc_stats_array(output_glac_mass_annual)
                             output_glac_mass_bsl_annual_stats = calc_stats_array(output_glac_mass_bsl_annual)
                             output_glac_ELA_annual_stats = calc_stats_array(output_glac_ELA_annual)
@@ -1971,7 +1971,7 @@ def main(list_packed_vars):
                             # Output Mean
                             output_ds_all_stats['glac_runoff_monthly'].values[0,:] = output_glac_runoff_monthly_stats[:,0]
                             output_ds_all_stats['glac_area_annual'].values[0,:] = output_glac_area_annual_stats[:,0]
-                            output_ds_all_stats['glac_length_annual'].values[0,:] = output_glac_length_annual_stats[:,0]
+                            #output_ds_all_stats['glac_length_annual'].values[0,:] = output_glac_length_annual_stats[:,0]
                             output_ds_all_stats['glac_mass_annual'].values[0,:] = output_glac_mass_annual_stats[:,0]
                             output_ds_all_stats['glac_mass_bsl_annual'].values[0,:] = output_glac_mass_bsl_annual_stats[:,0]
                             output_ds_all_stats['glac_ELA_annual'].values[0,:] = output_glac_ELA_annual_stats[:,0]
@@ -2002,7 +2002,7 @@ def main(list_packed_vars):
                             if pygem_prms.sim_iters > 1:
                                 output_ds_all_stats['glac_runoff_monthly_mad'].values[0,:] = output_glac_runoff_monthly_stats[:,1]
                                 output_ds_all_stats['glac_area_annual_mad'].values[0,:] = output_glac_area_annual_stats[:,1]
-                                output_ds_all_stats['glac_length_annual_mad'].values[0,:] = output_glac_length_annual_stats[:,1]
+                                # output_ds_all_stats['glac_length_annual_mad'].values[0,:] = output_glac_length_annual_stats[:,1]
                                 output_ds_all_stats['glac_mass_annual_mad'].values[0,:] = output_glac_mass_annual_stats[:,1]
                                 output_ds_all_stats['glac_mass_bsl_annual_mad'].values[0,:] = output_glac_mass_bsl_annual_stats[:,1]
                                 output_ds_all_stats['glac_ELA_annual_mad'].values[0,:] = output_glac_ELA_annual_stats[:,1]
@@ -2015,8 +2015,8 @@ def main(list_packed_vars):
                                     output_ds_all_stats['glac_melt_monthly_mad'].values[0,:] = output_glac_melt_monthly_stats[:,1]
                                     output_ds_all_stats['glac_frontalablation_monthly_mad'].values[0,:] = (
                                             output_glac_frontalablation_monthly_stats[:,1])
-                                    output_ds_all_stats['glac_length_monthly_mad'].values[0,:] = (
-                                            output_glac_length_monthly_stats[:,1])
+                                    # output_ds_all_stats['glac_length_monthly_mad'].values[0,:] = (
+                                    #         output_glac_length_monthly_stats[:,1])
                                     output_ds_all_stats['glac_massbaltotal_monthly_mad'].values[0,:] = (
                                             output_glac_massbaltotal_monthly_stats[:,1])
                                     output_ds_all_stats['glac_snowline_monthly_mad'].values[0,:] = output_glac_snowline_monthly_stats[:,1]
