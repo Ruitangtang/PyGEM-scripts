@@ -377,7 +377,8 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
             
             try:
                 print("***********************do the dynamic running with calving***********************")
-                diag = ev_model.run_until_and_store(nyears)
+                print("nyears is :",nyears)
+                diag = ev_model.run_until_and_store(nyears,store_monthly_step='monthly')
                 print("the volume_3 in the diag is :",diag.volume_m3)
                 ev_model.mb_model.glac_wide_volume_annual[-1] = diag.volume_m3[-1]
                 ev_model.mb_model.glac_wide_area_annual[-1] = diag.area_m2[-1]
@@ -600,6 +601,8 @@ def run_opt_fa(main_glac_rgi_ind, calving_k, calving_k_bndlow, calving_k_bndhigh
                 print('fa threshold is :',fa_threshold)
             
             # Increase calving k
+            calving_k= float(calving_k)
+            calving_k_step = float(calving_k_step)
             calving_k += calving_k_step
             if debug:
                 print("the calving k now is (increased):",calving_k)
