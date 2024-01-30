@@ -1472,7 +1472,11 @@ def main(list_packed_vars):
                             print("The find_inversion_calving_from_any_mb start")
                             print("⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅")
                             out_calving = find_inversion_calving_from_any_mb(gdir, mb_model=mbmod_inv, mb_years=np.arange(nyears_ref),
-                                                                              glen_a=cfg.PARAMS['glen_a']*glen_a_multiplier, fs=fs)
+                                                                              glen_a=cfg.PARAMS['glen_a']*glen_a_multiplier, fs=fs,
+                                                                              modelprms = modelprms, glacier_rgi_table = glacier_rgi_table,
+                                                                              hindcast=pygem_prms.hindcast,debug=pygem_prms.debug_mb,
+                                                                              debug_refreeze=pygem_prms.debug_refreeze,option_areaconstant=True,
+                                                                              inversion_filter=inversion_filter)
                             print("⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅")
                             print("The find_inversion_calving_from_any_mb end")
                             print("the out claving is:",out_calving)
