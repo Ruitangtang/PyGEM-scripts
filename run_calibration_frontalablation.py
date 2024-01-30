@@ -307,7 +307,7 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                                          hindcast=pygem_prms.hindcast,
                                          debug=pygem_prms.debug_mb,
                                          debug_refreeze=pygem_prms.debug_refreeze,
-                                         fls=fls, option_areaconstant=False,
+                                         fls=fls, option_areaconstant=True,
                                          inversion_filter=False)
             print("mbmod_inv is:",mbmod_inv)
             h, w = gdir.get_inversion_flowline_hw()
@@ -343,7 +343,11 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                 print("The find_inversion_calving_from_any_mb start")
                 print("⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅")
                 out_calving = find_inversion_calving_from_any_mb(gdir, mb_model=mbmod_inv, mb_years=mb_years,
-                                                                 glen_a=cfg.PARAMS['glen_a']*glen_a_multiplier, fs=fs)
+                                                                 glen_a=cfg.PARAMS['glen_a']*glen_a_multiplier, fs=fs,
+                                                                 modelprms = modelprms, glacier_rgi_table = glacier_rgi_table,
+                                                                 hindcast=pygem_prms.hindcast,debug=pygem_prms.debug_mb,
+                                                                 debug_refreeze=pygem_prms.debug_refreeze,option_areaconstant=True,
+                                                                 inversion_filter=False)
                 print("⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅")
                 print("The find_inversion_calving_from_any_mb end")
                 print("the out claving is:",out_calving)
@@ -359,7 +363,7 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                                      hindcast=pygem_prms.hindcast,
                                      debug=pygem_prms.debug_mb,
                                      debug_refreeze=pygem_prms.debug_refreeze,
-                                     fls=nfls, option_areaconstant=True)
+                                     fls=nfls, option_areaconstant=False)
             # Water Level
             # Check that water level is within given bounds
             cls = gdir.read_pickle('inversion_input')[-1]
