@@ -15,7 +15,7 @@ from pygem.utils._funcs_selectglaciers import get_same_glaciers, glac_num_fromra
 
 #%% ===== MODEL SETUP DIRECTORY =====
 main_directory = os.getcwd()
-#8main_directory = '/Users/btober/Documents/pygem_data/Output/'      # file path hack if data is in different location from code
+main_directory = '/Users/btober/Documents/pygem_data/Output/'      # file path hack if data is in different location from code
 # Output directory
 output_filepath = main_directory + '/../Output/'
 model_run_date = datetime.today().strftime('%Y-%m-%d')
