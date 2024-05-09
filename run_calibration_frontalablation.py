@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import linregress
 import xarray as xr
+import traceback
 
 # Local libraries
 try:
@@ -172,7 +173,7 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
     dates_table = modelsetup.datesmodelrun(
             startyear=pygem_prms.ref_startyear, endyear=pygem_prms.ref_endyear, spinupyears=pygem_prms.ref_spinupyears,
             option_wateryear=pygem_prms.ref_wateryear)
-
+    print('dates_table is :',dates_table)
     # ===== LOAD CLIMATE DATA =====
     # Climate class
     assert pygem_prms.ref_gcm_name in ['ERA5', 'ERA-Interim'], (
@@ -212,18 +213,19 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
         glacier_rgi_table = main_glac_rgi.loc[main_glac_rgi.index.values[nglac], :]
         glacier_str = '{0:0.5f}'.format(glacier_rgi_table['RGIId_float'])
 
+        try:
+            gdir = single_flowline_glacier_directory_with_calving(glacier_str, 
+                                                                logging_level='DEBUG',
+                                                                reset=reset_gdir)
+        except:
+            print("**********Something is wrong with single_flowline_glacier_directory_with_calving in Reg_calving_flux**********")
+            print(traceback.format_exc())
 
-        print("**********single_flowline_glacier_directory_with_calving start**********")
-        gdir = single_flowline_glacier_directory_with_calving(glacier_str, 
-                                                              logging_level='DEBUG',
-                                                              reset=reset_gdir)
-        #logging_level='CRITICAL',                                                      )
-        print("contents of gdir are",os.listdir(gdir.dir))
-        print("**********single_flowline_glacier_directory_with_calving End**********")
+        #print("contents of gdir are",os.listdir(gdir.dir))
+        
         gdir.is_tidewater = True
         cfg.PARAMS['use_kcalving_for_inversion'] = True
         cfg.PARAMS['use_kcalving_for_run'] = True
-
 
         try:
             fls = gdir.read_pickle('inversion_flowlines')
@@ -231,6 +233,7 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
             debris.debris_binned(gdir, fl_str='inversion_flowlines', ignore_debris=True)
         except:
             fls = None
+            print(traceback.format_exc())
               
         # Add climate data to glacier directory
         gdir.historical_climate = {'elev': gcm_elev[nglac],
@@ -265,9 +268,9 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                     modelprms_dict = pickle.load(f)
                 modelprms_em = modelprms_dict['emulator']
                 kp_value = modelprms_em['kp'][0]
-                print("the initial kp_value from the emulator is:",kp_value)
+                #print("the initial kp_value from the emulator is:",kp_value)
                 tbias_value = modelprms_em['tbias'][0]
-                print("the initial tbias value from the emulator is:",tbias_value)
+                #print("the initial tbias value from the emulator is:",tbias_value)
                 
             # Otherwise use input parameters
             if kp_value is None:
@@ -327,30 +330,38 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                 nyears = int(dates_table.shape[0]/12)
             else:
                 assert True==False, 'Adjust nyears for non-monthly timestep'
+            print("nyears is (int(dates_table.shape[0]/12)) :",nyears)
             mb_years=np.arange(nyears)
-            
             print("mb_years is:",mb_years)
+
             # Perform inversion
             # - find_inversion_calving_from_any_mb will do the inversion with calving, but if it fails
             #   then it will do the inversion assuming land-terminating
             if invert_standard:
-                print("start do the apparent mb from any mb:")
+                #print("start do the apparent mb from any mb:")
+                print("invert_standard is True")
                 apparent_mb_from_any_mb(gdir, mb_model=mbmod_inv, mb_years=np.arange(nyears))
-                print("apparent mb from any mb is done")
+                #print("apparent mb from any mb is done")
                 tasks.prepare_for_inversion(gdir)
                 tasks.mass_conservation_inversion(gdir, glen_a=cfg.PARAMS['glen_a']*glen_a_multiplier, fs=fs)
             else:
-                print("The find_inversion_calving_from_any_mb start")
-                print("⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅")
-                out_calving = find_inversion_calving_from_any_mb(gdir, mb_model= mbmod_inv, mb_years=mb_years,
-                                                                 glen_a=cfg.PARAMS['glen_a']*glen_a_multiplier, fs=fs,
-                                                                 modelprms = modelprms, glacier_rgi_table = glacier_rgi_table,
-                                                                 hindcast=pygem_prms.hindcast,debug=pygem_prms.debug_mb,
-                                                                 debug_refreeze=pygem_prms.debug_refreeze,option_areaconstant=True,
-                                                                 inversion_filter=False)
-                print("⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅")
-                print("The find_inversion_calving_from_any_mb end")
-                print("the out claving is:",out_calving)
+                try:
+                    print("invert_standard is False & The find_inversion_calving_from_any_mb start")
+                    print("⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅")
+                    out_calving = find_inversion_calving_from_any_mb(gdir, mb_model= mbmod_inv, mb_years=mb_years,
+                                                                    glen_a=cfg.PARAMS['glen_a']*glen_a_multiplier, fs=fs,
+                                                                    modelprms = modelprms, glacier_rgi_table = glacier_rgi_table,
+                                                                    hindcast=pygem_prms.hindcast,debug=pygem_prms.debug_mb,
+                                                                    debug_refreeze=pygem_prms.debug_refreeze,option_areaconstant=True,
+                                                                    inversion_filter=False)
+                    print("The find_inversion_calving_from_any_mb end")
+                    print("the out claving is:",out_calving)
+                except:
+                    print("Something wrong with the find_inversion_calving_from_any_mb")
+                    print(traceback.format_exc())
+
+                    
+                
                 
                 #print("the calving_flux is",out_calving['calving_flux'])
                 
@@ -373,7 +384,7 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
             print('at the moment water level is :',water_level)
             print("------------------ after the thickness inversion with calving, run the dynamics ------------------")
             #%%
-            ev_model = FluxBasedModel(nfls, y0=0, mb_model=mbmod, 
+            ev_model = FluxBasedModel(nfls, y0=0, mb_model=mbmod,
                                       glen_a=cfg.PARAMS['glen_a']*glen_a_multiplier, fs=fs,
                                       is_tidewater=gdir.is_tidewater,
                                       water_level=water_level
