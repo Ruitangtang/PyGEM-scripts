@@ -17,7 +17,7 @@ from pygem.utils._funcs_selectglaciers import get_same_glaciers, glac_num_fromra
 #main_directory = os.getcwd()
 #main_directory = '/home/ruitang/PyGEM_2023/PyGEM-Test-Simple/Output/'      # file path hack if data is in different location from code
 #main_directory = '/home/ruitang/PyGEM_2023/PyGEM-Test-Tidewater/Output_Sermeq_1/'      # file path hack if data is in different location from code
-main_directory = '/home/ruitang/OGGM-Ruitang/Results/Test_KS_3T_16Apr/Output/'      # file path hack if data is in different location from code
+main_directory = '/home/ruitang/OGGM-Ruitang/Results/Test_KS_1T_24Jun/RGI_1.10689/Output/'      # file path hack if data is in different location from code
 # Output directory
 output_filepath = main_directory + '/../Output/'
 #output_filepath = main_directory + '/../PyGEM-Test-Simple/Output/'
@@ -30,13 +30,13 @@ rgi_regionsO2 = 'all'               # 2nd order region number (RGI V6.0)
 #  Three options: (1) use glacier numbers for a given region (or 'all'), must have glac_no set to None
 #                 (2) glac_no is not None, e.g., ['1.00001', 13.0001'], overrides rgi_glac_number
 #                 (3) use one of the functions from  utils._funcs_selectglaciers
-rgi_glac_number = 'all'
+#rgi_glac_number = 'all'
 # rgi_glac_number = glac_num_fromrange(1,10)
 
 glac_no_skip = None
 glac_no = None 
 #glac_no = ['15.03732'] # Khumbu Glacier
-#glac_no = ['1.10689'] # Columbia Glacier
+glac_no = ['1.10689'] # Columbia Glacier
 #glac_no = ['1.03622'] # LeConte Glacier
 
 
@@ -473,7 +473,7 @@ molarmass_air = 0.0289644   # Molar mass of Earth's air [kg mol-1]
 
 
 #%% DEBUGGING OPTIONS
-debug_refreeze = True
+debug_refreeze = False
 debug_mb = True
 
 
