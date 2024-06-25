@@ -962,6 +962,7 @@ if option_reg_calving_k:
         # Regional data
         fa_glac_data_reg = fa_glac_data.loc[fa_glac_data['O1Region'] == reg, :].copy()
         fa_glac_data_reg.reset_index(inplace=True, drop=True)
+        print('fa_glac_data_reg 1st:',fa_glac_data_reg)
         # Drop individual data points
         if drop_ind_glaciers:
             fa_idxs = []
@@ -991,12 +992,13 @@ if option_reg_calving_k:
             # Drop observations that aren't of individual glaciers
             fa_glac_data_reg = fa_glac_data_reg.dropna(axis=0, subset=['glacno'])
             fa_glac_data_reg.reset_index(inplace=True, drop=True)
+            
             reg_calving_gta_obs = fa_glac_data_reg[frontal_ablation_Gta_cn].sum()
             glacno_reg_wdata = sorted(list(fa_glac_data_reg.glacno.values))
             main_glac_rgi_all = modelsetup.selectglaciersrgitable(glac_no=glacno_reg_wdata)
             # Ignore nan for individual glaciers
             ignore_nan = True
-        
+        print('fa_glac_data_reg:',fa_glac_data_reg)
         # Tidewater glaciers
         termtype_list = [1,5]
         main_glac_rgi = main_glac_rgi_all.loc[main_glac_rgi_all['TermType'].isin(termtype_list)]
@@ -1244,6 +1246,9 @@ if option_ind_calving_k:
     calving_k_bndhigh_set = np.copy(calving_k_bndhigh)
     calving_k_bndlow_set = np.copy(calving_k_bndlow)
     calving_k_step_set = np.copy(calving_k_step)
+    print("calving_k_bndhigh_set is :",calving_k_bndhigh_set)
+    print("calving_k_bndlow_set is :",calving_k_bndhigh_set)
+    print("calving_k_step_set is :",calving_k_bndhigh_set)
     
     for reg in regions:
         
@@ -1255,7 +1260,7 @@ if option_ind_calving_k:
         fa_glac_data_reg = fa_glac_data.loc[fa_glac_data['O1Region'] == reg, :].copy()
         fa_glac_data_reg.reset_index(inplace=True, drop=True)
         
-        
+        print('fa_glac_data_reg 1st:',fa_glac_data_reg)
         fa_glac_data_reg['glacno'] = np.nan
 #        fa_glac_data_reg['glacno'] = [str(int(x.split('-')[1].split('.')[0])) + '.' + x.split('-')[1].split('.')[1]
 #                                      for x in fa_glac_data_reg.RGIId]
@@ -1400,6 +1405,7 @@ if option_ind_calving_k:
                     bndlow_good = True
                     bndhigh_good = True
                     print("**********before the reg_calving_flux**********")
+                    print('fa_glac_data_ind is :',fa_glac_data_ind)
                     try:
                         print("do the reg_calving_flux_bndhigh: Start")
                         print("calving_k_bndhig:",calving_k_bndhigh)
@@ -1409,9 +1415,11 @@ if option_ind_calving_k:
                                                  prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
                                                  ignore_nan=False, debug=debug_reg_calving_fxn))
                         print("do the reg_calving_flux_bndhigh: End")
+                        print(traceback.format_exc())
                     except:
                         bndhigh_good = False
                         reg_calving_gta_mod_bndhigh = None
+                        print(traceback.format_exc())
                     try:
                         print("do the reg_calving_flux_bndlow: Start")
                         print("calving_k_bndlow:",calving_k_bndlow)
@@ -1420,11 +1428,13 @@ if option_ind_calving_k:
                                                  frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
                                                  prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
                                                  ignore_nan=False, debug=debug_reg_calving_fxn))
-                        print("do the reg_calving_flux_BandLow: End")
+                        print("do the reg_calving_flux_bandlow: End")
                         print("********************************************")
+                        print(traceback.format_exc())
                     except:
                         bndlow_good = False
                         reg_calving_gta_mod_bndlow = None
+                        print(traceback.format_exc())
                         
                     # Record bounds
                     output_df_all.loc[nglac,'calving_flux_Gta_bndlow'] = reg_calving_gta_mod_bndlow
@@ -1451,7 +1461,7 @@ if option_ind_calving_k:
                             output_df_all.loc[nglac,'no_errors'] = output_df_bndlow.loc[0,'no_errors']
                             output_df_all.loc[nglac,'oggm_dynamics'] = output_df_bndlow.loc[0,'oggm_dynamics']
                         elif reg_calving_gta_obs > reg_calving_gta_mod_bndhigh:
-                            print("reg_calving_gta_obs < reg_calving_gta_mod_bndlow")
+                            print("reg_calving_gta_obs > reg_calving_gta_mod_bndhigh")
                             output_df_all.loc[nglac,'calving_k'] = output_df_bndhigh.loc[0,'calving_k']
                             output_df_all.loc[nglac,'calving_thick'] = output_df_bndhigh.loc[0,'calving_thick']
                             output_df_all.loc[nglac,'calving_flux_Gta'] = output_df_bndhigh.loc[0,'calving_flux_Gta']
@@ -1462,7 +1472,7 @@ if option_ind_calving_k:
                             run_opt = True
                     else:
                         run_opt = True
-                    
+                    #run_opt = True
                     if run_opt:
                         output_df, calving_k = run_opt_fa(main_glac_rgi_ind, calving_k, calving_k_bndlow, calving_k_bndhigh, 
                                                           fa_glac_data_ind, frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
@@ -1554,18 +1564,19 @@ if option_ind_calving_k:
             output_df_all_good = output_df_all.loc[(output_df_all['calving_k'] < calving_k_bndhigh_set), :]
         else:
             print('****************6*************** view diagnostics of good glaicers and they are not in region 17')
-            print('fa_gta_obs',output_df_all['fa_gta_obs'])
-            print('fa_gta_max',output_df_all['fa_gta_max'])
-            print('calving_k:',output_df_all['calving_k'])
+            # print('fa_gta_obs',output_df_all['fa_gta_obs'])
+            # print('fa_gta_max',output_df_all['fa_gta_max'])
+            # print('calving_k:',output_df_all['calving_k'])
+            print('output_df_all',output_df_all)
             output_df_all_good = output_df_all.loc[(output_df_all['fa_gta_obs'] == output_df_all['fa_gta_max']) & 
                                                    (output_df_all['calving_k'] < calving_k_bndhigh_set), :]
         
         rgiids_good = list(output_df_all_good.RGIId)
-        print("the 'GOOD' glaciers are:",rgiids_good)
+        # print("the 'GOOD' glaciers are:",rgiids_good)
             
         calving_k_reg_mean = output_df_all_good.calving_k.mean()
-        print(' calving_k mean/med of the good galciers :', np.round(calving_k_reg_mean,2), 
-                                      np.round(np.median(output_df_all_good.calving_k),2))
+        # print(' calving_k mean/med of the good galciers :', np.round(calving_k_reg_mean,2), 
+        #                               np.round(np.median(output_df_all_good.calving_k),2))
         
         output_df_all['calving_flux_Gta_rnd1'] = output_df_all['calving_flux_Gta'].copy()
         output_df_all['calving_k_rnd1'] = output_df_all['calving_k'].copy()
