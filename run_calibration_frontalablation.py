@@ -173,7 +173,7 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
     dates_table = modelsetup.datesmodelrun(
             startyear=pygem_prms.ref_startyear, endyear=pygem_prms.ref_endyear, spinupyears=pygem_prms.ref_spinupyears,
             option_wateryear=pygem_prms.ref_wateryear)
-    print('dates_table is :',dates_table)
+    # print('dates_table is :',dates_table)
     # ===== LOAD CLIMATE DATA =====
     # Climate class
     assert pygem_prms.ref_gcm_name in ['ERA5', 'ERA-Interim'], (
@@ -312,10 +312,10 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                                          debug_refreeze=pygem_prms.debug_refreeze,
                                          fls=fls, option_areaconstant=True,
                                          inversion_filter=False)
-            print("mbmod_inv is:",mbmod_inv)
+            #print("mbmod_inv is:",mbmod_inv)
             h, w = gdir.get_inversion_flowline_hw()
-            print("the height is:",h)
-            print("the width is:",w)
+            print("the surface elevation (m a.b.s.l) is:",h)
+            print("the width (m) is:",w)
 #            if debug:
 #                mb_t0 = (mbmod_inv.get_annual_mb(h, year=0, fl_id=0, fls=fls) * cfg.SEC_IN_YEAR * 
 #                         pygem_prms.density_ice / pygem_prms.density_water) 
@@ -1718,7 +1718,7 @@ if option_ind_calving_k:
         print('*****************The processing of calibration calving_k and model calving of good glaciers is finished********************')
         
         #%% ----- PROCESS MISSING GLACIERS WHERE GEODETIC MB IS NOT CORRECTED FOR AREA ABOVE SEA LEVEL LOSSES
-        if reg in [3,4,5,7,9,17]: # took out 1 for testing
+        if reg in [1,3,4,5,7,9,17]: # took out 1 for testing
 
 
             output_fn_missing = output_fn.replace('.csv','-missing.csv')
@@ -1739,6 +1739,8 @@ if option_ind_calving_k:
                 flag_missing=0
                 if debug:
                     print(traceback.format_exc())
+            # For single glacier test, we set flag_miss =0, i mean just working on the specific one, but if doing the regional test, the flag_missing = 1
+            flag_missing = 0        
             if flag_missing == 1:
                 print('*****************Missing glacier (without observed FA data)********************')
                 print('main_glac_rgi_all in the RGI are',main_glac_rgi_all)
