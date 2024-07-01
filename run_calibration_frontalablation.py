@@ -314,8 +314,8 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                                          inversion_filter=False)
             #print("mbmod_inv is:",mbmod_inv)
             h, w = gdir.get_inversion_flowline_hw()
-            print("the surface elevation (m a.b.s.l) is:",h)
-            print("the width (m) is:",w)
+            #print("the surface elevation (m a.b.s.l) is:",h)
+            #print("the width (m) is:",w)
 #            if debug:
 #                mb_t0 = (mbmod_inv.get_annual_mb(h, year=0, fl_id=0, fls=fls) * cfg.SEC_IN_YEAR * 
 #                         pygem_prms.density_ice / pygem_prms.density_water) 
@@ -1236,7 +1236,8 @@ if option_ind_calving_k:
     # Load calving glacier data
     calving_fp = pygem_prms.main_directory + '/../calving_data/'
     #calving_fn = 'Northern_hemisphere_calving_flux_Kochtitzky_et_al_for_David_Rounce_with_melt_v14-wromainMB-w17_19.csv'
-    calving_fn = 'frontalablation_data_test.csv'
+    #calving_fn = 'frontalablation_data_test.csv'
+    calving_fn = 'frontalablation_data_test_01_'+ pygem_prms.glac_no[0].split('.')[1]+'.csv'
     fa_glac_data = pd.read_csv(calving_fp + calving_fn)
     hugonnet_fn = 'df_pergla_global_20yr-filled.csv'
     mb_data = pd.read_csv(pygem_prms.hugonnet_fp + hugonnet_fn)
@@ -1247,8 +1248,8 @@ if option_ind_calving_k:
     calving_k_bndlow_set = np.copy(calving_k_bndlow)
     calving_k_step_set = np.copy(calving_k_step)
     print("calving_k_bndhigh_set is :",calving_k_bndhigh_set)
-    print("calving_k_bndlow_set is :",calving_k_bndhigh_set)
-    print("calving_k_step_set is :",calving_k_bndhigh_set)
+    print("calving_k_bndlow_set is :",calving_k_bndlow_set)
+    print("calving_k_step_set is :",calving_k_step_set)
     
     for reg in regions:
         
@@ -1376,7 +1377,7 @@ if option_ind_calving_k:
             
             # ---- FIRST ROUND CALIBRATION -----
             # ----- OPTIMIZE CALVING_K BASED ON INDIVIDUAL GLACIER FRONTAL ABLATION DATA -----
-            print("--------glaciers will be calibrated are--------", np.arange(main_glac_rgi.shape[0]))
+            print("--------glaciers will be calibrated for--------", np.arange(main_glac_rgi.shape[0]))
             for nglac in np.arange(main_glac_rgi.shape[0]):
 
 #                if main_glac_rgi.loc[nglac,'RGIId'] in ['RGI60-03.00108']:
@@ -1717,7 +1718,7 @@ if option_ind_calving_k:
         output_df_all.to_csv(output_fp + output_fn, index=False)
         print('*****************The processing of calibration calving_k and model calving of good glaciers is finished********************')
         
-        #%% ----- PROCESS MISSING GLACIERS WHERE GEODETIC MB IS NOT CORRECTED FOR AREA ABOVE SEA LEVEL LOSSES
+        #%% ----- PROCESS MISSING GLACIERS WHERE GEODETIC MB IS NOT CORRECTED (successfully) FOR AREA ABOVE SEA LEVEL LOSSES
         if reg in [1,3,4,5,7,9,17]: # took out 1 for testing
 
 
