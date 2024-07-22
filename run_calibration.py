@@ -353,7 +353,7 @@ def main(list_packed_vars):
     dates_table = modelsetup.datesmodelrun(
             startyear=pygem_prms.ref_startyear, endyear=pygem_prms.ref_endyear, spinupyears=pygem_prms.ref_spinupyears,
             option_wateryear=pygem_prms.ref_wateryear)
-
+    
     # ===== LOAD CLIMATE DATA =====
     # Climate class
     assert gcm_name in ['ERA5', 'ERA-Interim'], 'Error: Calibration not set up for ' + gcm_name
@@ -396,7 +396,7 @@ def main(list_packed_vars):
                 # set reset=True to overwrite non-calving directory that may already exist
                 #print("Start single_flowline: download the data dir")
                 gdir = single_flowline_glacier_directory_with_calving(glacier_str, logging_level=pygem_prms.logging_level, 
-                                                                      reset=True)
+                                                                      reset= False)
                 #print("End single_flowline: already download the data dir")
                 gdir.is_tidewater = True
                 
