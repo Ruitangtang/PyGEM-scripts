@@ -3,6 +3,7 @@
 # Built-in libraries
 import os, sys
 from datetime import datetime
+import shutil
 # External libraries
 import numpy as np
 # Local libaries
@@ -17,7 +18,8 @@ from pygem.utils._funcs_selectglaciers import get_same_glaciers, glac_num_fromra
 #main_directory = os.getcwd()
 #main_directory = '/home/ruitang/PyGEM_2023/PyGEM-Test-Simple/Output/'      # file path hack if data is in different location from code
 #main_directory = '/home/ruitang/PyGEM_2023/PyGEM-Test-Tidewater/Output_Sermeq_1/'      # file path hack if data is in different location from code
-main_directory = '/home/ruitang/OGGM-Ruitang/Results/Test_KS_1T_24Jun/RGI_1.10689/Output/'      # file path hack if data is in different location from code
+main_directory = '/home/ruitang/OGGM-Ruitang/Results/Test_KS_1T_24Jun/RGI_1.03890/Output/'      # file path hack if data is in different location from code
+
 # Output directory
 output_filepath = main_directory + '/../Output/'
 #output_filepath = main_directory + '/../PyGEM-Test-Simple/Output/'
@@ -36,8 +38,9 @@ rgi_regionsO2 = 'all'               # 2nd order region number (RGI V6.0)
 glac_no_skip = None
 glac_no = None 
 #glac_no = ['15.03732'] # Khumbu Glacier
-glac_no = ['1.10689'] # Columbia Glacier
+#glac_no = ['1.10689'] # Columbia Glacier
 #glac_no = ['1.03622'] # LeConte Glacier
+glac_no = ['1.03890'] #  Glacier
 
 
 if glac_no is not None:
@@ -49,7 +52,7 @@ min_glac_area_km2 = 0                 # Filter for size of glaciers to include (
 include_landterm = False                # Switch to include land-terminating glaciers
 include_laketerm = False                # Switch to include lake-terminating glaciers
 include_tidewater = True               # Switch to include marine-terminating glaciers
-include_calving = True               # Switch to ignore calving and treat tidewater glaciers as land-terminating
+include_calving = False               # Switch to ignore calving and treat tidewater glaciers as land-terminating
 
 oggm_base_url = 'https://cluster.klima.uni-bremen.de/~oggm/gdirs/oggm_v1.6/L1-L2_files/elev_bands/'
 #oggm_base_url = 'https://cluster.klima.uni-bremen.de/~oggm/gdirs/oggm_v1.6/L1-L2_files/elev_bands/'
@@ -92,7 +95,7 @@ if hindcast:
 option_calibration = 'emulator'
 #option_calibration = 'MCMC'
 # Prior distribution (specify filename or set equal to None)
-priors_reg_fullfn = main_directory + '/../Output/calibration/priors_region.csv'
+priors_reg_fullfn = main_directory + '/../csvs/priors_region.csv'
 #priors_reg_fullfn = main_directory + '/../PyGEM-Test-Simple/Output/calibration/priors_region.csv'
 # Calibration-specific information for each calibration option
 if option_calibration == 'HH2015':
@@ -259,7 +262,8 @@ export_extra_vars = True            # Option to export extra variables (temp, pr
 if option_dynamics in ['OGGM', 'MassRedistributionCurves']:
     cfl_number = 0.02
     cfl_number_calving = 0.01
-    glena_reg_fullfn = main_directory + '/../Output/calibration/glena_region.csv'
+    glena_reg_fullfn = main_directory + '/../csvs/glena_region.csv'
+    print("glena_reg_fullfn is :",glena_reg_fullfn)
     #glena_reg_fullfn = main_directory + '/../PyGEM-Test-Simple/Output/calibration/glena_region.csv'
     use_reg_glena = True
     if use_reg_glena:
@@ -428,7 +432,7 @@ hyps_data = 'OGGM'      # Hypsometry dataset (OGGM; Maussion etal 2019)
 # Hypsometry data pre-processed by OGGM
 if hyps_data == 'OGGM':
     oggm_gdir_fp = main_directory + '/../oggm_gdirs/'
-    overwrite_gdirs = True
+    overwrite_gdirs = False
     has_internet = True
 
 # Debris datasets
