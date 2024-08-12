@@ -1247,9 +1247,9 @@ if option_ind_calving_k:
     calving_k_bndhigh_set = np.copy(calving_k_bndhigh)
     calving_k_bndlow_set = np.copy(calving_k_bndlow)
     calving_k_step_set = np.copy(calving_k_step)
-    print("calving_k_bndhigh_set is :",calving_k_bndhigh_set)
-    print("calving_k_bndlow_set is :",calving_k_bndlow_set)
-    print("calving_k_step_set is :",calving_k_step_set)
+    # print("calving_k_bndhigh_set is :",calving_k_bndhigh_set)
+    # print("calving_k_bndlow_set is :",calving_k_bndlow_set)
+    # print("calving_k_step_set is :",calving_k_step_set)
     
     for reg in regions:
         
