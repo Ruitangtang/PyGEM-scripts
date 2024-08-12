@@ -4,6 +4,7 @@
 import os, sys
 from datetime import datetime
 import shutil
+import glob
 # External libraries
 import numpy as np
 # Local libaries
@@ -19,6 +20,39 @@ from pygem.utils._funcs_selectglaciers import get_same_glaciers, glac_num_fromra
 #main_directory = '/home/ruitang/PyGEM_2023/PyGEM-Test-Simple/Output/'      # file path hack if data is in different location from code
 #main_directory = '/home/ruitang/PyGEM_2023/PyGEM-Test-Tidewater/Output_Sermeq_1/'      # file path hack if data is in different location from code
 main_directory = '/home/ruitang/OGGM-Ruitang/Results/Test_KS_1T_24Jun/RGI_1.03890/Output/'      # file path hack if data is in different location from code
+
+
+#clear the old output part
+#===== Delete the old folder (oggm_dir and Output) =====
+# output_path_old = main_directory
+# print("output_path_old is",output_path_old )
+# # Check if the directory exists before attempting to delete it
+# if os.path.exists(output_path_old):
+#     shutil.rmtree(output_path_old)
+#     print(f"The directory {output_path_old} has been deleted.")
+# else:
+#     print(f"The directory {output_path_old} does not exist.")
+# os.mkdir(output_path_old)
+
+# # Delete the old oggm_gdirs
+# oggmdir_path_old = main_directory + '/../oggm_gdirs/'
+# # # Check if the directory exists before attempting to delete it
+# if os.path.exists(oggmdir_path_old):
+#     shutil.rmtree(oggmdir_path_old)
+#     print(f"The directory {oggmdir_path_old} has been deleted.")
+# else:
+#     print(f"The directory {oggmdir_path_old} does not exist.")    
+# #===== Delete the log file =====
+# log_path = main_directory + '/../'
+# log_files= glob.glob(os.path.join(log_path, '*.log'))
+# if log_files:
+#     for log_file in log_files:
+#         if os.path.isfile(log_file):
+#             os.remove(log_file)
+#             print(f"Deleted: {log_file}")
+# else:
+#     print("No .log files found.")
+
 
 # Output directory
 output_filepath = main_directory + '/../Output/'
@@ -432,7 +466,7 @@ hyps_data = 'OGGM'      # Hypsometry dataset (OGGM; Maussion etal 2019)
 # Hypsometry data pre-processed by OGGM
 if hyps_data == 'OGGM':
     oggm_gdir_fp = main_directory + '/../oggm_gdirs/'
-    overwrite_gdirs = False
+    overwrite_gdirs = True
     has_internet = True
 
 # Debris datasets
