@@ -380,8 +380,21 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
             # Check that water level is within given bounds
             cls = gdir.read_pickle('inversion_input')[-1]
             th = cls['hgt'][-1]
-            vmin, vmax = cfg.PARAMS['free_board_marine_terminating']
-            water_level = utils.clip_scalar(0, th - vmax, th - vmin)
+            thick0 = cls['thick'][-1]
+            rho = cfg.PARAMS['ice_density']
+            rho_o = cfg.PARAMS['ocean_density'] # Ocean density, must be >= ice density
+            if gdir.is_tidewater:
+                water_level = -thick0/4 if thick0 > 8*th else 0
+                # if th < (1-rho/rho_o)*thick0:
+                #     print ("Warning: The terminus of this glacier is floating")
+                #     water_level = th - (1-rho/rho_o)*thick0
+                # elif th > 0.3*thick0:
+                #     water_level = th - 0.3*thick0
+                # else:
+                #     water_level = 0
+            # vmin, vmax = cfg.PARAMS['free_board_marine_terminating']
+            # water_level = utils.clip_scalar(0, th - vmax, th - vmin)
+
             print('at the moment water level is :',water_level)
             print("------------------ after the thickness inversion with calving, run the dynamics ------------------")
             #%%
