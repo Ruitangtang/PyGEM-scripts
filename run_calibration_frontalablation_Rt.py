@@ -37,7 +37,8 @@ from oggm import utils, cfg
 from oggm import tasks
 from oggm.core.flowline import FluxBasedModel
 from oggm.core.calving_Ruitang import CalvingFluxBasedModelRt
-from oggm.core.inversion import find_inversion_calving_from_any_mb
+#from oggm.core.inversion import find_inversion_calving_from_any_mb
+from oggm.core.inversion_RT_New import find_inversion_calving_from_any_mb
 if oggm_version > 1.301:
     from oggm.core.massbalance import apparent_mb_from_any_mb # Newer Version of OGGM
 else:
@@ -378,13 +379,16 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                                      fls=nfls, option_areaconstant=False)
             # Water Level
             # Check that water level is within given bounds
-            cls = gdir.read_pickle('inversion_input')[-1]
+            cls = gdir.read_pickle('inversion_output')[-1]
             th = cls['hgt'][-1]
             thick0 = cls['thick'][-1]
             rho = cfg.PARAMS['ice_density']
             rho_o = cfg.PARAMS['ocean_density'] # Ocean density, must be >= ice density
             if gdir.is_tidewater:
-                water_level = -thick0/4 if thick0 > 8*th else 0
+                if water_level is None:
+                    water_level = -thick0/4 if thick0 > 8*th else 0
+                else:
+                    water_level = water_level
                 # if th < (1-rho/rho_o)*thick0:
                 #     print ("Warning: The terminus of this glacier is floating")
                 #     water_level = th - (1-rho/rho_o)*thick0
