@@ -384,19 +384,20 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
             thick0 = cls['thick'][-1]
             rho = cfg.PARAMS['ice_density']
             rho_o = cfg.PARAMS['ocean_density'] # Ocean density, must be >= ice density
-            water_level = -thick0/4 if thick0 > 8*th else 0
+            water_level = out_calving ['calving_water_level']
+            #water_level = -thick0/4 if thick0 > 8*th else 0
             # if gdir.is_tidewater:
             #     if water_level is None:
             #         water_level = -thick0/4 if thick0 > 8*th else 0
             #     else:
             #         water_level = water_level
-                # if th < (1-rho/rho_o)*thick0:
-                #     print ("Warning: The terminus of this glacier is floating")
-                #     water_level = th - (1-rho/rho_o)*thick0
-                # elif th > 0.3*thick0:
-                #     water_level = th - 0.3*thick0
-                # else:
-                #     water_level = 0
+            # if th < (1-rho/rho_o)*thick0:
+            #     print ("Warning: The terminus of this glacier is floating")
+            #     water_level = th - (1-rho/rho_o)*thick0
+            # elif th > 0.3*thick0:
+            #     water_level = th - 0.3*thick0
+            # else:
+            #     water_level = 0
             # vmin, vmax = cfg.PARAMS['free_board_marine_terminating']
             # water_level = utils.clip_scalar(0, th - vmax, th - vmin)
 
