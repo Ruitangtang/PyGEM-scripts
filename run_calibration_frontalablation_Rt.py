@@ -1471,29 +1471,29 @@ if option_ind_calving_k:
                     
                         
                     run_opt = False
-                    if bndhigh_good and bndlow_good:
-                        print("bandhigh_good:",bndhigh_good)
-                        print("bandlow_good:",bndlow_good)
-                        if reg_calving_gta_obs < reg_calving_gta_mod_bndlow:
-                            print("reg_calving_gta_obs < reg_calving_gta_mod_bndlow")
-                            output_df_all.loc[nglac,'calving_k'] = output_df_bndlow.loc[0,'calving_k']
-                            output_df_all.loc[nglac,'calving_thick'] = output_df_bndlow.loc[0,'calving_thick']
-                            output_df_all.loc[nglac,'calving_flux_Gta'] = output_df_bndlow.loc[0,'calving_flux_Gta']
-                            output_df_all.loc[nglac,'no_errors'] = output_df_bndlow.loc[0,'no_errors']
-                            output_df_all.loc[nglac,'oggm_dynamics'] = output_df_bndlow.loc[0,'oggm_dynamics']
-                        elif reg_calving_gta_obs > reg_calving_gta_mod_bndhigh:
-                            print("reg_calving_gta_obs > reg_calving_gta_mod_bndhigh")
-                            output_df_all.loc[nglac,'calving_k'] = output_df_bndhigh.loc[0,'calving_k']
-                            output_df_all.loc[nglac,'calving_thick'] = output_df_bndhigh.loc[0,'calving_thick']
-                            output_df_all.loc[nglac,'calving_flux_Gta'] = output_df_bndhigh.loc[0,'calving_flux_Gta']
-                            output_df_all.loc[nglac,'no_errors'] = output_df_bndhigh.loc[0,'no_errors']
-                            output_df_all.loc[nglac,'oggm_dynamics'] = output_df_bndhigh.loc[0,'oggm_dynamics']
-                        else:
-                            print("reg_calving_gta_mod_bndlow<reg_calving_gta_obs < reg_calving_gta_mod_bndhigh")
-                            run_opt = True
-                    else:
-                        run_opt = True
-                    #run_opt = True
+                    # if bndhigh_good and bndlow_good:
+                    #     print("bandhigh_good:",bndhigh_good)
+                    #     print("bandlow_good:",bndlow_good)
+                    #     if reg_calving_gta_obs < reg_calving_gta_mod_bndlow:
+                    #         print("reg_calving_gta_obs < reg_calving_gta_mod_bndlow")
+                    #         output_df_all.loc[nglac,'calving_k'] = output_df_bndlow.loc[0,'calving_k']
+                    #         output_df_all.loc[nglac,'calving_thick'] = output_df_bndlow.loc[0,'calving_thick']
+                    #         output_df_all.loc[nglac,'calving_flux_Gta'] = output_df_bndlow.loc[0,'calving_flux_Gta']
+                    #         output_df_all.loc[nglac,'no_errors'] = output_df_bndlow.loc[0,'no_errors']
+                    #         output_df_all.loc[nglac,'oggm_dynamics'] = output_df_bndlow.loc[0,'oggm_dynamics']
+                    #     elif reg_calving_gta_obs > reg_calving_gta_mod_bndhigh:
+                    #         print("reg_calving_gta_obs > reg_calving_gta_mod_bndhigh")
+                    #         output_df_all.loc[nglac,'calving_k'] = output_df_bndhigh.loc[0,'calving_k']
+                    #         output_df_all.loc[nglac,'calving_thick'] = output_df_bndhigh.loc[0,'calving_thick']
+                    #         output_df_all.loc[nglac,'calving_flux_Gta'] = output_df_bndhigh.loc[0,'calving_flux_Gta']
+                    #         output_df_all.loc[nglac,'no_errors'] = output_df_bndhigh.loc[0,'no_errors']
+                    #         output_df_all.loc[nglac,'oggm_dynamics'] = output_df_bndhigh.loc[0,'oggm_dynamics']
+                    #     else:
+                    #         print("reg_calving_gta_mod_bndlow<reg_calving_gta_obs < reg_calving_gta_mod_bndhigh")
+                    #         run_opt = True
+                    # else:
+                    #     run_opt = True
+                    run_opt = True
                     if run_opt:
                         output_df, calving_k = run_opt_fa(main_glac_rgi_ind, calving_k, calving_k_bndlow, calving_k_bndhigh, 
                                                           fa_glac_data_ind, frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
