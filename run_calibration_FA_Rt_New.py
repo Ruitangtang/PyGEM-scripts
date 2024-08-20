@@ -1498,16 +1498,17 @@ if option_ind_calving_k:
                     
                         
                     run_opt = False
-                    # visulize th parameter with model_function
-                    k_value_arrary, reg_calving_gta_mod_array = Visualize_parameter (model_function = reg_calving_flux, k_bndhigh = calving_k_bndhigh,
-                                                                                      k_bndlow = calving_k_bndlow, k_step = calving_k_step, k_name ='yield strength',
-                                                                                      main_glac_rgi = main_glac_rgi_ind, fa_glac_data_reg=fa_glac_data_ind,
-                                                                                      frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
-                                                                                      prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
-                                                                                      ignore_nan=False, debug=debug_reg_calving_fxn)
-                    print("k_value_array :",k_value_arrary)
-                    print("reg_calving_gta_mod_array:",reg_calving_gta_mod_array)
                     if debug:
+                    # visulize th parameter with model_function
+                        k_value_arrary, reg_calving_gta_mod_array = Visualize_parameter (model_function = reg_calving_flux, k_bndhigh = calving_k_bndhigh,
+                                                                                        k_bndlow = calving_k_bndlow, k_step = calving_k_step, k_name ='yield strength',
+                                                                                        main_glac_rgi = main_glac_rgi_ind, fa_glac_data_reg=fa_glac_data_ind,
+                                                                                        frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
+                                                                                        prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
+                                                                                        ignore_nan=False, debug=debug_reg_calving_fxn)
+                        print("k_value_array :",k_value_arrary)
+                        print("reg_calving_gta_mod_array:",reg_calving_gta_mod_array)
+
 
                     # if bndhigh_good and bndlow_good:
                     #     print("bandhigh_good:",bndhigh_good)
@@ -2844,4 +2845,4 @@ if option_ind_calving_k:
 #                 print('\n', gcm_name, rcp, 'fa total gta:', np.round(fa_gta_total,1), 'cal:', np.round(fa_gta_total_cal,1), 
 #                       '2080-2100:', np.round(fa_gta_total_2080_2100,1))
                     
-# #        assert 1==0, 'why more? due to calving_k variations?'
+# #        assert 1==0, 'why more? due to calving_k variations?
