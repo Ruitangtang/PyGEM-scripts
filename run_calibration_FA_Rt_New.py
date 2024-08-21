@@ -824,7 +824,7 @@ def Visualize_parameter (model_function = None, k_bndhigh = None, k_bndlow = Non
     
     # compute the model output
     for i, k in enumerate(k_values):
-        y_values[i] = model_function(calving_k = k, **kwags)
+        _, y_values[i],_ = model_function(calving_k = k, **kwags)
 
     # Visualize the relationship and save the figure
     fig = plt.figure(figsize=(10, 6))
@@ -833,7 +833,7 @@ def Visualize_parameter (model_function = None, k_bndhigh = None, k_bndlow = Non
     plt.ylabel('model_function')
     fig_fullfn = output_fp + str(reg) + k_name +'-variation.png'
     fig.savefig(fig_fullfn, bbox_inches='tight', dpi=300)
-    plt.show()
+    #plt.show()
     return k_values, y_values
 
 
