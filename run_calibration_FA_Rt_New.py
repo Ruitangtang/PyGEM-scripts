@@ -17,6 +17,8 @@ import numpy as np
 from scipy.stats import linregress
 import xarray as xr
 import traceback
+from scipy import special
+import time
 
 # Local libraries
 try:
@@ -44,6 +46,8 @@ if oggm_version > 1.301:
 else:
     from oggm.core.climate import apparent_mb_from_any_mb # Older Version of OGGM
 
+# record the time
+time_start = time.time()
 
 #%% ----- MANUAL INPUT DATA -----
 #regions = [1,3,4,5,7,9,17,19]
@@ -837,6 +841,90 @@ def Visualize_parameter (model_function = None, k_bndhigh = None, k_bndlow = Non
     return k_values, y_values
 
 
+
+def pbs(obs, pred, R):
+    """
+    PBS: Implmentation of the Particle Batch Smoother
+    Inputs:
+        obs: Observation vector (m x 1 array)
+        pred: Predicted observation ensemble matrix (m x N array)
+        r_cov: Observation error covariance 'matrix' (m x 1 array, or scalar)
+    Outputs:
+        w: Posterior weights (N x 1 array)
+    Dimensions:
+        ens_mem is the number of ensemble members and m is the number
+        of observations.
+
+    Here we have implemented the particle batch smoother, which is
+    a batch-smoother version of the particle filter (i.e. a particle filter
+    without resampling), described in Margulis et al.
+    (2015, doi: 10.1175/JHM-D-14-0177.1). As such, this routine can also be
+    used for particle filtering with sequential data assimilation. This scheme
+    is obtained by using a particle (mixture of Dirac delta functions)
+    representation of the prior and applying this directly to Bayes theorem. In
+    other words, it is just an application of importance sampling with the
+    prior as the proposal density (importance distribution). It is also the
+    same as the Generalized Likelihood Uncertainty Estimation (GLUE) technique
+    (with a formal Gaussian likelihood)which is widely used in hydrology.
+
+    This particular scheme assumes that the observation errors are additive
+    Gaussian white noise (uncorrelated in time and space). The "logsumexp"
+    trick is used to deal with potential numerical issues with floating point
+    operations that occur when dealing with ratios of likelihoods that vary by
+    many orders of magnitude.
+
+    Based on a previous version from  K. Aalstad (14.12.2020)
+    """
+    # TODO: Implement an option for correlated observation errors if R is
+    #      specified as a matrix (this would slow down this function).
+    # TODO: Consier other likelihoods and observation models.
+    # TODO: Look into iterative versions of importance sampling.
+
+    # Dimensions.
+    n_obs = np.size(obs)  # Number of obs
+    ens_mem = np.shape(pred)[-1]
+
+    # Checks on the observation error covariance matrix.
+    if np.size(R) == 1:
+        R = R * np.ones(n_obs)
+    elif np.size(R) == n_obs:
+        pass
+    else:
+        raise Exception('r_cov must be a scalar, m x 1 vector.')
+
+    # Residual and log-likelihood
+    if n_obs == 1:
+        residual = obs - pred
+        llh = -0.5 * ((residual**2) * (1/R))
+    else:
+        residual = obs - pred
+        llh = -0.5 * ((1/R)@(residual**2))
+
+    # Log of normalizing constant
+    # A properly scaled version of this could be output for model comparison.
+    log_z = special.logsumexp(llh)  # from scipy.special import logsumexp
+
+    # Weights
+    logw = llh - log_z  # Log of posterior weights
+    weights = np.exp(logw)  # Posterior weights
+
+    if np.size(weights) == ens_mem and np.round(np.sum(weights), 10) == 1:
+        pass
+    else:
+        raise Exception('Something wrong with the PBS')
+
+    weights = np.squeeze(weights)  # Remove axes of length one
+
+    Neff = 1/np.sum(weights**2)
+    Neff = np.round(Neff)
+
+    return weights, Neff
+
+
+
+
+
+
 #%%
 if option_merge_data:
     calving_fp = pygem_prms.main_directory + '/../calving_data/'
@@ -1508,8 +1596,26 @@ if option_ind_calving_k:
                                                                                         ignore_nan=False, debug=debug_reg_calving_fxn)
                         print("k_value_array :",k_value_arrary)
                         print("reg_calving_gta_mod_array:",reg_calving_gta_mod_array)
-
-
+                        fa_gta_obs_unc = output_df_all.loc[nglac,'fa_gta_obs_unc']
+                        Weights_k, Neff_k = pbs(reg_calving_gta_obs,reg_calving_gta_mod_array,fa_gta_obs_unc**2)
+                        k_weighted_av = np.average(k_value_arrary,weights = Weights_k)
+                        k_weighted_std = np.sqrt(np.average((k_value_arrary - k_weighted_av)**2,weights = Weights_k))
+                        print("k_weighted_av:",k_weighted_av, "k_weighted_std :", k_weighted_std)
+                        # Update the calving_k with the weighted average
+                        output_df, reg_calving_gta_mod_bndweighted, reg_calving_gta_obs = (
+                        reg_calving_flux(main_glac_rgi_ind, k_weighted_av, fa_glac_data_reg=fa_glac_data_ind,
+                                            frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
+                                            prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
+                                            ignore_nan=False, debug=debug_reg_calving_fxn))
+                        
+                        print('----- final : after optimization of the FA-----')
+                        output_df_all.loc[nglac,'calving_k'] = output_df.loc[0,'calving_k']
+                        output_df_all.loc[nglac,'calving_k_nmad'] = k_weighted_std
+                        output_df_all.loc[nglac,'calving_thick'] = output_df.loc[0,'calving_thick']
+                        output_df_all.loc[nglac,'calving_flux_Gta'] = output_df.loc[0,'calving_flux_Gta']
+                        output_df_all.loc[nglac,'no_errors'] = output_df.loc[0,'no_errors']
+                        output_df_all.loc[nglac,'oggm_dynamics'] = output_df.loc[0,'oggm_dynamics']
+ 
                     # if bndhigh_good and bndlow_good:
                     #     print("bandhigh_good:",bndhigh_good)
                     #     print("bandlow_good:",bndlow_good)
@@ -1607,14 +1713,14 @@ if option_ind_calving_k:
                         
             
                         
-#             # ----- EXPORT MODEL RESULTS -----
-#             output_df_all.to_csv(output_fp + output_fn, index=False)
+            # ----- EXPORT MODEL RESULTS -----
+            output_df_all.to_csv(output_fp + output_fn, index=False)
         
-#         else:
-#             output_df_all = pd.read_csv(output_fp + output_fn)
+        else:
+            output_df_all = pd.read_csv(output_fp + output_fn)
 
 
-#         output_df_all_rnd1 = output_df_all.copy()
+        # output_df_all_rnd1 = output_df_all.copy()
         
         
 #         #%%
@@ -2846,3 +2952,4 @@ if option_ind_calving_k:
 #                       '2080-2100:', np.round(fa_gta_total_2080_2100,1))
                     
 # #        assert 1==0, 'why more? due to calving_k variations?
+print('Total processing time:', time.time()-time_start, 's')
