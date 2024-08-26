@@ -430,13 +430,13 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
 #                        print('\n\ndiag.calving_m3:', diag.calving_m3.values)
 #                        print('calving_m3_since_y0:', ev_model.calving_m3_since_y0)
                     print("the calving in the diag is :",diag.calving_m3)
-                    calving_m3_annual = ((diag.calving_m3.values[1:] - diag.calving_m3.values[0:-1]) * 
-                                         pygem_prms.density_ice / pygem_prms.density_water)
+                    calving_m3_annual = (diag.calving_m3.values[1:] - diag.calving_m3.values[0:-1]) 
+#                                         pygem_prms.density_ice / pygem_prms.density_water)
                     print("calving_m3_annual is:",calving_m3_annual)
                     print("the frontalablation is updated totally :",calving_m3_annual.shape[0])
                     print(calving_m3_annual.shape[0],len(ev_model.mb_model.glac_wide_frontalablation))
                     for n in np.arange(calving_m3_annual.shape[0]):
-                        ev_model.mb_model.glac_wide_frontalablation[n] = calving_m3_annual[n]
+                        ev_model.mb_model.glac_wide_frontalablation[n] = calving_m3_annual[n]*pygem_prms.density_ice / pygem_prms.density_water
 
                     # Glacier-wide total mass balance (m3 w.e.)
                     ev_model.mb_model.glac_wide_massbaltotal = (
@@ -454,8 +454,8 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                     # calving flux (km3 ice/yr)
                     out_calving_forward['calving_flux'] = calving_m3_annual.sum() / nyears / 1e9
                     # calving flux (Gt/yr)
-                    calving_flux_Gta = out_calving_forward['calving_flux'] * pygem_prms.density_ice / pygem_prms.density_water
-                    
+                    #calving_flux_Gta = out_calving_forward['calving_flux'] * pygem_prms.density_ice / pygem_prms.density_water
+                    calving_flux_Gta = out_calving_forward['calving_flux'] *1e9* pygem_prms.density_ice / 1e12                   
                     # calving front thickness at start of simulation
                     thick = nfls[0].thick
                     last_idx = np.nonzero(thick)[0][-1]
