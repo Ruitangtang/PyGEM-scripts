@@ -39,6 +39,7 @@ from oggm import utils, cfg
 from oggm import tasks
 from oggm.core.flowline import FluxBasedModel
 from oggm.core.calving_Ruitang import CalvingFluxBasedModelRt
+from oggm.core.calving_Jan_Ruitang import CalvingFluxBasedModelJanRt
 #from oggm.core.inversion import find_inversion_calving_from_any_mb
 from oggm.core.inversion_RT_New import find_inversion_calving_from_any_mb
 if oggm_version > 1.301:
@@ -408,7 +409,7 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
             print('at the moment water level is :',water_level)
             print("------------------ after the thickness inversion with calving, run the dynamics ------------------")
             #%%
-            ev_model = CalvingFluxBasedModelRt(nfls, y0=0, mb_model=mbmod,
+            ev_model = CalvingFluxBasedModelJanRt(nfls, y0=0, mb_model=mbmod,
                                       glen_a=cfg.PARAMS['glen_a']*glen_a_multiplier, fs=fs,
                                       is_tidewater=gdir.is_tidewater,
                                       water_level=water_level
