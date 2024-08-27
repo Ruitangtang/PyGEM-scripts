@@ -824,7 +824,13 @@ def Visualize_parameter (model_function = None, k_bndhigh = None, k_bndlow = Non
     # k_name,the name of the k parameter
     # **kwags are the keyword arguments for model_function
 
-    k_values = np.arange(k_bndlow, k_bndhigh, k_step)
+
+    # do the random sampling
+    k_values = np.random.uniform(low = k_bndlow,high = k_bndhigh, size=1e2)
+
+
+    #k_values = np.arange(k_bndlow, k_bndhigh, k_step)
+
     y_values = np.zeros_like(k_values)
     
     # compute the model output
@@ -1601,7 +1607,8 @@ if option_ind_calving_k:
                         Weights_k, Neff_k = pbs(reg_calving_gta_obs,reg_calving_gta_mod_array,fa_gta_obs_unc**2)
                         k_weighted_av = np.average(k_value_arrary,weights = Weights_k)
                         k_weighted_std = np.sqrt(np.average((k_value_arrary - k_weighted_av)**2,weights = Weights_k))
-                        print("k_weighted_av:",k_weighted_av, "k_weighted_std :", k_weighted_std)
+                        calving_flux_Gta_weighted = np.average(reg_calving_gta_mod_array,weights = Weights_k)
+                        print("k_weighted_av:",k_weighted_av, "k_weighted_std :", k_weighted_std,"Neff_k is:",Neff_k)
                         # Update the calving_k with the weighted average
                         output_df, reg_calving_gta_mod_bndweighted, reg_calving_gta_obs = (
                         reg_calving_flux(main_glac_rgi_ind, k_weighted_av, fa_glac_data_reg=fa_glac_data_ind,
@@ -1610,10 +1617,13 @@ if option_ind_calving_k:
                                             ignore_nan=False, debug=debug_reg_calving_fxn))
                         
                         print('----- final : after optimization of the FA-----')
-                        output_df_all.loc[nglac,'calving_k'] = output_df.loc[0,'calving_k']
+                        #output_df_all.loc[nglac,'calving_k'] = output_df.loc[0,'calving_k']
+                        print("weighted calving_flux_Gta is :",calving_flux_Gta_weighted,"calving_flux_Gta with weighted calving_k is :",output_df.loc[0,'calving_flux_Gta'])
+                        output_df_all.loc[nglac,'calving_k'] = k_weighted_av                      
                         output_df_all.loc[nglac,'calving_k_nmad'] = k_weighted_std
                         output_df_all.loc[nglac,'calving_thick'] = output_df.loc[0,'calving_thick']
-                        output_df_all.loc[nglac,'calving_flux_Gta'] = output_df.loc[0,'calving_flux_Gta']
+                        #output_df_all.loc[nglac,'calving_flux_Gta'] = output_df.loc[0,'calving_flux_Gta']
+                        output_df_all.loc[nglac,'calving_flux_Gta'] = calving_flux_Gta_weighted
                         output_df_all.loc[nglac,'no_errors'] = output_df.loc[0,'no_errors']
                         output_df_all.loc[nglac,'oggm_dynamics'] = output_df.loc[0,'oggm_dynamics']
  
