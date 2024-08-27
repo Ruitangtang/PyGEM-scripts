@@ -51,6 +51,13 @@ if pygem_prms.option_calibration in ['MCMC']:
     import pymc
     from pymc import deterministic
 
+
+# set the figure save path
+save_path_figure = pygem_prms.output_filepath + '/figures/'
+# Check if the directory exists, and if not, create it
+if not os.path.exists(save_path_figure):
+    os.makedirs(save_path_figure)
+
 #%% FUNCTIONS
 def getparser():
     """
@@ -213,7 +220,10 @@ if pygem_prms.option_calibration in ['MCMC', 'emulator']:
                 f, ax = plt.subplots(1, 1, figsize=(4, 4))
                 ax.plot(y_test.numpy()[idx], y_pred.mean.numpy()[idx], 'k*')
                 ax.fill_between(y_test.numpy()[idx], lower.numpy()[idx], upper.numpy()[idx], alpha=0.5)
-                plt.show()
+                #plt.show()
+                save_name = 'test set predictions prior to training.png'
+                Save_path_Full = os.path.join(save_path_figure, save_name)
+                plt.savefig(Save_path_Full, dpi=300, bbox_inches='tight')
     
         # ----- Find optimal model hyperparameters -----
         model.train()
@@ -255,7 +265,10 @@ if pygem_prms.option_calibration in ['MCMC', 'emulator']:
                 ax.plot(y_test.numpy()[idx], y_pred.mean.numpy()[idx], 'k*')
                 ax.fill_between(y_test.numpy()[idx], lower.numpy()[idx], upper.numpy()[idx], 
                                 alpha=0.5)
-                plt.show()
+                #plt.show()
+                save_name = 'posterior distributions (with test data on x-axis).png'
+                Save_path_Full = os.path.join(save_path_figure, save_name)
+                plt.savefig(Save_path_Full, dpi=300, bbox_inches='tight')
     
         if debug:
             # Compare user-defined parameter sets within the emulator
@@ -278,8 +291,10 @@ if pygem_prms.option_calibration in ['MCMC', 'emulator']:
                 ax.set_ylabel('PyGEM MB (mwea)')
             elif y_cn == 'nbinyrs_negmbclim':
                 ax.set_ylabel('nbinyrs_negmbclim (-)')
-            plt.show()
-    
+            #plt.show()
+            save_name = 'Compare user-defined parameter sets within the emulator.png'
+            Save_path_Full = os.path.join(save_path_figure, save_name)
+            plt.savefig(Save_path_Full, dpi=300, bbox_inches='tight')
             # Compare the modeled and emulated mass balances
             y_em_norm = model(torch.tensor(X_norm).to(torch.float)).mean.detach().numpy()
             y_em = y_em_norm * y_std + y_mean
@@ -295,7 +310,10 @@ if pygem_prms.option_calibration in ['MCMC', 'emulator']:
             elif y_cn == 'nbinyrs_negmbclim':
                 ax.set_xlabel('emulator nbinyrs_negmbclim (-)')
                 ax.set_ylabel('PyGEM nbinyrs_negmbclim (-)')
-            plt.show()
+            #plt.show()
+            save_name = 'Compare the modeled and emulated mass balances.png'
+            Save_path_Full = os.path.join(save_path_figure, save_name)
+            plt.savefig(Save_path_Full, dpi=300, bbox_inches='tight')
             
         # ----- EXPORT EMULATOR -----
         # Save emulator (model state, x_train, y_train, etc.)
