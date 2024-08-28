@@ -162,8 +162,8 @@ def plot_timeseries (calving_m3, base_year=2000, save_name = None, save_path = s
     - save_path (str or None): The file path to save the figure. If None, the figure will not be saved.
     """
     # Create a datetime index combining calendar_year and calendar_month
-    calendar_year = calving_m3['calendar_year'].values
-    calendar_month = calving_m3['calendar_month'].values
+    calendar_year = calving_m3.coords['calendar_year'].values
+    calendar_month = calving_m3.coords['calendar_month'].values
 
     # Create datetime index
     dates = pd.to_datetime({
@@ -496,7 +496,8 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                     calving_m3_annual = (diag.calving_m3.values[1:] - diag.calving_m3.values[0:-1]) 
 #                                         pygem_prms.density_ice / pygem_prms.density_water)
                     # plot the timeseries of calving_m3_annual
-                    plot_timeseries(calving_m3=calving_m3_annual,save_name='Timeseries of calving_m3 annual(month)')
+                    #print
+                    #plot_timeseries(calving_m3=calving_m3_annual,save_name='Timeseries of calving_m3 annual(month)')
                     print("calving_m3_annual is:",calving_m3_annual)
                     print("the frontalablation is updated totally :",calving_m3_annual.shape[0])
                     print(calving_m3_annual.shape[0],len(ev_model.mb_model.glac_wide_frontalablation))
