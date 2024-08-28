@@ -890,10 +890,10 @@ def Visualize_parameter (model_function = None, k_bndhigh = None, k_bndlow = Non
 
 
     # do the random sampling
-    k_values = np.random.uniform(low = k_bndlow,high = k_bndhigh, size=100)
+    #k_values = np.random.uniform(low = k_bndlow,high = k_bndhigh, size=100)
 
 
-    #k_values = np.arange(k_bndlow, k_bndhigh, k_step)
+    k_values = np.arange(k_bndlow, k_bndhigh, k_step)
 
     y_values = np.zeros_like(k_values)
     
