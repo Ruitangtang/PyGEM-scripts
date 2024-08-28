@@ -145,6 +145,66 @@ prms_from_glac_cal=True
 
 
 
+#%% ----- PLOT FUNCTIONS -----
+
+save_path_figure = pygem_prms.output_filepath + '/figures/'
+# Check if the directory exists, and if not, create it
+if not os.path.exists(save_path_figure):
+    os.makedirs(save_path_figure)
+def plot_timeseries (calving_m3, base_year=2000, save_name = None, save_path = save_path_figure):
+    """
+    Plots a time series of calving flux with dashed grid lines after each year.
+
+    Parameters:
+    - calving_m3 (xarray.DataArray): The calving flux data with coordinates 'calendar_year' and 'calendar_month'.
+    - base_year (int): The base year corresponding to calendar_year = 0. Default is 2000.
+    - save_name (str or None): The file name to save the figure. If None, the figure will not be saved.
+    - save_path (str or None): The file path to save the figure. If None, the figure will not be saved.
+    """
+    # Create a datetime index combining calendar_year and calendar_month
+    calendar_year = calving_m3['calendar_year'].values
+    calendar_month = calving_m3['calendar_month'].values
+
+    # Create datetime index
+    dates = pd.to_datetime({
+        'year': base_year + calendar_year,
+        'month': calendar_month,
+        'day': 1  # Set all to the first day of the month
+    })
+
+    # Plotting the data with the new datetime index
+    plt.figure(figsize=(12, 6))
+    plt.plot(dates, calving_m3, label='Calving Flux (m³)', color='blue')
+
+    # Adding labels and title
+    plt.title('Calving Flux Time Series')
+    plt.xlabel('Date')
+    plt.ylabel('Calving Flux (m³)')
+    #plt.grid(True, which='both', linestyle='--', linewidth=0.5)  # Basic grid for both axes
+
+    # Adding dashed vertical lines after each year
+    years = pd.date_range(start=dates.min(), end=dates.max(), freq='YS')  # Year start frequency
+    for year in years:
+        plt.axvline(x=year, linestyle='--', color='gray', linewidth=0.5)  # Add a dashed vertical line
+
+    # Rotate x-axis labels for better readability
+    plt.xticks(rotation=45)
+
+    # Show legend
+    plt.legend()
+
+    # Save the figure if a save path is provided
+    if save_path and save_name:
+        save_path_full = os.path.join(save_path, save_name)
+        plt.savefig(save_path_full, bbox_inches='tight')
+        print(f"Figure saved to {save_path}")
+
+    # Display the plot
+    #plt.show()
+
+
+
+
 #%% ----- CONVERSION FUNCTIONS -----
 def mwea_to_gta(mwea, area_m2):
     return mwea * pygem_prms.density_water * area_m2 / 1e12
@@ -431,8 +491,12 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
 #                        print('\n\ndiag.calving_m3:', diag.calving_m3.values)
 #                        print('calving_m3_since_y0:', ev_model.calving_m3_since_y0)
                     print("the calving in the diag is :",diag.calving_m3)
+                    # plot the timeseries of calving_m3
+                    plot_timeseries(calving_m3=diag.calving_m3,save_name='Timeseries of accumulated calving_m3')
                     calving_m3_annual = (diag.calving_m3.values[1:] - diag.calving_m3.values[0:-1]) 
 #                                         pygem_prms.density_ice / pygem_prms.density_water)
+                    # plot the timeseries of calving_m3_annual
+                    plot_timeseries(calving_m3=calving_m3_annual,save_name='Timeseries of calving_m3 annual(month)')
                     print("calving_m3_annual is:",calving_m3_annual)
                     print("the frontalablation is updated totally :",calving_m3_annual.shape[0])
                     print(calving_m3_annual.shape[0],len(ev_model.mb_model.glac_wide_frontalablation))
@@ -826,7 +890,7 @@ def Visualize_parameter (model_function = None, k_bndhigh = None, k_bndlow = Non
 
 
     # do the random sampling
-    k_values = np.random.uniform(low = k_bndlow,high = k_bndhigh, size=1e2)
+    k_values = np.random.uniform(low = k_bndlow,high = k_bndhigh, size=100)
 
 
     #k_values = np.arange(k_bndlow, k_bndhigh, k_step)
