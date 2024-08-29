@@ -145,64 +145,12 @@ prms_from_glac_cal=True
 
 
 
-#%% ----- PLOT FUNCTIONS -----
+#%% ----- plot save path -----
 
 save_path_figure = pygem_prms.output_filepath + '/figures/'
 # Check if the directory exists, and if not, create it
 if not os.path.exists(save_path_figure):
     os.makedirs(save_path_figure)
-def plot_timeseries (calving_m3, base_year=2000, save_name = None, save_path = save_path_figure):
-    """
-    Plots a time series of calving flux with dashed grid lines after each year.
-
-    Parameters:
-    - calving_m3 (xarray.DataArray): The calving flux data with coordinates 'calendar_year' and 'calendar_month'.
-    - base_year (int): The base year corresponding to calendar_year = 0. Default is 2000.
-    - save_name (str or None): The file name to save the figure. If None, the figure will not be saved.
-    - save_path (str or None): The file path to save the figure. If None, the figure will not be saved.
-    """
-    # Create a datetime index combining calendar_year and calendar_month
-    calendar_year = calving_m3.coords['calendar_year'].values
-    calendar_month = calving_m3.coords['calendar_month'].values
-
-    # Create datetime index
-    dates = pd.to_datetime({
-        'year': base_year + calendar_year,
-        'month': calendar_month,
-        'day': 1  # Set all to the first day of the month
-    })
-
-    # Plotting the data with the new datetime index
-    plt.figure(figsize=(12, 6))
-    plt.plot(dates, calving_m3, label='Calving Flux (m³)', color='blue')
-
-    # Adding labels and title
-    plt.title('Calving Flux Time Series')
-    plt.xlabel('Date')
-    plt.ylabel('Calving Flux (m³)')
-    #plt.grid(True, which='both', linestyle='--', linewidth=0.5)  # Basic grid for both axes
-
-    # Adding dashed vertical lines after each year
-    years = pd.date_range(start=dates.min(), end=dates.max(), freq='YS')  # Year start frequency
-    for year in years:
-        plt.axvline(x=year, linestyle='--', color='gray', linewidth=0.5)  # Add a dashed vertical line
-
-    # Rotate x-axis labels for better readability
-    plt.xticks(rotation=45)
-
-    # Show legend
-    plt.legend()
-
-    # Save the figure if a save path is provided
-    if save_path and save_name:
-        save_path_full = os.path.join(save_path, save_name)
-        plt.savefig(save_path_full, bbox_inches='tight')
-        print(f"Figure saved to {save_path}")
-
-    # Display the plot
-    #plt.show()
-
-
 
 
 #%% ----- CONVERSION FUNCTIONS -----
