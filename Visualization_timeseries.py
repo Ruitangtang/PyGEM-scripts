@@ -13,6 +13,7 @@ from matplotlib.ticker import AutoMinorLocator
 from matplotlib.animation import FuncAnimation, PillowWriter
 import os
 import seaborn as sns
+from datetime import datetime
 
 # Load the data
 
@@ -51,8 +52,8 @@ def plot_timeseries_Numpy(data, start_date='2000-01-01', end_date='2020-12-31', 
     
     # set x-axis ticks and lables
     plt.xticks(date_range, date_range_Tick, rotation=45, ha='right')
-    plt.xlabel(Y_label if Y_label else 'Variable Name')
-    plt.ylabel(Y_label)
+    plt.xlabel('Date')
+    plt.ylabel(Y_label if Y_label else 'Variable Name')
 
         # Adding labels and title
     plt.title(F_title)
@@ -104,7 +105,7 @@ def plot_timeseries (calving_m3, base_year=2000, save_name = None, save_path = N
     plt.plot(dates, calving_m3, label='Calving Flux (m³)', color='blue')
 
     # Adding labels and title
-    plt.title('Calving Flux Time Series')
+    #plt.title('Calving Flux Time Series')
     plt.xlabel('Date')
     plt.ylabel('Calving Flux (m³)')
     #plt.grid(True, which='both', linestyle='--', linewidth=0.5)  # Basic grid for both axes
@@ -142,7 +143,7 @@ def plot_timeseries_profile(gdir, filesuffix ='', sel_years = None, group='fl_0'
     - gdir (GlacierDirectory): The glacier directory object containing the dataset.
     - filesuffix (str): The file suffix identifier for the specific diagnostics file.
     - sel_years (list or array-like): The years to select for plotting the thickness.
-    - group (str, optional): The group within the NetCDF file to read data from. Default is 'fl_0'.
+    - group (str, optional): The group within the NetCDF file to read data from. Default is 'fl_0', for the centerline flowline (elevation-band)
     - ax (matplotlib.axes._axes.Axes, optional): The axes to plot on. If None, a new figure and axes will be created.
     - ylabel (str, optional): The label for the y-axis. Default is 'Elevation (m a.s.l.)'.
     - title (str, optional): The title of the plot. Default is 'Flowline profile'.
@@ -197,7 +198,7 @@ def plot_timeseries_profile(gdir, filesuffix ='', sel_years = None, group='fl_0'
 
 
 # Function to plot timeseries snapshot of glacier variables
-def plot_time_series_snapshots(gdir, filesuffix='', sel_times=None, variable='thickness_m', group='fl_0', 
+def plot_time_series_snapshots(gdir, filesuffix='', start_date=None, end_date =None,n_year =1,variable='thickness_m', group='fl_0', 
                                ylabel='Variable Value', xlabel='Distance along the flowline (m)', title='Time Series Snapshots', 
                                save_path=None,save_name=None):
     """
@@ -206,7 +207,9 @@ def plot_time_series_snapshots(gdir, filesuffix='', sel_times=None, variable='th
     Parameters:
     - gdir (GlacierDirectory): The glacier directory object containing the dataset.
     - filesuffix (str): The file suffix identifier for the specific diagnostics file.
-    - sel_times (list or array-like): The time points to select for plotting the variable.
+    - start_date (datetime.datetime, optional): The start date for the time series. Default is None, which means all data will be plotted.
+    - end_date (datetime.datetime, optional): The end date for the time series. Default is '2020-01-01'
+    - n_year (int) : the number of year interval to show, Default is 1
     - variable (str, optional): The variable name in the dataset to plot. Default is 'thickness_m'.
     - group (str, optional): The group within the NetCDF file to read data from. Default is 'fl_0'.
     - ylabel (str, optional): The label for the y-axis. Default is 'Variable Value'.
@@ -219,6 +222,17 @@ def plot_time_series_snapshots(gdir, filesuffix='', sel_times=None, variable='th
     """
     # Open the dataset
     with xr.open_dataset(gdir.get_filepath('fl_diagnostics', filesuffix=filesuffix), group=group) as ds:
+        # generate the sel_titimes,(list or array-like): The time points to select for plotting the variable.
+        start_date = datetime.strptime(start_date, '%Y-%m-%d')
+        end_date = datetime.strptime(end_date, '%Y-%m-%d')
+        sel_times = []
+        current_date = start_date
+        while current_date <= end_date:
+            sel_times.append(current_date.strftime('%Y-%m-%d'))
+            # Move to the next year
+            next_year = current_date.year + n_year
+            current_date = current_date.replace(year=next_year)
+
         # Set up a grid of subplots
         num_snapshots = len(sel_times)
         fig, axes = plt.subplots(nrows=1, ncols=num_snapshots, figsize=(5*num_snapshots, 6), sharey=True)
@@ -261,14 +275,16 @@ def plot_time_series_snapshots(gdir, filesuffix='', sel_times=None, variable='th
 
 # Function to plot an animation of timeseries glacier variables
 
-def animate_time_series(ds, variable='thickness_m', interval=200, ylabel='Elevation (m a.s.l.)', 
+def animate_time_series(gdir, filesuffix ='',variable='thickness_m', group='fl_0',interval=200, ylabel='Elevation (m a.s.l.)', 
                         xlabel='Distance (m)', title='Elevation Changes Over Time', save_path=None,save_name=None):
     """
     Creates an animation of a time series variable from a NetCDF dataset using xarray.
 
     Parameters:
-    - ds (xarray Dataset): The dataset containing the variable to plot.
+    - gdir (GlacierDirectory): The glacier directory object containing the dataset.
+    - filesuffix (str): The file suffix identifier for the specific diagnostics file.
     - variable (str, optional): The variable name in the dataset to animate. Default is 'thickness_m'.
+    - group (str, optional): The group within the NetCDF file to read data from. Default is 'fl_0'.
     - interval (int, optional): Delay between frames in milliseconds. Default is 200.
     - ylabel (str, optional): The label for the y-axis. Default is 'Elevation (m a.s.l.)'.
     - xlabel (str, optional): The label for the x-axis. Default is 'Distance (m)'.
@@ -278,44 +294,52 @@ def animate_time_series(ds, variable='thickness_m', interval=200, ylabel='Elevat
     Returns:
     - None: Displays the animation and optionally saves it.
     """
-    # Extract the time points and distances
-    times = ds['time'].values
-    distance = ds['distance'].values
-    
-    # Set up the figure and axis
-    fig, ax = plt.subplots(figsize=(10, 6))
-    line, = ax.plot([], [], 'b-', marker='o')
-    
-    # Set axis labels and title
-    ax.set_ylabel(ylabel)
-    ax.set_xlabel(xlabel)
-    ax.set_title(title)
-    
-    # Initialize the plot limits
-    ax.set_xlim(distance.min(), distance.max())
-    ax.set_ylim(ds[variable].min(), ds[variable].max())
-    
-    def update(frame):
-        # Update the line data for the current frame (time point)
-        time_point = times[frame]
-        data_at_time = ds.sel(time=time_point)[variable]
-        line.set_data(distance, data_at_time)
-        ax.set_title(f'{title} - {np.datetime_as_string(time_point, unit="Y")}')
-        return line,
 
-    # Create the animation
-    anim = FuncAnimation(fig, update, frames=len(times), interval=interval, blit=True)
+    # Open the dataset
+    with xr.open_dataset(gdir.get_filepath('fl_diagnostics', filesuffix=filesuffix), group=group) as ds: 
+        # ds (xarray Dataset): The dataset containing the variable to plot.
 
-    # Save the animation if a save_path is provided
-    if save_path:
-    # Ensure the directory exists
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        save_path_full = os.path.join(save_path, save_name)
-        plt.savefig(save_path_full, bbox_inches='tight')
-        print(f"Figure saved to {save_path_full}")
 
-    # Show the animation
-    #plt.show()
+        # Extract the time points and distances
+        # times = ds['time'].values
+        # distance = ds['distance'].values
+        times = ds.time
+        distance = ds.dis_along_flowline
+        
+        # Set up the figure and axis
+        fig, ax = plt.subplots(figsize=(10, 6))
+        line, = ax.plot([], [], 'b-', marker='o')
+        
+        # Set axis labels and title
+        ax.set_ylabel(ylabel)
+        ax.set_xlabel(xlabel)
+        ax.set_title(title)
+        
+        # Initialize the plot limits
+        ax.set_xlim(distance.min(), distance.max())
+        ax.set_ylim(ds[variable].min(), ds[variable].max())
+        
+        def update(frame):
+            # Update the line data for the current frame (time point)
+            time_point = times[frame]
+            data_at_time = ds.sel(time=time_point)[variable]
+            line.set_data(distance, data_at_time)
+            ax.set_title(f'{title} - {np.datetime_as_string(time_point, unit="Y")}')
+            return line,
+
+        # Create the animation
+        anim = FuncAnimation(fig, update, frames=len(times), interval=interval, blit=True)
+
+        # Save the animation if a save_path is provided
+        if save_path:
+        # Ensure the directory exists
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+            save_path_full = os.path.join(save_path, save_name)
+            plt.savefig(save_path_full, bbox_inches='tight')
+            print(f"Figure saved to {save_path_full}")
+
+        # Show the animation
+        #plt.show()
 
 # # Example usage with synthetic data
 # times = pd.date_range('2000-01-01', '2020-01-01', freq='YS')
