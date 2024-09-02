@@ -32,6 +32,7 @@ from pygem.glacierdynamics import MassRedistributionCurveModel
 from pygem.oggm_compat import single_flowline_glacier_directory_with_calving
 from pygem.shop import debris 
 from pygem import class_climate
+import Visualization_timeseries as Visualization_timeseries
 
 import oggm
 oggm_version = float(oggm.__version__[0:3])
@@ -438,14 +439,18 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
 #                    if debug:
 #                        print('\n\ndiag.calving_m3:', diag.calving_m3.values)
 #                        print('calving_m3_since_y0:', ev_model.calving_m3_since_y0)
+                    save_path_figure_calving = os.path.join(save_path_figure, str(calving_k))+ os.sep
+                    if not os.path.exists(save_path_figure_calving):
+                        os.makedirs(save_path_figure_calving)
                     print("the calving in the diag is :",diag.calving_m3)
                     # plot the timeseries of calving_m3
-                    plot_timeseries(calving_m3=diag.calving_m3,save_name='Timeseries of accumulated calving_m3')
+                    Visualization_timeseries.plot_timeseries(calving_m3=diag.calving_m3,save_name='Timeseries of accumulated calving flux (m³)',
+                                                             save_path= save_path_figure_calving)
                     calving_m3_annual = (diag.calving_m3.values[1:] - diag.calving_m3.values[0:-1]) 
 #                                         pygem_prms.density_ice / pygem_prms.density_water)
                     # plot the timeseries of calving_m3_annual
-                    #print
-                    #plot_timeseries(calving_m3=calving_m3_annual,save_name='Timeseries of calving_m3 annual(month)')
+                    Visualization_timeseries.plot_timeseries_Numpy(data = calving_m3_annual, start_date='2000-01-01', end_date='2020-12-31',
+                                                                    save_name='Timeseries of calving',save_path=save_path_figure_calving, Y_label='calving flux (m³ a⁻¹)', F_title='Time Series')
                     print("calving_m3_annual is:",calving_m3_annual)
                     print("the frontalablation is updated totally :",calving_m3_annual.shape[0])
                     print(calving_m3_annual.shape[0],len(ev_model.mb_model.glac_wide_frontalablation))
@@ -474,6 +479,22 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                     thick = nfls[0].thick
                     last_idx = np.nonzero(thick)[0][-1]
                     out_calving_forward['calving_front_thick'] = thick[last_idx]
+
+                    # Plot the timeseries of glacier profile
+                    Visualization_timeseries.plot_timeseries_profile(gdir=gdir, filesuffix ='', save_path=save_path_figure_calving,save_name ='Glacier profile',
+                                                                     xlabel='Distance along the flowline (m)')
+                    
+                    #%% Plot the snapshot of each January about the glacier profile
+                    # generate selected time list
+                    # Define the start and end dates
+                    Visualization_timeseries.plot_time_series_snapshots(gdir=gdir,filesuffix ='', start_date='2000-01-01', end_date ='2020-01-01',n_year =1,variable='thickness_m', group='fl_0', 
+                               ylabel='Elevation (m a.s.l.)', xlabel='Distance along the flowline (m)', title='Time Series Snapshots', 
+                               save_path=save_path_figure_calving,save_name='Timeseries snapshot of selected year')
+                    
+                    #%% Plot the animate gif of each month about the glacier profile
+                    Visualization_timeseries.animate_time_series(gdir=gdir, filesuffix ='', variable='thickness_m', group='fl_0',interval=200, ylabel='Elevation (m a.s.l.)', 
+                                                                 xlabel='Distance along the flowline (m)', title='Elevation Changes Animate', save_path=save_path_figure_calving,
+                                                                 save_name='Animate timeseries of monthly glacier profile')
                     
                     
                     # Record in dataframe
