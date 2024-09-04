@@ -428,9 +428,14 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                 print("***********************do the dynamic running with calving***********************")
                 print("nyears is :",nyears)
                 try:
-
-                    diag = ev_model.run_until_and_store(nyears,store_monthly_step='monthly')
-                    print('diag is :',diag)
+                    # add the condition for different situation,1. do_fl_diag = True 2. do_fl_diag = False
+                    do_fl_diag = cfg.PARAMS['store_fl_diagnostics']
+                    if do_fl_diag:
+                        diag, fl_diag_dss= ev_model.run_until_and_store(nyears,store_monthly_step='monthly')
+                        print('diag is :',diag)
+                    else:
+                        diag = ev_model.run_until_and_store(nyears,store_monthly_step='monthly')
+                        print('diag is :',diag)
                 except:
                     print("something is wrong with the run_until_and_store")
                     print(traceback.format_exc())
@@ -440,79 +445,82 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                 
                 # Record frontal ablation for tidewater glaciers and update total mass balance
                 if gdir.is_tidewater:
-                    # Glacier-wide frontal ablation (m3 w.e.)
-                    # - note: diag.calving_m3 is cumulative calving
-#                    if debug:
-#                        print('\n\ndiag.calving_m3:', diag.calving_m3.values)
-#                        print('calving_m3_since_y0:', ev_model.calving_m3_since_y0)
-                    save_path_figure_calving = os.path.join(save_path_figure, str(calving_k))+ os.sep
-                    if not os.path.exists(save_path_figure_calving):
-                        os.makedirs(save_path_figure_calving)
-                    print("the calving in the diag is :",diag.calving_m3)
-                    # plot the timeseries of calving_m3
-                    Visualization_timeseries.plot_timeseries(calving_m3=diag.calving_m3,save_name='Timeseries of accumulated calving flux (m³)',
-                                                             save_path= save_path_figure_calving)
-                    calving_m3_annual = (diag.calving_m3.values[1:] - diag.calving_m3.values[0:-1]) 
-#                                         pygem_prms.density_ice / pygem_prms.density_water)
-                    # plot the timeseries of calving_m3_annual
-                    Visualization_timeseries.plot_timeseries_Numpy(data = calving_m3_annual, start_date='2000-01-01', end_date='2020-12-31',
-                                                                    save_name='Timeseries of calving',save_path=save_path_figure_calving, Y_label='calving flux (m³ a⁻¹)', F_title='Time Series')
-                    print("calving_m3_annual is:",calving_m3_annual)
-                    print("the frontalablation is updated totally :",calving_m3_annual.shape[0])
-                    print(calving_m3_annual.shape[0],len(ev_model.mb_model.glac_wide_frontalablation))
-                    for n in np.arange(calving_m3_annual.shape[0]):
-                        ev_model.mb_model.glac_wide_frontalablation[n] = calving_m3_annual[n]*pygem_prms.density_ice / pygem_prms.density_water
+                    try:
+                        # Glacier-wide frontal ablation (m3 w.e.)
+                        # - note: diag.calving_m3 is cumulative calving
+    #                    if debug:
+    #                        print('\n\ndiag.calving_m3:', diag.calving_m3.values)
+    #                        print('calving_m3_since_y0:', ev_model.calving_m3_since_y0)
+                        save_path_figure_calving = os.path.join(save_path_figure, str(calving_k))+ os.sep
+                        if not os.path.exists(save_path_figure_calving):
+                            os.makedirs(save_path_figure_calving)
+                        print("the calving in the diag is :",diag.calving_m3)
+                        # plot the timeseries of calving_m3
+                        Visualization_timeseries.plot_timeseries(calving_m3=diag.calving_m3,save_name='Timeseries of accumulated calving flux (m³)',
+                                                                save_path= save_path_figure_calving)
+                        calving_m3_annual = (diag.calving_m3.values[1:] - diag.calving_m3.values[0:-1]) 
+    #                                         pygem_prms.density_ice / pygem_prms.density_water)
+                        # plot the timeseries of calving_m3_annual
+                        Visualization_timeseries.plot_timeseries_Numpy(data = calving_m3_annual, start_date='2000-01-01', end_date='2020-12-31',
+                                                                        save_name='Timeseries of calving',save_path=save_path_figure_calving, Y_label='calving flux (m³ a⁻¹)', F_title='Time Series')
+                        print("calving_m3_annual is:",calving_m3_annual)
+                        print("the frontalablation is updated totally :",calving_m3_annual.shape[0])
+                        print(calving_m3_annual.shape[0],len(ev_model.mb_model.glac_wide_frontalablation))
+                        for n in np.arange(calving_m3_annual.shape[0]):
+                            ev_model.mb_model.glac_wide_frontalablation[n] = calving_m3_annual[n]*pygem_prms.density_ice / pygem_prms.density_water
 
-                    # Glacier-wide total mass balance (m3 w.e.)
-                    ev_model.mb_model.glac_wide_massbaltotal = (
-                            ev_model.mb_model.glac_wide_massbaltotal  - ev_model.mb_model.glac_wide_frontalablation)
-                    
-#                    if debug:
-#                        print('avg calving_m3:', calving_m3_annual.sum() / nyears)
-#                        print('avg frontal ablation [Gta]:', 
-#                              np.round(ev_model.mb_model.glac_wide_frontalablation.sum() / 1e9 / nyears,4))
-#                        print('avg frontal ablation [Gta]:', 
-#                              np.round(ev_model.calving_m3_since_y0 * pygem_prms.density_ice / 1e12 / nyears,4))
+                        # Glacier-wide total mass balance (m3 w.e.)
+                        ev_model.mb_model.glac_wide_massbaltotal = (
+                                ev_model.mb_model.glac_wide_massbaltotal  - ev_model.mb_model.glac_wide_frontalablation)
                         
-                    # Output of calving
-                    out_calving_forward = {}
-                    # calving flux (km3 ice/yr)
-                    out_calving_forward['calving_flux'] = calving_m3_annual.sum() / nyears / 1e9
-                    # calving flux (Gt/yr)
-                    #calving_flux_Gta = out_calving_forward['calving_flux'] * pygem_prms.density_ice / pygem_prms.density_water
-                    calving_flux_Gta = out_calving_forward['calving_flux'] *1e9* pygem_prms.density_ice / 1e12                   
-                    # calving front thickness at start of simulation
-                    thick = nfls[0].thick
-                    last_idx = np.nonzero(thick)[0][-1]
-                    out_calving_forward['calving_front_thick'] = thick[last_idx]
+    #                    if debug:
+    #                        print('avg calving_m3:', calving_m3_annual.sum() / nyears)
+    #                        print('avg frontal ablation [Gta]:', 
+    #                              np.round(ev_model.mb_model.glac_wide_frontalablation.sum() / 1e9 / nyears,4))
+    #                        print('avg frontal ablation [Gta]:', 
+    #                              np.round(ev_model.calving_m3_since_y0 * pygem_prms.density_ice / 1e12 / nyears,4))
+                            
+                        # Output of calving
+                        out_calving_forward = {}
+                        # calving flux (km3 ice/yr)
+                        out_calving_forward['calving_flux'] = calving_m3_annual.sum() / nyears / 1e9
+                        # calving flux (Gt/yr)
+                        #calving_flux_Gta = out_calving_forward['calving_flux'] * pygem_prms.density_ice / pygem_prms.density_water
+                        calving_flux_Gta = out_calving_forward['calving_flux'] *1e9* pygem_prms.density_ice / 1e12                   
+                        # calving front thickness at start of simulation
+                        thick = nfls[0].thick
+                        last_idx = np.nonzero(thick)[0][-1]
+                        out_calving_forward['calving_front_thick'] = thick[last_idx]
 
-                    # Plot the timeseries of glacier profile
-                    Visualization_timeseries.plot_timeseries_profile(gdir=gdir, filesuffix ='', save_path=save_path_figure_calving,save_name ='Glacier profile',
-                                                                     xlabel='Distance along the flowline (m)')
-                    
-                    #%% Plot the snapshot of each January about the glacier profile
-                    # generate selected time list
-                    # Define the start and end dates
-                    Visualization_timeseries.plot_time_series_snapshots(gdir=gdir,filesuffix ='', start_date='2000-01-01', end_date ='2020-01-01',n_year =1,variable='thickness_m', group='fl_0', 
-                               ylabel='Elevation (m a.s.l.)', xlabel='Distance along the flowline (m)', title='Time Series Snapshots', 
-                               save_path=save_path_figure_calving,save_name='Timeseries snapshot of selected year')
-                    
-                    #%% Plot the animate gif of each month about the glacier profile
-                    Visualization_timeseries.animate_time_series(gdir=gdir, filesuffix ='', variable='thickness_m', group='fl_0',interval=200, ylabel='Elevation (m a.s.l.)', 
-                                                                 xlabel='Distance along the flowline (m)', title='Elevation Changes Animate', save_path=save_path_figure_calving,
-                                                                 save_name='Animate timeseries of monthly glacier profile')
-                    
-                    
-                    # Record in dataframe
-                    output_df.loc[nglac,'calving_flux_Gta'] = calving_flux_Gta
-                    output_df.loc[nglac,'calving_thick'] = out_calving_forward['calving_front_thick']
-                    output_df.loc[nglac,'no_errors'] = 1
-                    output_df.loc[nglac,'oggm_dynamics'] = 1
-                    
-                    if debug:               
-                        print('OGGM dynamics, calving_k:', np.round(calving_k,4), 'glen_a:', np.round(glen_a_multiplier,2))                 
-                        print('    calving front thickness [m]:', np.round(out_calving_forward['calving_front_thick'],1))
-                        print('    calving flux model [Gt/yr]:', np.round(calving_flux_Gta,5))
+                        # Plot the timeseries of glacier profile
+                        Visualization_timeseries.plot_timeseries_profile(gdir=gdir, filesuffix ='', save_path=save_path_figure_calving,save_name ='Glacier profile',
+                                                                        xlabel='Distance along the flowline (m)')
+                        
+                        #%% Plot the snapshot of each January about the glacier profile
+                        # generate selected time list
+                        # Define the start and end dates
+                        Visualization_timeseries.plot_time_series_snapshots(gdir=gdir,filesuffix ='', start_date='2000-01-01', end_date ='2020-01-01',n_year =1,variable='thickness_m', group='fl_0', 
+                                ylabel='Elevation (m a.s.l.)', xlabel='Distance along the flowline (m)', title='Time Series Snapshots', 
+                                save_path=save_path_figure_calving,save_name='Timeseries snapshot of selected year')
+                        
+                        #%% Plot the animate gif of each month about the glacier profile
+                        Visualization_timeseries.animate_time_series(gdir=gdir, filesuffix ='', variable='thickness_m', group='fl_0',interval=200, ylabel='Elevation (m a.s.l.)', 
+                                                                    xlabel='Distance along the flowline (m)', title='Elevation Changes Animate', save_path=save_path_figure_calving,
+                                                                    save_name='Animate timeseries of monthly glacier profile')
+                        
+                        
+                        # Record in dataframe
+                        output_df.loc[nglac,'calving_flux_Gta'] = calving_flux_Gta
+                        output_df.loc[nglac,'calving_thick'] = out_calving_forward['calving_front_thick']
+                        output_df.loc[nglac,'no_errors'] = 1
+                        output_df.loc[nglac,'oggm_dynamics'] = 1
+                        
+                        if debug:               
+                            print('OGGM dynamics, calving_k:', np.round(calving_k,4), 'glen_a:', np.round(glen_a_multiplier,2))                 
+                            print('    calving front thickness [m]:', np.round(out_calving_forward['calving_front_thick'],1))
+                            print('    calving flux model [Gt/yr]:', np.round(calving_flux_Gta,5))
+                    except:
+                        print(traceback.format_exc())
                 
             except:
                 if gdir.is_tidewater:
