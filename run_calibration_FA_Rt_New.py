@@ -427,7 +427,13 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
             try:
                 print("***********************do the dynamic running with calving***********************")
                 print("nyears is :",nyears)
-                diag = ev_model.run_until_and_store(nyears,store_monthly_step='monthly')
+                try:
+
+                    diag = ev_model.run_until_and_store(nyears,store_monthly_step='monthly')
+                    print('diag is :',diag)
+                except:
+                    print("something is wrong with the run_until_and_store")
+                    print(traceback.format_exc())
                 print("the volume_3 in the diag is :",diag.volume_m3)
                 ev_model.mb_model.glac_wide_volume_annual[-1] = diag.volume_m3[-1]
                 ev_model.mb_model.glac_wide_area_annual[-1] = diag.area_m2[-1]
