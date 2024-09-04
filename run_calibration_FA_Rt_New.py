@@ -431,7 +431,8 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                     # add the condition for different situation,1. do_fl_diag = True 2. do_fl_diag = False
                     do_fl_diag = cfg.PARAMS['store_fl_diagnostics']
                     if do_fl_diag:
-                        diag, fl_diag_dss= ev_model.run_until_and_store(nyears,store_monthly_step='monthly')
+                        fl_diag_path = gdir.get_filepath('fl_diagnostics',delete=True)
+                        diag, fl_diag_dss= ev_model.run_until_and_store(nyears,store_monthly_step='monthly',fl_diag_path=fl_diag_path)
                         print('diag is :',diag)
                     else:
                         diag = ev_model.run_until_and_store(nyears,store_monthly_step='monthly')
@@ -461,7 +462,7 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                         calving_m3_annual = (diag.calving_m3.values[1:] - diag.calving_m3.values[0:-1]) 
     #                                         pygem_prms.density_ice / pygem_prms.density_water)
                         # plot the timeseries of calving_m3_annual
-                        Visualization_timeseries.plot_timeseries_Numpy(data = calving_m3_annual, start_date='2000-01-01', end_date='2020-12-31',
+                        Visualization_timeseries.plot_timeseries_Numpy(data = calving_m3_annual, start_date='2000-01-01', end_date='2019-12-31',
                                                                         save_name='Timeseries of calving',save_path=save_path_figure_calving, Y_label='calving flux (m³ a⁻¹)', F_title='Time Series')
                         print("calving_m3_annual is:",calving_m3_annual)
                         print("the frontalablation is updated totally :",calving_m3_annual.shape[0])
