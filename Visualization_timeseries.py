@@ -276,7 +276,7 @@ def plot_time_series_snapshots(gdir, filesuffix='', start_date=None, end_date =N
 # Function to plot an animation of timeseries glacier variables
 
 def animate_time_series(gdir, filesuffix ='',variable='thickness_m', group='fl_0',interval=200, ylabel='Elevation (m a.s.l.)', 
-                        xlabel='Distance (m)', title='Elevation Changes Over Time', save_path=None,save_name=None):
+                        xlabel='Distance along the flowline (m)', title='Elevation Changes Animate', save_path=None,save_name=None):
     """
     Creates an animation of a time series variable from a NetCDF dataset using xarray.
 
