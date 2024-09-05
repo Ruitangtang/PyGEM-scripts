@@ -8,9 +8,11 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 import pickle
+import math
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator
 from matplotlib.animation import FuncAnimation, PillowWriter
+import matplotlib.animation as animation
 import os
 import seaborn as sns
 from datetime import datetime
@@ -198,7 +200,7 @@ def plot_timeseries_profile(gdir, filesuffix ='', sel_years = None, group='fl_0'
 
 
 # Function to plot timeseries snapshot of glacier variables
-def plot_time_series_snapshots(gdir, filesuffix='', start_date=None, end_date =None,n_year =1,variable='thickness_m', group='fl_0', 
+def plot_time_series_snapshots(gdir, filesuffix='', sel_times = None, n_year =1,variable='thickness_m', group='fl_0', 
                                ylabel='Variable Value', xlabel='Distance along the flowline (m)', title='Time Series Snapshots', 
                                save_path=None,save_name=None):
     """
@@ -207,8 +209,7 @@ def plot_time_series_snapshots(gdir, filesuffix='', start_date=None, end_date =N
     Parameters:
     - gdir (GlacierDirectory): The glacier directory object containing the dataset.
     - filesuffix (str): The file suffix identifier for the specific diagnostics file.
-    - start_date (datetime.datetime, optional): The start date for the time series. Default is None, which means all data will be plotted.
-    - end_date (datetime.datetime, optional): The end date for the time series. Default is '2020-01-01'
+    - sel_times (list or array-like): The time points to select for plotting the variable.
     - n_year (int) : the number of year interval to show, Default is 1
     - variable (str, optional): The variable name in the dataset to plot. Default is 'thickness_m'.
     - group (str, optional): The group within the NetCDF file to read data from. Default is 'fl_0'.
@@ -223,19 +224,29 @@ def plot_time_series_snapshots(gdir, filesuffix='', start_date=None, end_date =N
     # Open the dataset
     with xr.open_dataset(gdir.get_filepath('fl_diagnostics', filesuffix=filesuffix), group=group) as ds:
         # generate the sel_titimes,(list or array-like): The time points to select for plotting the variable.
-        start_date = datetime.strptime(start_date, '%Y-%m-%d')
-        end_date = datetime.strptime(end_date, '%Y-%m-%d')
-        sel_times = []
-        current_date = start_date
-        while current_date <= end_date:
-            sel_times.append(current_date.strftime('%Y-%m-%d'))
-            # Move to the next year
-            next_year = current_date.year + n_year
-            current_date = current_date.replace(year=next_year)
+        # start_date = datetime.strptime(start_date, '%Y-%m-%d')
+        # end_date = datetime.strptime(end_date, '%Y-%m-%d')
+        # sel_times = []
+        # current_date = start_date
+        # while current_date <= end_date:
+        #     sel_times.append(current_date.strftime('%Y-%m-%d'))
+        #     # Move to the next year
+        #     next_year = current_date.year + n_year
+        #     current_date = current_date.replace(year=next_year)
+        if sel_times is None:
+            sel_times = ds.time.values
+        else:
+            sel_times = sel_times
+        sel_times = sel_times[::n_year]
+
+        # Get the water level
+        WL = ds.attrs['water_level']
 
         # Set up a grid of subplots
         num_snapshots = len(sel_times)
-        fig, axes = plt.subplots(nrows=1, ncols=num_snapshots, figsize=(5*num_snapshots, 6), sharey=True)
+        nrows = 7
+        ncols = int(num_snapshots / 7) if num_snapshots % 7 == 0 else (num_snapshots // 7) + 1  # Calculate number of columns
+        fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(num_snapshots, 6*nrows), sharey=True)
 
         # Loop through selected time points and plot snapshots
         for i, time_point in enumerate(sel_times):
@@ -244,12 +255,21 @@ def plot_time_series_snapshots(gdir, filesuffix='', start_date=None, end_date =N
 
             # Plot on the corresponding axis
             ax = axes[i] if num_snapshots > 1 else axes
-            data_at_time.plot(ax=ax, label=f'Time: {time_point}', marker='o')
 
+            # add dashed lines at y=0 and y=water_level
+            if WL ==0 :
+                ax.axhline(y=WL, color='gray', linestyle='--', linewidth=1)
+            else:
+                ax.axhline(y=0, color='gray', linestyle='--', linewidth=1)
+                ax.axhline(y=WL, color='r', linestyle='--', linewidth=1)
+        
+            # Plot bed elevation and variable at the selected time
+            ds.bed_h.plot(ax=ax, color='black', label='Bed elevation')
+            (ds.bed_h+data_at_time).plot(ax=ax, label=f'Time: {time_point+2000}', marker='*',markersize =4,color = 'b')
             # Set labels and title
             ax.set_ylabel(ylabel)
             ax.set_xlabel(xlabel)
-            ax.set_title(f'{title} - {time_point}')
+            ax.set_title(f'{title} - {time_point+2000}')
 
             # Add legend
             ax.legend()
@@ -275,8 +295,8 @@ def plot_time_series_snapshots(gdir, filesuffix='', start_date=None, end_date =N
 
 # Function to plot an animation of timeseries glacier variables
 
-def animate_time_series(gdir, filesuffix ='',variable='thickness_m', group='fl_0',interval=200, ylabel='Elevation (m a.s.l.)', 
-                        xlabel='Distance along the flowline (m)', title='Elevation Changes Animate', save_path=None,save_name=None):
+def animate_time_series(gdir, filesuffix ='',variable='thickness_m', group='fl_0',interval=400, ylabel='Elevation (m a.s.l.)', 
+                        xlabel='Distance along the flowline (km)', title='Elevation Changes Animate', save_path=None,save_name=None):
     """
     Creates an animation of a time series variable from a NetCDF dataset using xarray.
 
@@ -300,15 +320,17 @@ def animate_time_series(gdir, filesuffix ='',variable='thickness_m', group='fl_0
         # ds (xarray Dataset): The dataset containing the variable to plot.
 
 
-        # Extract the time points and distances
+        # Extract the time points and distances, water_level
         # times = ds['time'].values
         # distance = ds['distance'].values
         times = ds.time
-        distance = ds.dis_along_flowline
+        distance = ds.dis_along_flowline/1000
+        WL = ds.attrs['water_level']
         
         # Set up the figure and axis
         fig, ax = plt.subplots(figsize=(10, 6))
-        line, = ax.plot([], [], 'b-', marker='o')
+        line, = ax.plot([], [], 'b-', marker='*',markersize =4)
+        
         
         # Set axis labels and title
         ax.set_ylabel(ylabel)
@@ -317,14 +339,28 @@ def animate_time_series(gdir, filesuffix ='',variable='thickness_m', group='fl_0
         
         # Initialize the plot limits
         ax.set_xlim(distance.min(), distance.max())
-        ax.set_ylim(ds[variable].min(), ds[variable].max())
+        ax.set_ylim((ds[variable]+ds.bed_h).min(), math.ceil((ds[variable]+ds.bed_h).max()/500)*500)
+
+        # Add the horizontal dashed line at y = 0 and y= water_level
+        if WL ==0 :
+            ax.axhline(y=WL, color='gray', linestyle='--', linewidth=1)
+        else:
+            ax.axhline(y=0, color='gray', linestyle='--', linewidth=1)
+            ax.axhline(y=WL, color='r', linestyle='--', linewidth=1)
+            
+        # Plot the bed elevation as a dashed line
+        bed_line, = ax.plot(distance, ds.bed_h, 'k-', label='Bed Elevation')
+
+
         
         def update(frame):
             # Update the line data for the current frame (time point)
             time_point = times[frame]
             data_at_time = ds.sel(time=time_point)[variable]
-            line.set_data(distance, data_at_time)
-            ax.set_title(f'{title} - {np.datetime_as_string(time_point, unit="Y")}')
+            line.set_data(distance, data_at_time+ds.bed_h)
+            # Convert the string to a NumPy datetime64 object
+            time_point_np = np.datetime64(f"{int(2000 + time_point)}-01-01")
+            ax.set_title(f'{title} - {np.datetime_as_string(time_point_np, unit="Y")}')
             return line,
 
         # Create the animation
@@ -334,9 +370,12 @@ def animate_time_series(gdir, filesuffix ='',variable='thickness_m', group='fl_0
         if save_path:
         # Ensure the directory exists
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
-            save_path_full = os.path.join(save_path, save_name)
-            plt.savefig(save_path_full, bbox_inches='tight')
-            print(f"Figure saved to {save_path_full}")
+            save_path_full_gif = os.path.join(save_path, save_name, '.gif')
+            save_path_full_mp4 = os.path.join(save_path, save_name, '.mp4')
+            anim.save(save_path_full_gif, writer='pillow')
+            anim.save(save_path_full_mp4, writer='ffmpeg')
+            print(f"Animation saved to {save_path_full_gif}")
+            print(f"Animation saved to {save_path_full_mp4}")
 
         # Show the animation
         #plt.show()
