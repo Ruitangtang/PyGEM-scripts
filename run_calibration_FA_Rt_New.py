@@ -500,7 +500,7 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                         #%% Plot the snapshot of each January about the glacier profile
                         # generate selected time list
                         # Define the start and end dates
-                        Visualization_timeseries.plot_time_series_snapshots(gdir=gdir,filesuffix ='', start_date='2000-01-01', end_date ='2020-01-01',n_year =1,variable='thickness_m', group='fl_0', 
+                        Visualization_timeseries.plot_time_series_snapshots(gdir=gdir,filesuffix ='', sel_times=None,n_year =1,variable='thickness_m', group='fl_0', 
                                 ylabel='Elevation (m a.s.l.)', xlabel='Distance along the flowline (m)', title='Time Series Snapshots', 
                                 save_path=save_path_figure_calving,save_name='Timeseries snapshot of selected year')
                         
