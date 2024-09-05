@@ -372,8 +372,8 @@ def animate_time_series(gdir, filesuffix ='',variable='thickness_m', group='fl_0
         if save_path:
         # Ensure the directory exists
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
-            save_path_full_gif = os.path.join(save_path, save_name, '.gif')
-            save_path_full_mp4 = os.path.join(save_path, save_name, '.mp4')
+            save_path_full_gif = os.path.join(save_path, save_name +'.gif')
+            save_path_full_mp4 = os.path.join(save_path, save_name +'.mp4')
             anim.save(save_path_full_gif, writer='pillow')
             anim.save(save_path_full_mp4, writer='ffmpeg')
             print(f"Animation saved to {save_path_full_gif}")
