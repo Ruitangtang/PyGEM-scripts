@@ -247,6 +247,8 @@ def plot_time_series_snapshots(gdir, filesuffix='', sel_times = None, n_year =1,
         nrows = 7
         ncols = int(num_snapshots / 7) if num_snapshots % 7 == 0 else (num_snapshots // 7) + 1  # Calculate number of columns
         fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(num_snapshots, 6*nrows), sharey=True)
+        # Flatten the axes array to make it easier to iterate
+        axes = axes.ravel()  # Convert to 1D array
 
         # Loop through selected time points and plot snapshots
         for i, time_point in enumerate(sel_times):
