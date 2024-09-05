@@ -505,7 +505,7 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                                 save_path=save_path_figure_calving,save_name='Timeseries snapshot of selected year')
                         
                         #%% Plot the animate gif of each month about the glacier profile
-                        Visualization_timeseries.animate_time_series(gdir=gdir, filesuffix ='', variable='thickness_m', group='fl_0',interval=200, ylabel='Elevation (m a.s.l.)', 
+                        Visualization_timeseries.animate_time_series(gdir=gdir, filesuffix ='', variable='thickness_m', group='fl_0',interval=400, ylabel='Elevation (m a.s.l.)', 
                                                                     xlabel='Distance along the flowline (m)', title='Elevation Changes Animate', save_path=save_path_figure_calving,
                                                                     save_name='Animate timeseries of monthly glacier profile')
                         
@@ -1642,134 +1642,134 @@ if option_ind_calving_k:
                     
                         
                     run_opt = False
-                    if debug:
-                    # visulize th parameter with model_function
-                        k_value_arrary, reg_calving_gta_mod_array = Visualize_parameter (model_function = reg_calving_flux, k_bndhigh = calving_k_bndhigh,
-                                                                                        k_bndlow = calving_k_bndlow, k_step = calving_k_step, k_name ='yield strength',
-                                                                                        main_glac_rgi = main_glac_rgi_ind, fa_glac_data_reg=fa_glac_data_ind,
-                                                                                        frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
-                                                                                        prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
-                                                                                        ignore_nan=False, debug=debug_reg_calving_fxn)
-                        print("k_value_array :",k_value_arrary)
-                        print("reg_calving_gta_mod_array:",reg_calving_gta_mod_array)
-                        fa_gta_obs_unc = output_df_all.loc[nglac,'fa_gta_obs_unc']
-                        Weights_k, Neff_k = pbs(reg_calving_gta_obs,reg_calving_gta_mod_array,fa_gta_obs_unc**2)
-                        k_weighted_av = np.average(k_value_arrary,weights = Weights_k)
-                        k_weighted_std = np.sqrt(np.average((k_value_arrary - k_weighted_av)**2,weights = Weights_k))
-                        calving_flux_Gta_weighted = np.average(reg_calving_gta_mod_array,weights = Weights_k)
-                        print("k_weighted_av:",k_weighted_av, "k_weighted_std :", k_weighted_std,"Neff_k is:",Neff_k)
-                        # Update the calving_k with the weighted average
-                        output_df, reg_calving_gta_mod_bndweighted, reg_calving_gta_obs = (
-                        reg_calving_flux(main_glac_rgi_ind, k_weighted_av, fa_glac_data_reg=fa_glac_data_ind,
-                                            frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
-                                            prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
-                                            ignore_nan=False, debug=debug_reg_calving_fxn))
+#                     if debug:
+#                     # visulize th parameter with model_function
+#                         k_value_arrary, reg_calving_gta_mod_array = Visualize_parameter (model_function = reg_calving_flux, k_bndhigh = calving_k_bndhigh,
+#                                                                                         k_bndlow = calving_k_bndlow, k_step = calving_k_step, k_name ='yield strength',
+#                                                                                         main_glac_rgi = main_glac_rgi_ind, fa_glac_data_reg=fa_glac_data_ind,
+#                                                                                         frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
+#                                                                                         prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
+#                                                                                         ignore_nan=False, debug=debug_reg_calving_fxn)
+#                         print("k_value_array :",k_value_arrary)
+#                         print("reg_calving_gta_mod_array:",reg_calving_gta_mod_array)
+#                         fa_gta_obs_unc = output_df_all.loc[nglac,'fa_gta_obs_unc']
+#                         Weights_k, Neff_k = pbs(reg_calving_gta_obs,reg_calving_gta_mod_array,fa_gta_obs_unc**2)
+#                         k_weighted_av = np.average(k_value_arrary,weights = Weights_k)
+#                         k_weighted_std = np.sqrt(np.average((k_value_arrary - k_weighted_av)**2,weights = Weights_k))
+#                         calving_flux_Gta_weighted = np.average(reg_calving_gta_mod_array,weights = Weights_k)
+#                         print("k_weighted_av:",k_weighted_av, "k_weighted_std :", k_weighted_std,"Neff_k is:",Neff_k)
+#                         # Update the calving_k with the weighted average
+#                         output_df, reg_calving_gta_mod_bndweighted, reg_calving_gta_obs = (
+#                         reg_calving_flux(main_glac_rgi_ind, k_weighted_av, fa_glac_data_reg=fa_glac_data_ind,
+#                                             frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
+#                                             prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
+#                                             ignore_nan=False, debug=debug_reg_calving_fxn))
                         
-                        print('----- final : after optimization of the FA-----')
-                        #output_df_all.loc[nglac,'calving_k'] = output_df.loc[0,'calving_k']
-                        print("weighted calving_flux_Gta is :",calving_flux_Gta_weighted,"calving_flux_Gta with weighted calving_k is :",output_df.loc[0,'calving_flux_Gta'])
-                        output_df_all.loc[nglac,'calving_k'] = k_weighted_av                      
-                        output_df_all.loc[nglac,'calving_k_nmad'] = k_weighted_std
-                        output_df_all.loc[nglac,'calving_thick'] = output_df.loc[0,'calving_thick']
-                        #output_df_all.loc[nglac,'calving_flux_Gta'] = output_df.loc[0,'calving_flux_Gta']
-                        output_df_all.loc[nglac,'calving_flux_Gta'] = calving_flux_Gta_weighted
-                        output_df_all.loc[nglac,'no_errors'] = output_df.loc[0,'no_errors']
-                        output_df_all.loc[nglac,'oggm_dynamics'] = output_df.loc[0,'oggm_dynamics']
- 
-                    # if bndhigh_good and bndlow_good:
-                    #     print("bandhigh_good:",bndhigh_good)
-                    #     print("bandlow_good:",bndlow_good)
-                    #     if reg_calving_gta_obs < reg_calving_gta_mod_bndlow:
-                    #         print("reg_calving_gta_obs < reg_calving_gta_mod_bndlow")
-                    #         output_df_all.loc[nglac,'calving_k'] = output_df_bndlow.loc[0,'calving_k']
-                    #         output_df_all.loc[nglac,'calving_thick'] = output_df_bndlow.loc[0,'calving_thick']
-                    #         output_df_all.loc[nglac,'calving_flux_Gta'] = output_df_bndlow.loc[0,'calving_flux_Gta']
-                    #         output_df_all.loc[nglac,'no_errors'] = output_df_bndlow.loc[0,'no_errors']
-                    #         output_df_all.loc[nglac,'oggm_dynamics'] = output_df_bndlow.loc[0,'oggm_dynamics']
-                    #     elif reg_calving_gta_obs > reg_calving_gta_mod_bndhigh:
-                    #         print("reg_calving_gta_obs > reg_calving_gta_mod_bndhigh")
-                    #         output_df_all.loc[nglac,'calving_k'] = output_df_bndhigh.loc[0,'calving_k']
-                    #         output_df_all.loc[nglac,'calving_thick'] = output_df_bndhigh.loc[0,'calving_thick']
-                    #         output_df_all.loc[nglac,'calving_flux_Gta'] = output_df_bndhigh.loc[0,'calving_flux_Gta']
-                    #         output_df_all.loc[nglac,'no_errors'] = output_df_bndhigh.loc[0,'no_errors']
-                    #         output_df_all.loc[nglac,'oggm_dynamics'] = output_df_bndhigh.loc[0,'oggm_dynamics']
-                    #     else:
-                    #         print("reg_calving_gta_mod_bndlow<reg_calving_gta_obs < reg_calving_gta_mod_bndhigh")
-                    #         run_opt = True
-                    # else:
-                    #     run_opt = True
-#                     run_opt = True
-#                     if run_opt:
-#                         output_df, calving_k = run_opt_fa(main_glac_rgi_ind, calving_k, calving_k_bndlow, calving_k_bndhigh, 
-#                                                           fa_glac_data_ind, frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
-#                                                           prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
-#                                                           ignore_nan=False, debug=debug_reg_calving_fxn)
-#                         print("*************************** do the further optimization,calving_k********************************",calving_k)
-#                         calving_k_med = np.copy(calving_k)
-#                         output_df_all.loc[nglac,'calving_k'] = output_df.loc[0,'calving_k']
+#                         print('----- final : after optimization of the FA-----')
+#                         #output_df_all.loc[nglac,'calving_k'] = output_df.loc[0,'calving_k']
+#                         print("weighted calving_flux_Gta is :",calving_flux_Gta_weighted,"calving_flux_Gta with weighted calving_k is :",output_df.loc[0,'calving_flux_Gta'])
+#                         output_df_all.loc[nglac,'calving_k'] = k_weighted_av                      
+#                         output_df_all.loc[nglac,'calving_k_nmad'] = k_weighted_std
 #                         output_df_all.loc[nglac,'calving_thick'] = output_df.loc[0,'calving_thick']
-#                         output_df_all.loc[nglac,'calving_flux_Gta'] = output_df.loc[0,'calving_flux_Gta']
+#                         #output_df_all.loc[nglac,'calving_flux_Gta'] = output_df.loc[0,'calving_flux_Gta']
+#                         output_df_all.loc[nglac,'calving_flux_Gta'] = calving_flux_Gta_weighted
 #                         output_df_all.loc[nglac,'no_errors'] = output_df.loc[0,'no_errors']
 #                         output_df_all.loc[nglac,'oggm_dynamics'] = output_df.loc[0,'oggm_dynamics']
-#                         print("after the further optimization, the output is:",output_df,"the corresponding calving_k is:",calving_k)
-#                         # ----- ADD UNCERTAINTY -----
-#                         # Upper uncertainty
-#                         print('\n\n----- upper uncertainty:')
-#                         fa_glac_data_ind_high = fa_glac_data_ind.copy()
-#                         fa_gta_obs_high = fa_glac_data_ind.loc[0,'fa_gta_obs'] + fa_glac_data_ind.loc[0,'fa_gta_obs_unc']
-#                         fa_glac_data_ind_high.loc[0,'fa_gta_obs'] = fa_gta_obs_high
-#                         calving_k_bndlow_upper = np.copy(calving_k_med) - 0.01
-#                         calving_k_start = np.copy(calving_k_med)
-#                         output_df, calving_k = run_opt_fa(main_glac_rgi_ind, calving_k_start, calving_k_bndlow_upper, calving_k_bndhigh, 
-#                                                           fa_glac_data_ind_high, frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
-#                                                           prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
-#                                                           ignore_nan=False, debug=debug_reg_calving_fxn)
-#                         calving_k_nmadhigh = np.copy(calving_k)
+ 
+#                     # if bndhigh_good and bndlow_good:
+#                     #     print("bandhigh_good:",bndhigh_good)
+#                     #     print("bandlow_good:",bndlow_good)
+#                     #     if reg_calving_gta_obs < reg_calving_gta_mod_bndlow:
+#                     #         print("reg_calving_gta_obs < reg_calving_gta_mod_bndlow")
+#                     #         output_df_all.loc[nglac,'calving_k'] = output_df_bndlow.loc[0,'calving_k']
+#                     #         output_df_all.loc[nglac,'calving_thick'] = output_df_bndlow.loc[0,'calving_thick']
+#                     #         output_df_all.loc[nglac,'calving_flux_Gta'] = output_df_bndlow.loc[0,'calving_flux_Gta']
+#                     #         output_df_all.loc[nglac,'no_errors'] = output_df_bndlow.loc[0,'no_errors']
+#                     #         output_df_all.loc[nglac,'oggm_dynamics'] = output_df_bndlow.loc[0,'oggm_dynamics']
+#                     #     elif reg_calving_gta_obs > reg_calving_gta_mod_bndhigh:
+#                     #         print("reg_calving_gta_obs > reg_calving_gta_mod_bndhigh")
+#                     #         output_df_all.loc[nglac,'calving_k'] = output_df_bndhigh.loc[0,'calving_k']
+#                     #         output_df_all.loc[nglac,'calving_thick'] = output_df_bndhigh.loc[0,'calving_thick']
+#                     #         output_df_all.loc[nglac,'calving_flux_Gta'] = output_df_bndhigh.loc[0,'calving_flux_Gta']
+#                     #         output_df_all.loc[nglac,'no_errors'] = output_df_bndhigh.loc[0,'no_errors']
+#                     #         output_df_all.loc[nglac,'oggm_dynamics'] = output_df_bndhigh.loc[0,'oggm_dynamics']
+#                     #     else:
+#                     #         print("reg_calving_gta_mod_bndlow<reg_calving_gta_obs < reg_calving_gta_mod_bndhigh")
+#                     #         run_opt = True
+#                     # else:
+#                     #     run_opt = True
+# #                     run_opt = True
+# #                     if run_opt:
+# #                         output_df, calving_k = run_opt_fa(main_glac_rgi_ind, calving_k, calving_k_bndlow, calving_k_bndhigh, 
+# #                                                           fa_glac_data_ind, frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
+# #                                                           prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
+# #                                                           ignore_nan=False, debug=debug_reg_calving_fxn)
+# #                         print("*************************** do the further optimization,calving_k********************************",calving_k)
+# #                         calving_k_med = np.copy(calving_k)
+# #                         output_df_all.loc[nglac,'calving_k'] = output_df.loc[0,'calving_k']
+# #                         output_df_all.loc[nglac,'calving_thick'] = output_df.loc[0,'calving_thick']
+# #                         output_df_all.loc[nglac,'calving_flux_Gta'] = output_df.loc[0,'calving_flux_Gta']
+# #                         output_df_all.loc[nglac,'no_errors'] = output_df.loc[0,'no_errors']
+# #                         output_df_all.loc[nglac,'oggm_dynamics'] = output_df.loc[0,'oggm_dynamics']
+# #                         print("after the further optimization, the output is:",output_df,"the corresponding calving_k is:",calving_k)
+# #                         # ----- ADD UNCERTAINTY -----
+# #                         # Upper uncertainty
+# #                         print('\n\n----- upper uncertainty:')
+# #                         fa_glac_data_ind_high = fa_glac_data_ind.copy()
+# #                         fa_gta_obs_high = fa_glac_data_ind.loc[0,'fa_gta_obs'] + fa_glac_data_ind.loc[0,'fa_gta_obs_unc']
+# #                         fa_glac_data_ind_high.loc[0,'fa_gta_obs'] = fa_gta_obs_high
+# #                         calving_k_bndlow_upper = np.copy(calving_k_med) - 0.01
+# #                         calving_k_start = np.copy(calving_k_med)
+# #                         output_df, calving_k = run_opt_fa(main_glac_rgi_ind, calving_k_start, calving_k_bndlow_upper, calving_k_bndhigh, 
+# #                                                           fa_glac_data_ind_high, frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
+# #                                                           prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
+# #                                                           ignore_nan=False, debug=debug_reg_calving_fxn)
+# #                         calving_k_nmadhigh = np.copy(calving_k)
                         
-#                         if debug:
-#                             print('calving_k:', np.round(calving_k,2), 'fa_data high:', np.round(fa_glac_data_ind_high.loc[0,'fa_gta_obs'],4),
-#                                   'fa_mod high:', np.round(output_df.loc[0,'calving_flux_Gta'],4))
+# #                         if debug:
+# #                             print('calving_k:', np.round(calving_k,2), 'fa_data high:', np.round(fa_glac_data_ind_high.loc[0,'fa_gta_obs'],4),
+# #                                   'fa_mod high:', np.round(output_df.loc[0,'calving_flux_Gta'],4))
                             
-#                         # Lower uncertainty
-#                         print('\n\n----- lower uncertainty:')
+# #                         # Lower uncertainty
+# #                         print('\n\n----- lower uncertainty:')
 
-#                         fa_glac_data_ind_low = fa_glac_data_ind.copy()
-#                         fa_gta_obs_low = fa_glac_data_ind.loc[0,'fa_gta_obs'] - fa_glac_data_ind.loc[0,'fa_gta_obs_unc']
-#                         if fa_gta_obs_low < 0:
-#                             calving_k_nmadlow = calving_k_med - abs(calving_k_nmadhigh - calving_k_med)
-#                             if debug:
-#                                 print("the fa gta obs low is <0 ")
-#                                 print('calving_k:', np.round(calving_k_nmadlow,2), 'fa_data low:', np.round(fa_gta_obs_low,4))
-#                         else:
-#                             fa_glac_data_ind_low.loc[0,'fa_gta_obs'] = fa_gta_obs_low
-#                             calving_k_bndhigh_lower = np.copy(calving_k_med) + 0.01
-#                             calving_k_start = np.copy(calving_k_med)
-#                             output_df, calving_k = run_opt_fa(main_glac_rgi_ind, calving_k_start, calving_k_bndlow, calving_k_bndhigh_lower,
-#                                                               fa_glac_data_ind_low, 
-#                                                               calving_k_step=(calving_k_med - calving_k_bndlow) / 10,
-#                                                               frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
-#                                                               prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
-#                                                               ignore_nan=False, debug=debug_reg_calving_fxn)
-#                             calving_k_nmadlow = np.copy(calving_k)
-#                             if debug:
-#                                 print('calving_k:', np.round(calving_k,2), 'fa_data low:', np.round(fa_glac_data_ind_low.loc[0,'fa_gta_obs'],4),
-#                                       'fa_mod low:', np.round(output_df.loc[0,'calving_flux_Gta'],4))
+# #                         fa_glac_data_ind_low = fa_glac_data_ind.copy()
+# #                         fa_gta_obs_low = fa_glac_data_ind.loc[0,'fa_gta_obs'] - fa_glac_data_ind.loc[0,'fa_gta_obs_unc']
+# #                         if fa_gta_obs_low < 0:
+# #                             calving_k_nmadlow = calving_k_med - abs(calving_k_nmadhigh - calving_k_med)
+# #                             if debug:
+# #                                 print("the fa gta obs low is <0 ")
+# #                                 print('calving_k:', np.round(calving_k_nmadlow,2), 'fa_data low:', np.round(fa_gta_obs_low,4))
+# #                         else:
+# #                             fa_glac_data_ind_low.loc[0,'fa_gta_obs'] = fa_gta_obs_low
+# #                             calving_k_bndhigh_lower = np.copy(calving_k_med) + 0.01
+# #                             calving_k_start = np.copy(calving_k_med)
+# #                             output_df, calving_k = run_opt_fa(main_glac_rgi_ind, calving_k_start, calving_k_bndlow, calving_k_bndhigh_lower,
+# #                                                               fa_glac_data_ind_low, 
+# #                                                               calving_k_step=(calving_k_med - calving_k_bndlow) / 10,
+# #                                                               frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
+# #                                                               prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
+# #                                                               ignore_nan=False, debug=debug_reg_calving_fxn)
+# #                             calving_k_nmadlow = np.copy(calving_k)
+# #                             if debug:
+# #                                 print('calving_k:', np.round(calving_k,2), 'fa_data low:', np.round(fa_glac_data_ind_low.loc[0,'fa_gta_obs'],4),
+# #                                       'fa_mod low:', np.round(output_df.loc[0,'calving_flux_Gta'],4))
                         
                         
-#                         calving_k_nmad = np.mean([abs(calving_k_nmadhigh - calving_k_med), abs(calving_k_nmadlow - calving_k_med)])
+# #                         calving_k_nmad = np.mean([abs(calving_k_nmadhigh - calving_k_med), abs(calving_k_nmadlow - calving_k_med)])
                     
-#                         # Final
-#                         if debug:
-#                             print('----- final : after optimization of the FA-----')
-#                             print(rgiid, 'calving_k (med/high/low/nmad):', np.round(calving_k_med,2), 
-#                                   np.round(calving_k_nmadhigh,2), np.round(calving_k_nmadlow,2), np.round(calving_k_nmad,2))
+# #                         # Final
+# #                         if debug:
+# #                             print('----- final : after optimization of the FA-----')
+# #                             print(rgiid, 'calving_k (med/high/low/nmad):', np.round(calving_k_med,2), 
+# #                                   np.round(calving_k_nmadhigh,2), np.round(calving_k_nmadlow,2), np.round(calving_k_nmad,2))
                     
-#                         output_df_all.loc[nglac,'calving_k_nmad'] = calving_k_nmad
+# #                         output_df_all.loc[nglac,'calving_k_nmad'] = calving_k_nmad
 
-# #            # Glaciers at bounds, have calving_k_nmad based on regional mean
-# #            output_df_all_subset = output_df_all.loc[output_df_all.calving_k_nmad > 0, :]
-# #            calving_k_nmad = 1.4826 * median_abs_deviation(output_df_all_subset.calving_k)
-# #            output_df_all.loc[output_df_all['calving_k_nmad']==0,'calving_k_nmad'] = calving_k_nmad
+# # #            # Glaciers at bounds, have calving_k_nmad based on regional mean
+# # #            output_df_all_subset = output_df_all.loc[output_df_all.calving_k_nmad > 0, :]
+# # #            calving_k_nmad = 1.4826 * median_abs_deviation(output_df_all_subset.calving_k)
+# # #            output_df_all.loc[output_df_all['calving_k_nmad']==0,'calving_k_nmad'] = calving_k_nmad
                         
             
                         
