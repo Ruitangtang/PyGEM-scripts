@@ -314,6 +314,9 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
             else:
                 fs = pygem_prms.fs
                 glen_a_multiplier = pygem_prms.glen_a_multiplier
+
+            # set the fs = None here and read it int he inversion_RT_New.py
+            fs = None    
             
             # CFL number (may use different values for calving to prevent errors)
             if not glacier_rgi_table['TermType'] in [1,5] or not pygem_prms.include_calving:
