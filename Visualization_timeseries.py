@@ -415,9 +415,9 @@ def animate_time_series(gdir, filesuffix ='',variable='thickness_m', group='fl_0
             save_path_full_gif = os.path.join(save_path, save_name +'.gif')
             save_path_full_mp4 = os.path.join(save_path, save_name +'.mp4')
             anim.save(save_path_full_gif, writer='pillow')
-            anim.save(save_path_full_mp4, writer='ffmpeg')
+            #anim.save(save_path_full_mp4, writer='ffmpeg')
             print(f"Animation saved to {save_path_full_gif}")
-            print(f"Animation saved to {save_path_full_mp4}")
+            #print(f"Animation saved to {save_path_full_mp4}")
 
         # Show the animation
         #plt.show()
