@@ -16,6 +16,8 @@ import matplotlib.animation as animation
 import os
 import seaborn as sns
 from datetime import datetime
+from matplotlib.lines import Line2D  # Import Line2D for custom legend
+
 
 # Load the data
 
@@ -137,7 +139,7 @@ def plot_timeseries (calving_m3, base_year=2000, save_name = None, save_path = N
 
 # Function to create a timeseries for each glacier in each month, for the centerline flowing
 def plot_timeseries_profile(gdir, filesuffix ='', sel_years = None, group='fl_0', ax=None, ylabel='Elevation (m a.s.l.)',
-                         title='Flowline profile', save_path=None,save_name =None,xlabel='Distance along the flowline (m)'):
+                         title='Flowline profile', save_path=None,save_name =None,xlabel='Distance along the flowline (km)'):
     """
     Plots elevation bands from a NetCDF dataset using xarray and optionally saves the figure.
 
@@ -159,15 +161,27 @@ def plot_timeseries_profile(gdir, filesuffix ='', sel_years = None, group='fl_0'
     with xr.open_dataset(gdir.get_filepath('fl_diagnostics', filesuffix=filesuffix), group=group) as ds:
         # Create a new figure and axes if not provided
         if ax is None:
-            fig, ax = plt.subplots(figsize=(10, 6))
+            fig, ax = plt.subplots(figsize=(20, 12))
 
         # if the selected years are not provided, plot all years
         if sel_years is None:
             sel_years = ds.time
-           
+
+        # get the distance along the flowline
+        distance = ds.dis_along_flowline/1000
+
+        # Get the water level
+        WL = ds.attrs['water_level']
+
+        # Add a dashed line at y=0 and y=  water_level
+        if WL ==0 :
+            ax.axhline(y=WL, color='gray', linestyle='--', linewidth=1)
+        else:
+            ax.axhline(y=0, color='gray', linestyle='--', linewidth=1)
+            ax.axhline(y=WL, color='r', linestyle='--', linewidth=1)
 
         # Plot bed elevation as a baseline
-        ds.bed_h.plot(ax=ax, color='black', label='Bed elevation')
+        ax.plot(distance, ds.bed_h, color='black', label='Bed elevation')
 
         # Generate a color palette from Seaborn
         colors = sns.color_palette('rocket', len(sel_years))  
@@ -177,11 +191,23 @@ def plot_timeseries_profile(gdir, filesuffix ='', sel_years = None, group='fl_0'
         # # Plot the bed height plus thickness for the selected years
         # (ds.bed_h + ds.sel(time=sel_years).thickness_m).plot(ax=ax, hue='time')
         for i, year in enumerate(sel_years):
-            (ds.bed_h + ds.sel(time=year).thickness_m).plot(ax=ax, color=colors[i], label=str(year))
-  
-        # Add a legend to show which colors correspond to which years
-        ax.legend(loc='upper left', title='Year')
+            ax.plot(distance, ds.bed_h + ds.sel(time=year).thickness_m, color=colors[i], label=str(year.values))
 
+  
+        # Create a custom legend with gradient colors and only year labels
+        custom_lines = [Line2D([0], [0], color=colors[i], lw=2) for i in range(len(sel_years))]
+
+        if WL ==0:
+            legend_labels = ['Bed elevation'] + [str(int(year.values)+2000) for year in sel_years]
+            custom_lines.insert(0, Line2D([0], [0], color='black', lw=2))  # Add the bed elevation line
+        else:
+            legend_labels = ['Water level','Bed elevation'] + [str(int(year.values)+2000) for year in sel_years]
+            custom_lines.insert(0, Line2D([0], [0], color='r', lw=2, linestyle = '--'))  # Add the water level line
+            custom_lines.insert(1, Line2D([0], [0], color='black', lw=2))  # Add the bed elevation line
+            
+        # Display the legend
+        legend = ax.legend(custom_lines, legend_labels, loc='upper right')
+        
         # Set labels and title
         ax.set_ylabel(ylabel)
         ax.set_xlabel(xlabel)
@@ -239,6 +265,9 @@ def plot_time_series_snapshots(gdir, filesuffix='', sel_times = None, n_year =1,
             sel_times = sel_times
         sel_times = sel_times[::n_year]
 
+        # get the distance along the flowline
+        distance = ds.dis_along_flowline/1000
+
         # Get the water level
         WL = ds.attrs['water_level']
 
@@ -266,15 +295,26 @@ def plot_time_series_snapshots(gdir, filesuffix='', sel_times = None, n_year =1,
                 ax.axhline(y=WL, color='r', linestyle='--', linewidth=1)
         
             # Plot bed elevation and variable at the selected time
-            ds.bed_h.plot(ax=ax, color='black', label='Bed elevation')
-            (ds.bed_h+data_at_time).plot(ax=ax, label=f'Time: {time_point+2000}', marker='*',markersize =4,color = 'b')
+            ax.plot(distance, ds.bed_h, color='black', label='Bed elevation')
+            ax.plot(distance, ds.bed_h+data_at_time, color='blue', label=f'Time: {time_point+2000}', marker='*', markersize =4)
+            
+            # Create a custom legend with gradient colors and only year labels
+            custom_lines = [Line2D([0], [0], color='blue', lw=2)]
+            if WL ==0:
+                legend_labels = ['Bed elevation'] + ['Surface elevation']
+                custom_lines.insert(0, Line2D([0], [0], color='black', lw=2))  # Add the bed elevation line
+            else:
+                legend_labels = ['Water level','Bed elevation'] + ['Surface elevation']
+                custom_lines.insert(0, Line2D([0], [0], color='r', lw=2, linestyle = '--'))  # Add the water level line
+                custom_lines.insert(1, Line2D([0], [0], color='black', lw=2))  # Add the bed elevation line
+            
+            # Display the legend
+            legend = ax.legend(custom_lines, legend_labels, loc='upper right')
             # Set labels and title
             ax.set_ylabel(ylabel)
             ax.set_xlabel(xlabel)
             ax.set_title(f'{title} - {time_point+2000}')
 
-            # Add legend
-            ax.legend()
 
         # Adjust layout
         plt.tight_layout()
