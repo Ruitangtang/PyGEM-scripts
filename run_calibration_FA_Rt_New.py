@@ -80,8 +80,8 @@ frontal_ablation_Gta_unc_cn = 'fa_gta_obs_unc'
 
 # the initial and boundary for the parameter tau0 (KPA), at the moment, just set tau0 as calving_k (just notation)
 calving_k_init = 1.5#150e3
-calving_k_bndlow = 0#100e3
-calving_k_bndhigh = 2.5#200e3
+calving_k_bndlow = 1.0#100e3
+calving_k_bndhigh = 3#200e3
 calving_k_step = 0.1 #10e3
 
 nround_max = 5
@@ -368,7 +368,7 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                     print("invert_standard is False & The find_inversion_calving_from_any_mb start")
                     print("⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅")
                     out_calving = find_inversion_calving_from_any_mb(gdir, mb_model= mbmod_inv, mb_years=mb_years,
-                                                                    glen_a=cfg.PARAMS['glen_a']*glen_a_multiplier, fs=fs,
+                                                                    glen_a=cfg.PARAMS['glen_a']*glen_a_multiplier, fs=fs,calving_law_inv = None,
                                                                     modelprms = modelprms, glacier_rgi_table = glacier_rgi_table,
                                                                     hindcast=pygem_prms.hindcast,debug=pygem_prms.debug_mb,
                                                                     debug_refreeze=pygem_prms.debug_refreeze,option_areaconstant=True,
@@ -435,10 +435,10 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                     do_fl_diag = cfg.PARAMS['store_fl_diagnostics']
                     if do_fl_diag:
                         fl_diag_path = gdir.get_filepath('fl_diagnostics',delete=True)
-                        diag, fl_diag_dss= ev_model.run_until_and_store(nyears,store_monthly_step='monthly',fl_diag_path=fl_diag_path)
+                        diag, fl_diag_dss= ev_model.run_until_and_store(nyears,store_monthly_step= True,fl_diag_path=fl_diag_path)
                         print('diag is :',diag)
                     else:
-                        diag = ev_model.run_until_and_store(nyears,store_monthly_step='monthly')
+                        diag = ev_model.run_until_and_store(nyears,store_monthly_step= True)
                         print('diag is :',diag)
                 except:
                     print("something is wrong with the run_until_and_store")
@@ -497,15 +497,15 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                         out_calving_forward['calving_front_thick'] = thick[last_idx]
 
                         # Plot the timeseries of glacier profile
-                        Visualization_timeseries.plot_timeseries_profile(gdir=gdir, filesuffix ='', save_path=save_path_figure_calving,save_name ='Glacier profile',
-                                                                        xlabel='Distance along the flowline (m)')
+                        # Visualization_timeseries.plot_timeseries_profile(gdir=gdir, filesuffix ='', save_path=save_path_figure_calving,save_name ='Glacier profile',
+                        #                                                 xlabel='Distance along the flowline (m)')
                         
                         #%% Plot the snapshot of each January about the glacier profile
                         # generate selected time list
                         # Define the start and end dates
-                        Visualization_timeseries.plot_time_series_snapshots(gdir=gdir,filesuffix ='', sel_times=None,n_year =1,variable='thickness_m', group='fl_0', 
-                                ylabel='Elevation (m a.s.l.)', xlabel='Distance along the flowline (m)', title='Time Series Snapshots', 
-                                save_path=save_path_figure_calving,save_name='Timeseries snapshot of selected year')
+                        # Visualization_timeseries.plot_time_series_snapshots(gdir=gdir,filesuffix ='', sel_times=None,n_year =1,variable='thickness_m', group='fl_0', 
+                        #         ylabel='Elevation (m a.s.l.)', xlabel='Distance along the flowline (m)', title='Time Series Snapshots', 
+                        #         save_path=save_path_figure_calving,save_name='Timeseries snapshot of selected year')
                         
                         #%% Plot the animate gif of each month about the glacier profile
                         Visualization_timeseries.animate_time_series(gdir=gdir, filesuffix ='', variable='thickness_m', group='fl_0',interval=400, ylabel='Elevation (m a.s.l.)', 
@@ -532,52 +532,52 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                         print('OGGM dynamics failed, using mass redistribution curves')
                         print(traceback.format_exc())
                                                     # Mass redistribution curves glacier dynamics model
-                    ev_model = MassRedistributionCurveModel(
-                                    nfls, mb_model=mbmod, y0=0,
-                                    glen_a=cfg.PARAMS['glen_a']*glen_a_multiplier, fs=fs,
-                                    is_tidewater=gdir.is_tidewater,
-                                    water_level=water_level
-                                    )
-                    _, diag = ev_model.run_until_and_store(nyears)
-                    ev_model.mb_model.glac_wide_volume_annual = diag.volume_m3.values
-                    ev_model.mb_model.glac_wide_area_annual = diag.area_m2.values
+# #                     ev_model = MassRedistributionCurveModel(
+# #                                     nfls, mb_model=mbmod, y0=0,
+# #                                     glen_a=cfg.PARAMS['glen_a']*glen_a_multiplier, fs=fs,
+# #                                     is_tidewater=gdir.is_tidewater,
+# #                                     water_level=water_level
+# #                                     )
+# #                     _, diag = ev_model.run_until_and_store(nyears)
+# #                     ev_model.mb_model.glac_wide_volume_annual = diag.volume_m3.values
+# #                     ev_model.mb_model.glac_wide_area_annual = diag.area_m2.values
     
-                    # Record frontal ablation for tidewater glaciers and update total mass balance
-                    # Update glacier-wide frontal ablation (m3 w.e.)
-                    ev_model.mb_model.glac_wide_frontalablation = ev_model.mb_model.glac_bin_frontalablation.sum(0)
-                    # Update glacier-wide total mass balance (m3 w.e.)
-                    ev_model.mb_model.glac_wide_massbaltotal = (
-                            ev_model.mb_model.glac_wide_massbaltotal - ev_model.mb_model.glac_wide_frontalablation)
+# #                     # Record frontal ablation for tidewater glaciers and update total mass balance
+# #                     # Update glacier-wide frontal ablation (m3 w.e.)
+# #                     ev_model.mb_model.glac_wide_frontalablation = ev_model.mb_model.glac_bin_frontalablation.sum(0)
+# #                     # Update glacier-wide total mass balance (m3 w.e.)
+# #                     ev_model.mb_model.glac_wide_massbaltotal = (
+# #                             ev_model.mb_model.glac_wide_massbaltotal - ev_model.mb_model.glac_wide_frontalablation)
 
-                    calving_flux_km3a = (ev_model.mb_model.glac_wide_frontalablation.sum() * pygem_prms.density_water / 
-                                         pygem_prms.density_ice / nyears / 1e9)
+# #                     calving_flux_km3a = (ev_model.mb_model.glac_wide_frontalablation.sum() * pygem_prms.density_water / 
+# #                                          pygem_prms.density_ice / nyears / 1e9)
 
-#                    if debug:
-#                        print('avg frontal ablation [Gta]:', 
-#                              np.round(ev_model.mb_model.glac_wide_frontalablation.sum() / 1e9 / nyears,4))
-#                        print('avg frontal ablation [Gta]:', 
-#                              np.round(ev_model.calving_m3_since_y0 * pygem_prms.density_ice / 1e12 / nyears,4))
+# # #                    if debug:
+# # #                        print('avg frontal ablation [Gta]:', 
+# # #                              np.round(ev_model.mb_model.glac_wide_frontalablation.sum() / 1e9 / nyears,4))
+# # #                        print('avg frontal ablation [Gta]:', 
+# # #                              np.round(ev_model.calving_m3_since_y0 * pygem_prms.density_ice / 1e12 / nyears,4))
                     
-                    # Output of calving
-                    out_calving_forward = {}
-                    # calving flux (km3 ice/yr)
-                    out_calving_forward['calving_flux'] = calving_flux_km3a
-                    # calving flux (Gt/yr)
-                    calving_flux_Gta = out_calving_forward['calving_flux'] * pygem_prms.density_ice / pygem_prms.density_water
-                    # calving front thickness at start of simulation
-                    thick = nfls[0].thick
-                    last_idx = np.nonzero(thick)[0][-1]
-                    out_calving_forward['calving_front_thick'] = thick[last_idx]
+# #                     # Output of calving
+# #                     out_calving_forward = {}
+# #                     # calving flux (km3 ice/yr)
+# #                     out_calving_forward['calving_flux'] = calving_flux_km3a
+# #                     # calving flux (Gt/yr)
+# #                     calving_flux_Gta = out_calving_forward['calving_flux'] * pygem_prms.density_ice / pygem_prms.density_water
+# #                     # calving front thickness at start of simulation
+# #                     thick = nfls[0].thick
+# #                     last_idx = np.nonzero(thick)[0][-1]
+# #                     out_calving_forward['calving_front_thick'] = thick[last_idx]
                     
-                    # Record in dataframe
-                    output_df.loc[nglac,'calving_flux_Gta'] = calving_flux_Gta
-                    output_df.loc[nglac,'calving_thick'] = out_calving_forward['calving_front_thick']
-                    output_df.loc[nglac,'no_errors'] = 1
+# #                     # Record in dataframe
+# #                     output_df.loc[nglac,'calving_flux_Gta'] = calving_flux_Gta
+# #                     output_df.loc[nglac,'calving_thick'] = out_calving_forward['calving_front_thick']
+# #                     output_df.loc[nglac,'no_errors'] = 1
                     
-                    if debug:          
-                        print('Mass Redistribution curve, calving_k:', np.round(calving_k,1), 'glen_a:', np.round(glen_a_multiplier,2))                       
-                        print('    calving front thickness [m]:', np.round(out_calving_forward['calving_front_thick'],0))
-                        print('    calving flux model [Gt/yr]:', np.round(calving_flux_Gta,5))
+# #                     if debug:          
+# #                         print('Mass Redistribution curve, calving_k:', np.round(calving_k,1), 'glen_a:', np.round(glen_a_multiplier,2))                       
+# #                         print('    calving front thickness [m]:', np.round(out_calving_forward['calving_front_thick'],0))
+# #                         print('    calving flux model [Gt/yr]:', np.round(calving_flux_Gta,5))
 
 
             if calc_mb_geo_correction:
@@ -1645,39 +1645,39 @@ if option_ind_calving_k:
                     
                         
                     run_opt = False
-#                     if debug:
-#                     # visulize th parameter with model_function
-#                         k_value_arrary, reg_calving_gta_mod_array = Visualize_parameter (model_function = reg_calving_flux, k_bndhigh = calving_k_bndhigh,
-#                                                                                         k_bndlow = calving_k_bndlow, k_step = calving_k_step, k_name ='yield strength',
-#                                                                                         main_glac_rgi = main_glac_rgi_ind, fa_glac_data_reg=fa_glac_data_ind,
-#                                                                                         frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
-#                                                                                         prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
-#                                                                                         ignore_nan=False, debug=debug_reg_calving_fxn)
-#                         print("k_value_array :",k_value_arrary)
-#                         print("reg_calving_gta_mod_array:",reg_calving_gta_mod_array)
-#                         fa_gta_obs_unc = output_df_all.loc[nglac,'fa_gta_obs_unc']
-#                         Weights_k, Neff_k = pbs(reg_calving_gta_obs,reg_calving_gta_mod_array,fa_gta_obs_unc**2)
-#                         k_weighted_av = np.average(k_value_arrary,weights = Weights_k)
-#                         k_weighted_std = np.sqrt(np.average((k_value_arrary - k_weighted_av)**2,weights = Weights_k))
-#                         calving_flux_Gta_weighted = np.average(reg_calving_gta_mod_array,weights = Weights_k)
-#                         print("k_weighted_av:",k_weighted_av, "k_weighted_std :", k_weighted_std,"Neff_k is:",Neff_k)
+                    if debug:
+                    # visulize th parameter with model_function
+                        k_value_arrary, reg_calving_gta_mod_array = Visualize_parameter (model_function = reg_calving_flux, k_bndhigh = calving_k_bndhigh,
+                                                                                        k_bndlow = calving_k_bndlow, k_step = calving_k_step, k_name ='yield strength',
+                                                                                        main_glac_rgi = main_glac_rgi_ind, fa_glac_data_reg=fa_glac_data_ind,
+                                                                                        frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
+                                                                                        prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
+                                                                                        ignore_nan=False, debug=debug_reg_calving_fxn)
+                        print("k_value_array :",k_value_arrary)
+                        print("reg_calving_gta_mod_array:",reg_calving_gta_mod_array)
+                        fa_gta_obs_unc = output_df_all.loc[nglac,'fa_gta_obs_unc']
+                        Weights_k, Neff_k = pbs(reg_calving_gta_obs,reg_calving_gta_mod_array,fa_gta_obs_unc**2)
+                        k_weighted_av = np.average(k_value_arrary,weights = Weights_k)
+                        k_weighted_std = np.sqrt(np.average((k_value_arrary - k_weighted_av)**2,weights = Weights_k))
+                        calving_flux_Gta_weighted = np.average(reg_calving_gta_mod_array,weights = Weights_k)
+                        print("k_weighted_av:",k_weighted_av, "k_weighted_std :", k_weighted_std,"Neff_k is:",Neff_k)
 #                         # Update the calving_k with the weighted average
-#                         output_df, reg_calving_gta_mod_bndweighted, reg_calving_gta_obs = (
-#                         reg_calving_flux(main_glac_rgi_ind, k_weighted_av, fa_glac_data_reg=fa_glac_data_ind,
-#                                             frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
-#                                             prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
-#                                             ignore_nan=False, debug=debug_reg_calving_fxn))
+                        output_df, reg_calving_gta_mod_bndweighted, reg_calving_gta_obs = (
+                        reg_calving_flux(main_glac_rgi_ind, k_weighted_av, fa_glac_data_reg=fa_glac_data_ind,
+                                            frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
+                                            prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
+                                            ignore_nan=False, debug=debug_reg_calving_fxn))
                         
-#                         print('----- final : after optimization of the FA-----')
-#                         #output_df_all.loc[nglac,'calving_k'] = output_df.loc[0,'calving_k']
-#                         print("weighted calving_flux_Gta is :",calving_flux_Gta_weighted,"calving_flux_Gta with weighted calving_k is :",output_df.loc[0,'calving_flux_Gta'])
-#                         output_df_all.loc[nglac,'calving_k'] = k_weighted_av                      
-#                         output_df_all.loc[nglac,'calving_k_nmad'] = k_weighted_std
-#                         output_df_all.loc[nglac,'calving_thick'] = output_df.loc[0,'calving_thick']
-#                         #output_df_all.loc[nglac,'calving_flux_Gta'] = output_df.loc[0,'calving_flux_Gta']
-#                         output_df_all.loc[nglac,'calving_flux_Gta'] = calving_flux_Gta_weighted
-#                         output_df_all.loc[nglac,'no_errors'] = output_df.loc[0,'no_errors']
-#                         output_df_all.loc[nglac,'oggm_dynamics'] = output_df.loc[0,'oggm_dynamics']
+                        print('----- final : after optimization of the FA-----')
+                        #output_df_all.loc[nglac,'calving_k'] = output_df.loc[0,'calving_k']
+                        print("weighted calving_flux_Gta is :",calving_flux_Gta_weighted,"calving_flux_Gta with weighted calving_k is :",output_df.loc[0,'calving_flux_Gta'])
+                        output_df_all.loc[nglac,'calving_k'] = k_weighted_av                      
+                        output_df_all.loc[nglac,'calving_k_nmad'] = k_weighted_std
+                        output_df_all.loc[nglac,'calving_thick'] = output_df.loc[0,'calving_thick']
+                        #output_df_all.loc[nglac,'calving_flux_Gta'] = output_df.loc[0,'calving_flux_Gta']
+                        output_df_all.loc[nglac,'calving_flux_Gta'] = calving_flux_Gta_weighted
+                        output_df_all.loc[nglac,'no_errors'] = output_df.loc[0,'no_errors']
+                        output_df_all.loc[nglac,'oggm_dynamics'] = output_df.loc[0,'oggm_dynamics']
  
 #                     # if bndhigh_good and bndlow_good:
 #                     #     print("bandhigh_good:",bndhigh_good)
