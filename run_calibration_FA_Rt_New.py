@@ -210,14 +210,16 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
     gcm_lr, gcm_dates = gcm.importGCMvarnearestneighbor_xarray(gcm.lr_fn, gcm.lr_vn, main_glac_rgi, dates_table)
 
     # ===== CALIBRATE ALL THE GLACIERS AT ONCE =====
-    output_cns = ['RGIId', 'calving_k', 'calving_thick', 'calving_flux_Gta_inv', 'calving_flux_Gta', 'no_errors', 'oggm_dynamics']
+    output_cns = ['RGIId', 'calving_k', 'calving_thick', 'calving_flux_Gta_inv', 'calving_flux_Gta', 'no_errors', 'oggm_dynamics','length_change_m','length_change_rate_myr_dLdt']
     output_df = pd.DataFrame(np.zeros((main_glac_rgi.shape[0],len(output_cns))), columns=output_cns)
     output_df['RGIId'] = main_glac_rgi.RGIId
     output_df['calving_k'] = calving_k
     output_df['calving_thick'] = np.nan
     output_df['calving_flux_Gta'] = np.nan
     output_df['oggm_dynamics'] = 0
-    output_df['mb_mwea_fa_asl_lost'] = 0
+    output_df['mb_mwea_fa_asl_lost'] = 0 
+    output_df['length_change_rate_myr_dLdt'] = [None] * output_df.shape[0]  # Initialize with None
+    output_df['length_change_m'] = [None] * output_df.shape[0]  # Initialize with None
     print('============================= run reg_calving_flux =============================')
     print('********** main glacier rgi ********** is :',main_glac_rgi)
     for nglac in np.arange(main_glac_rgi.shape[0]):
@@ -496,6 +498,11 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                         last_idx = np.nonzero(thick)[0][-1]
                         out_calving_forward['calving_front_thick'] = thick[last_idx]
 
+
+                        # Output of length change rate
+                        out_calving_forward['length_change_m'] = diag.length_m.values[1:] - diag.length_m.values[0:-1]
+                        out_calving_forward['length_change_rate_myr_dLdt'] = diag.length_change_rate_myr.values
+
                         # Plot the timeseries of glacier profile
                         # Visualization_timeseries.plot_timeseries_profile(gdir=gdir, filesuffix ='', save_path=save_path_figure_calving,save_name ='Glacier profile',
                         #                                                 xlabel='Distance along the flowline (m)')
@@ -514,15 +521,41 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                         
                         
                         # Record in dataframe
-                        output_df.loc[nglac,'calving_flux_Gta'] = calving_flux_Gta
-                        output_df.loc[nglac,'calving_thick'] = out_calving_forward['calving_front_thick']
-                        output_df.loc[nglac,'no_errors'] = 1
-                        output_df.loc[nglac,'oggm_dynamics'] = 1
+                        # Using apply to set complex data
+                        def update_row(row, index, calving_flux_Gta, calving_thick, length_change_m, length_change_rate_myr_dLdt):
+                            if index == row.name:
+                                row['calving_flux_Gta'] = calving_flux_Gta
+                                row['calving_thick'] = calving_thick
+                                row['no_errors'] = 1
+                                row['oggm_dynamics'] = 1
+                                row['length_change_m'] = length_change_m
+                                row['length_change_rate_myr_dLdt'] = length_change_rate_myr_dLdt
+                            return row
+                        
+
+                        # Apply the update function to each row
+                        output_df = output_df.apply(update_row, axis=1, 
+                                                    index=nglac, 
+                                                    calving_flux_Gta=calving_flux_Gta,
+                                                    calving_thick=out_calving_forward['calving_front_thick'],
+                                                    length_change_m=out_calving_forward['length_change_m'].tolist(),  # Convert to list
+                                                    length_change_rate_myr_dLdt=out_calving_forward['length_change_rate_myr_dLdt'].tolist())
+                        # output_df.loc[nglac,'calving_flux_Gta'] = calving_flux_Gta
+                        # output_df.loc[nglac,'calving_thick'] = out_calving_forward['calving_front_thick']
+                        # output_df.loc[nglac,'no_errors'] = 1
+                        # output_df.loc[nglac,'oggm_dynamics'] = 1
+                        # print("nglac:", nglac)
+                        # print("length_change_m is :",out_calving_forward['length_change_m'])
+                        # print("length_change_m length:", len(out_calving_forward['length_change_m']))
+                        # output_df.loc[nglac,'length_change_m'] = out_calving_forward['length_change_m']
+                        # output_df.loc[nglac,'length_change_rate_myr_dLdt'] = out_calving_forward['length_change_rate_myr_dLdt']
                         
                         if debug:               
                             print('OGGM dynamics, calving_k:', np.round(calving_k,4), 'glen_a:', np.round(glen_a_multiplier,2))                 
                             print('    calving front thickness [m]:', np.round(out_calving_forward['calving_front_thick'],1))
                             print('    calving flux model [Gt/yr]:', np.round(calving_flux_Gta,5))
+                            print('    length change [m]:', np.round(out_calving_forward['length_change_m'],2))
+                            print('    length change rate [m/yr]:', np.round(out_calving_forward['length_change_rate_myr_dLdt'],2))
                     except:
                         print(traceback.format_exc())
                 
@@ -617,8 +650,8 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                 output_df.loc[nglac,'mb_mwea_fa_asl_lost'] = mb_mwea_fa_asl_geo_correction
 
             if out_calving_forward is None:
-                output_df.loc[nglac,['calving_k', 'calving_thick', 'calving_flux_Gta', 'no_errors']] = (
-                        np.nan, np.nan, np.nan, 0)
+                output_df.loc[nglac,['calving_k', 'calving_thick', 'calving_flux_Gta', 'no_errors','length_change_m','length_change_rate_myr_dLdt']] = (
+                        np.nan, np.nan, np.nan, 0,np.nan,np.nan)
                 
     # Remove glaciers that failed to run
     if fa_glac_data_reg is None:
@@ -1507,7 +1540,8 @@ if option_ind_calving_k:
 
             output_cns = ['RGIId', 'calving_k', 'calving_k_nmad', 'calving_thick', 'calving_flux_Gta', 'fa_gta_obs', 'fa_gta_obs_unc', 'fa_gta_max', 
                           'calving_flux_Gta_bndlow', 'calving_flux_Gta_bndhigh', 'no_errors', 'oggm_dynamics', 
-                          'mb_clim_gta', 'mb_total_gta', 'mb_clim_mwea', 'mb_total_mwea']
+                          'mb_clim_gta', 'mb_total_gta', 'mb_clim_mwea', 'mb_total_mwea','length_change_m_bndlow','length_change_m_bndhigh',
+                          'length_change_rate_myr_dLdt_bndlow','length_change_rate_myr_dLdt_bndhigh']
             
             output_df_all = pd.DataFrame(np.zeros((main_glac_rgi.shape[0],len(output_cns))), columns=output_cns)
             output_df_all['RGIId'] = main_glac_rgi.RGIId
@@ -1609,11 +1643,16 @@ if option_ind_calving_k:
                                                  frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
                                                  prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
                                                  ignore_nan=False, debug=debug_reg_calving_fxn))
+                        reg_length_change_m_bndhigh = output_df_bndhigh.loc[0,'length_change_m']
+                        reg_length_change_rate_myr_dLdt_bndhigh = output_df_bndhigh.loc[0,'length_change_rate_myr_dLdt']
                         print("do the reg_calving_flux_bndhigh: End")
                         print(traceback.format_exc())
                     except:
                         bndhigh_good = False
                         reg_calving_gta_mod_bndhigh = None
+                        reg_length_change_m_bndhigh = None
+                        reg_length_change_rate_myr_dLdt_bndhigh = None
+
                         print(traceback.format_exc())
                     try:
                         print("do the reg_calving_flux_bndlow: Start")
@@ -1623,17 +1662,52 @@ if option_ind_calving_k:
                                                  frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
                                                  prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
                                                  ignore_nan=False, debug=debug_reg_calving_fxn))
+                        reg_length_change_m_bndlow = output_df_bndlow.loc[0,'length_change_m']
+                        reg_length_change_rate_myr_dLdt_bndlow = output_df_bndlow.loc[0,'length_change_rate_myr_dLdt']
                         print("do the reg_calving_flux_bandlow: End")
                         print("********************************************")
                         print(traceback.format_exc())
                     except:
                         bndlow_good = False
                         reg_calving_gta_mod_bndlow = None
+                        reg_length_change_m_bndlow = None
+                        reg_length_change_rate_myr_dLdt_bndlow = None
                         print(traceback.format_exc())
                         
                     # Record bounds
-                    output_df_all.loc[nglac,'calving_flux_Gta_bndlow'] = reg_calving_gta_mod_bndlow
-                    output_df_all.loc[nglac,'calving_flux_Gta_bndhigh'] = reg_calving_gta_mod_bndhigh
+                    output_df_all['length_change_rate_myr_dLdt_bndlow'] = [None] * output_df_all.shape[0]  # Initialize with None
+                    output_df_all['length_change_rate_myr_dLdt_bndhigh'] = [None] * output_df_all.shape[0]  # Initialize with None
+                    output_df_all['length_change_m_bndlow'] = [None] * output_df_all.shape[0]  # Initialize with None
+                    output_df_all['length_change_m_bndhigh'] = [None] * output_df_all.shape[0]  # Initialize with None
+                                        # Using apply to set complex data
+                    def update_row_all(row, index, calving_flux_Gta_bndlow, calving_flux_Gta_bndhigh, length_change_m_bndlow, length_change_m_bndhigh,
+                                       length_change_rate_myr_dLdt_bndlow,length_change_rate_myr_dLdt_bndhigh):
+                        if index == row.name:
+                            row['calving_flux_Gta_bndlow'] = calving_flux_Gta_bndlow
+                            row['calving_flux_Gta_bndhigh'] = calving_flux_Gta_bndhigh
+                            row['length_change_m_bndlow'] = length_change_m_bndlow
+                            row['length_change_m_bndhigh'] = length_change_m_bndhigh
+                            row['length_change_rate_myr_dLdt_bndlow'] = length_change_rate_myr_dLdt_bndlow
+                            row['length_change_rate_myr_dLdt_bndhigh'] = length_change_rate_myr_dLdt_bndhigh
+                        return row
+
+
+                    # Apply the update function to each row
+                    output_df_all = output_df_all.apply(update_row_all, axis=1, 
+                                                index=nglac, 
+                                                calving_flux_Gta_bndlow=reg_calving_gta_mod_bndlow,
+                                                calving_flux_Gta_bndhigh=reg_calving_gta_mod_bndhigh,
+                                                length_change_m_bndlow=reg_length_change_m_bndlow,
+                                                length_change_m_bndhigh=reg_length_change_m_bndhigh,
+                                                length_change_rate_myr_dLdt_bndlow=reg_length_change_rate_myr_dLdt_bndlow,
+                                                length_change_rate_myr_dLdt_bndhigh=reg_length_change_rate_myr_dLdt_bndhigh)  # Convert to list
+
+                    # # # # output_df_all.loc[nglac,'calving_flux_Gta_bndlow'] = reg_calving_gta_mod_bndlow
+                    # # # # output_df_all.loc[nglac,'calving_flux_Gta_bndhigh'] = reg_calving_gta_mod_bndhigh
+                    # # # # output_df_all.loc[nglac, 'length_change_m_bndlow'] = reg_length_change_m_bndlow
+                    # # # # output_df_all.loc[nglac,'length_change_m_bndhigh'] = reg_length_change_m_bndhigh
+                    # # # # output_df_all.loc[nglac,'length_change_rate_myr_dLdt_bndlow'] = reg_length_change_rate_myr_dLdt_bndlow
+                    # # # # output_df_all.loc[nglac,'length_change_rate_myr_dLdt_bndhigh'] = reg_length_change_rate_myr_dLdt_bndhigh
                     print('***********************04**********************')
                     print('reg_calving_gta_mod_bndlow',reg_calving_gta_mod_bndlow)
                     print('reg_calving_gta_mod_bndlhigh',reg_calving_gta_mod_bndhigh)
@@ -1642,42 +1716,46 @@ if option_ind_calving_k:
                         print('  fa_data  [Gt/yr]:', np.round(reg_calving_gta_obs,4))
                         print('  fa_model_bndlow [Gt/yr] :', reg_calving_gta_mod_bndlow)
                         print('  fa_model_bndhigh [Gt/yr] :', reg_calving_gta_mod_bndhigh)
+                        print('  length_change_m_bndlow [m]:', reg_length_change_m_bndlow)
+                        print('  length_change_m_bndhigh [m]:', reg_length_change_m_bndhigh)
+                        print('  length_change_rate_myr_bndlow [m/yr] :',reg_length_change_rate_myr_dLdt_bndlow)
+                        print('  length_change_rate_myr_bndhigh [m/yr] :',reg_length_change_rate_myr_dLdt_bndhigh)
                     
                         
-                    run_opt = False
-                    if debug:
-                    # visulize th parameter with model_function
-                        k_value_arrary, reg_calving_gta_mod_array = Visualize_parameter (model_function = reg_calving_flux, k_bndhigh = calving_k_bndhigh,
-                                                                                        k_bndlow = calving_k_bndlow, k_step = calving_k_step, k_name ='yield strength',
-                                                                                        main_glac_rgi = main_glac_rgi_ind, fa_glac_data_reg=fa_glac_data_ind,
-                                                                                        frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
-                                                                                        prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
-                                                                                        ignore_nan=False, debug=debug_reg_calving_fxn)
-                        print("k_value_array :",k_value_arrary)
-                        print("reg_calving_gta_mod_array:",reg_calving_gta_mod_array)
-                        fa_gta_obs_unc = output_df_all.loc[nglac,'fa_gta_obs_unc']
-                        Weights_k, Neff_k = pbs(reg_calving_gta_obs,reg_calving_gta_mod_array,fa_gta_obs_unc**2)
-                        k_weighted_av = np.average(k_value_arrary,weights = Weights_k)
-                        k_weighted_std = np.sqrt(np.average((k_value_arrary - k_weighted_av)**2,weights = Weights_k))
-                        calving_flux_Gta_weighted = np.average(reg_calving_gta_mod_array,weights = Weights_k)
-                        print("k_weighted_av:",k_weighted_av, "k_weighted_std :", k_weighted_std,"Neff_k is:",Neff_k,"weight_k_array is :",Weights_k)
-#                         # Update the calving_k with the weighted average
-                        output_df, reg_calving_gta_mod_bndweighted, reg_calving_gta_obs = (
-                        reg_calving_flux(main_glac_rgi_ind, k_weighted_av, fa_glac_data_reg=fa_glac_data_ind,
-                                            frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
-                                            prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
-                                            ignore_nan=False, debug=debug_reg_calving_fxn))
+#                     run_opt = False
+#                     if debug:
+#                     # visulize th parameter with model_function
+#                         k_value_arrary, reg_calving_gta_mod_array = Visualize_parameter (model_function = reg_calving_flux, k_bndhigh = calving_k_bndhigh,
+#                                                                                         k_bndlow = calving_k_bndlow, k_step = calving_k_step, k_name ='yield strength',
+#                                                                                         main_glac_rgi = main_glac_rgi_ind, fa_glac_data_reg=fa_glac_data_ind,
+#                                                                                         frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
+#                                                                                         prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
+#                                                                                         ignore_nan=False, debug=debug_reg_calving_fxn)
+#                         print("k_value_array :",k_value_arrary)
+#                         print("reg_calving_gta_mod_array:",reg_calving_gta_mod_array)
+#                         fa_gta_obs_unc = output_df_all.loc[nglac,'fa_gta_obs_unc']
+#                         Weights_k, Neff_k = pbs(reg_calving_gta_obs,reg_calving_gta_mod_array,fa_gta_obs_unc**2)
+#                         k_weighted_av = np.average(k_value_arrary,weights = Weights_k)
+#                         k_weighted_std = np.sqrt(np.average((k_value_arrary - k_weighted_av)**2,weights = Weights_k))
+#                         calving_flux_Gta_weighted = np.average(reg_calving_gta_mod_array,weights = Weights_k)
+#                         print("k_weighted_av:",k_weighted_av, "k_weighted_std :", k_weighted_std,"Neff_k is:",Neff_k,"weight_k_array is :",Weights_k)
+# #                         # Update the calving_k with the weighted average
+#                         output_df, reg_calving_gta_mod_bndweighted, reg_calving_gta_obs = (
+#                         reg_calving_flux(main_glac_rgi_ind, k_weighted_av, fa_glac_data_reg=fa_glac_data_ind,
+#                                             frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
+#                                             prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
+#                                             ignore_nan=False, debug=debug_reg_calving_fxn))
                         
-                        print('----- final : after optimization of the FA-----')
-                        #output_df_all.loc[nglac,'calving_k'] = output_df.loc[0,'calving_k']
-                        print("weighted calving_flux_Gta is :",calving_flux_Gta_weighted,"calving_flux_Gta with weighted calving_k is :",output_df.loc[0,'calving_flux_Gta'])
-                        output_df_all.loc[nglac,'calving_k'] = k_weighted_av                      
-                        output_df_all.loc[nglac,'calving_k_nmad'] = k_weighted_std
-                        output_df_all.loc[nglac,'calving_thick'] = output_df.loc[0,'calving_thick']
-                        #output_df_all.loc[nglac,'calving_flux_Gta'] = output_df.loc[0,'calving_flux_Gta']
-                        output_df_all.loc[nglac,'calving_flux_Gta'] = calving_flux_Gta_weighted
-                        output_df_all.loc[nglac,'no_errors'] = output_df.loc[0,'no_errors']
-                        output_df_all.loc[nglac,'oggm_dynamics'] = output_df.loc[0,'oggm_dynamics']
+#                         print('----- final : after optimization of the FA-----')
+#                         #output_df_all.loc[nglac,'calving_k'] = output_df.loc[0,'calving_k']
+#                         print("weighted calving_flux_Gta is :",calving_flux_Gta_weighted,"calving_flux_Gta with weighted calving_k is :",output_df.loc[0,'calving_flux_Gta'])
+#                         output_df_all.loc[nglac,'calving_k'] = k_weighted_av                      
+#                         output_df_all.loc[nglac,'calving_k_nmad'] = k_weighted_std
+#                         output_df_all.loc[nglac,'calving_thick'] = output_df.loc[0,'calving_thick']
+#                         #output_df_all.loc[nglac,'calving_flux_Gta'] = output_df.loc[0,'calving_flux_Gta']
+#                         output_df_all.loc[nglac,'calving_flux_Gta'] = calving_flux_Gta_weighted
+#                         output_df_all.loc[nglac,'no_errors'] = output_df.loc[0,'no_errors']
+#                         output_df_all.loc[nglac,'oggm_dynamics'] = output_df.loc[0,'oggm_dynamics']
  
 #                     # if bndhigh_good and bndlow_good:
 #                     #     print("bandhigh_good:",bndhigh_good)
