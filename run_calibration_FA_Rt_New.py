@@ -1660,7 +1660,7 @@ if option_ind_calving_k:
                         k_weighted_av = np.average(k_value_arrary,weights = Weights_k)
                         k_weighted_std = np.sqrt(np.average((k_value_arrary - k_weighted_av)**2,weights = Weights_k))
                         calving_flux_Gta_weighted = np.average(reg_calving_gta_mod_array,weights = Weights_k)
-                        print("k_weighted_av:",k_weighted_av, "k_weighted_std :", k_weighted_std,"Neff_k is:",Neff_k)
+                        print("k_weighted_av:",k_weighted_av, "k_weighted_std :", k_weighted_std,"Neff_k is:",Neff_k,"weight_k_array is :",Weights_k)
 #                         # Update the calving_k with the weighted average
                         output_df, reg_calving_gta_mod_bndweighted, reg_calving_gta_obs = (
                         reg_calving_flux(main_glac_rgi_ind, k_weighted_av, fa_glac_data_reg=fa_glac_data_ind,
