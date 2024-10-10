@@ -19,6 +19,9 @@ import xarray as xr
 import traceback
 from scipy import special
 import time
+import ast  # To safely evaluate string representations of lists
+import h5py
+import pdb
 
 # Local libraries
 try:
@@ -53,7 +56,7 @@ time_start = time.time()
 
 #%% ----- MANUAL INPUT DATA -----
 #regions = [1,3,4,5,7,9,17,19]
-regions = [1]
+regions = [17]
 
 overwrite = True
 #output_fp = pygem_prms.main_directory + '/../calving_data/analysis_sermeq/'
@@ -80,7 +83,7 @@ frontal_ablation_Gta_unc_cn = 'fa_gta_obs_unc'
 
 # the initial and boundary for the parameter tau0 (KPA), at the moment, just set tau0 as calving_k (just notation)
 calving_k_init = 1.5#150e3
-calving_k_bndlow = 1.0#100e3
+calving_k_bndlow = 0.1#100e3
 calving_k_bndhigh = 3#200e3
 calving_k_step = 0.1 #10e3
 
@@ -165,7 +168,7 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                      frontal_ablation_Gta_cn=None,
                      prms_from_reg_priors=False, prms_from_glac_cal=False, ignore_nan=True, debug=True,
                      invert_standard=invert_standard,
-                     calc_mb_geo_correction=False, reset_gdir=True):
+                     calc_mb_geo_correction=False, reset_gdir=True,store_monthly_step =False):
     """
     Compute the calving flux for a group of glaciers
     
@@ -179,6 +182,10 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
         use model parameters from regional priors
     prms_from_glac_cal : Boolean
         use model parameters from initial calibration
+    store_monthly_step: Boolean
+        store the monthly step of the glacier profile,
+        Here is for setting whether we do monthly/annual calibration for glacier length change rate.
+        The default is false, which means we do the multi-years averaged calibration for glacier front ablation.
 
     Returns
     -------
@@ -460,7 +467,7 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                         save_path_figure_calving = os.path.join(save_path_figure, str(calving_k))+ os.sep
                         if not os.path.exists(save_path_figure_calving):
                             os.makedirs(save_path_figure_calving)
-                        print("the calving in the diag is :",diag.calving_m3)
+                        #print("the calving in the diag is :",diag.calving_m3)
                         # plot the timeseries of calving_m3
                         Visualization_timeseries.plot_timeseries(calving_m3=diag.calving_m3,save_name='Timeseries of accumulated calving flux (m³)',
                                                                 save_path= save_path_figure_calving)
@@ -469,7 +476,7 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                         # plot the timeseries of calving_m3_annual
                         Visualization_timeseries.plot_timeseries_Numpy(data = calving_m3_annual, start_date='2000-01-01', end_date='2019-12-31',
                                                                         save_name='Timeseries of calving',save_path=save_path_figure_calving, Y_label='calving flux (m³ a⁻¹)', F_title='Time Series')
-                        print("calving_m3_annual is:",calving_m3_annual)
+                        #print("calving_m3_annual is:",calving_m3_annual)
                         print("the frontalablation is updated totally :",calving_m3_annual.shape[0])
                         print(calving_m3_annual.shape[0],len(ev_model.mb_model.glac_wide_frontalablation))
                         for n in np.arange(calving_m3_annual.shape[0]):
@@ -501,7 +508,40 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
 
                         # Output of length change rate
                         out_calving_forward['length_change_m'] = diag.length_m.values[1:] - diag.length_m.values[0:-1]
-                        out_calving_forward['length_change_rate_myr_dLdt'] = diag.length_change_rate_myr.values
+                        ## Generate the monthly/annual lenge_change_m and plot timeseries
+                        if store_monthly_step:
+                            length_change_m_monthly = (diag.length_m.values[1:] - diag.length_m.values[0:-1])
+                            length_change_m_annual = np.nansum(length_change_m_monthly.reshape(-1, 12), axis=1)
+                            # Visualization_timeseries.plot_timeseries_Numpy(data = length_change_m_monthly, start_date='2000-01-01', end_date='2019-12-31',
+                            #                                                save_name='Timeseries of length change',save_path=save_path_figure_calving,
+                            #                                                Y_label='length change (m)', F_title='Time Series')
+                            Visualization_timeseries.plot_timeseries_List(data = length_change_m_annual, start_year=2000, ylabel= 'length change (m a⁻¹)', xlabel='Year',
+                                                                          title='Annual timeseries of length change',save_path=save_path_figure_calving,
+                                                                          save_name='Annual timeseries of length change')
+                        else:
+                            length_change_m_annual= (diag.length_m.values[1:] - diag.length_m.values[0:-1])
+                            Visualization_timeseries.plot_timeseries_List(data = length_change_m_annual, start_year=2000, ylabel= 'length change (m a⁻¹)', xlabel='Year',
+                                                                          title='Annual timeseries of length change',save_path=save_path_figure_calving,
+                                                                          save_name='Annual timeseries of length change')
+                        
+                        ## Generate the monthly/annual lenge_change_rate_myr_dLdt
+                        if store_monthly_step:
+                            length_change_rate_myr_dLdt_monthly = diag.length_change_rate_myr.values[1:]
+                            length_change_rate_myr_dLdt_annual = np.nanmean(length_change_rate_myr_dLdt_monthly.reshape(-1, 12), axis=1)
+                            # Visualization_timeseries.plot_timeseries_Numpy(data = length_change_rate_myr_dLdt_monthly, start_date='2000-01-01', end_date='2019-12-31',
+                            #                                                 save_name='Monthly timeseries of length change rate',save_path=save_path_figure_calving,
+                            #                                                 Y_label='length change rate (m a⁻¹)', F_title='Timeseries of length change rate (Sermeq)')
+                            Visualization_timeseries.plot_timeseries_List(data = length_change_rate_myr_dLdt_annual, start_year=2000, ylabel= 'length change rate (m a⁻¹)', xlabel='Year',
+                                                                            title='Annual timeseries of length change rate',save_path=save_path_figure_calving,
+                                                                            save_name='Annual timeseries of length change rate')
+                        else:
+                            length_change_rate_myr_dLdt_annual = diag.length_change_rate_myr.values[1:]
+                            Visualization_timeseries.plot_timeseries_List(data = length_change_rate_myr_dLdt_annual, start_year=2000, ylabel= 'length change rate (m a⁻¹)', xlabel='Year',
+                                                                            title='Annual timeseries of length change rate',save_path=save_path_figure_calving,
+                                                                            save_name='Annual timeseries of length change rate')
+                        
+
+                        out_calving_forward['length_change_rate_myr_dLdt'] = diag.length_change_rate_myr.values[1:]
 
                         # Plot the timeseries of glacier profile
                         # Visualization_timeseries.plot_timeseries_profile(gdir=gdir, filesuffix ='', save_path=save_path_figure_calving,save_name ='Glacier profile',
@@ -901,12 +941,13 @@ def run_opt_fa(main_glac_rgi_ind, calving_k, calving_k_bndlow, calving_k_bndhigh
 
 
 
-def Visualize_parameter (model_function = None, k_bndhigh = None, k_bndlow = None, k_step = None, k_name =None,**kwags):
-    # this function is used to visulize the relationship between parameter k and model_function
+def Visualize_parameter (model_function = None, k_bndhigh = None, k_bndlow = None, k_step = None, k_name =None,calibrate_length = False,**kwags):
+    # this function is used to visulize the relationship between parameter k and model_functions
     # the k is the parameter of the model_function
     # model_function is the target function
     # k_bndhigh, k_bndlow, k_step are the boundaries and step size of k
     # k_name,the name of the k parameter
+    # calibrate_length, boolean, if True, the function is used to calibrate the length change, vice verse; The defaule is False, just calibrate FA
     # **kwags are the keyword arguments for model_function
 
 
@@ -914,14 +955,24 @@ def Visualize_parameter (model_function = None, k_bndhigh = None, k_bndlow = Non
     #k_values = np.random.uniform(low = k_bndlow,high = k_bndhigh, size=100)
 
 
-    k_values = np.arange(k_bndlow, k_bndhigh, k_step)
+    k_values = np.arange(k_bndlow, k_bndhigh+k_step, k_step)
 
     y_values = np.zeros_like(k_values)
-    
+
+    lengthchange_rate = []  # Initialize as an object array
+    calving_thickness_model = []
     # compute the model output
     for i, k in enumerate(k_values):
-        _, y_values[i],_ = model_function(calving_k = k, **kwags)
-
+        # the setting here is specially for function reg_calving_flux
+        if calibrate_length:
+            output_df, y_values[i],_ = model_function(calving_k = k, **kwags)
+            # extract the length_change from the model output df,assign the list to the object array
+            lengthchange_rate.append(output_df['length_change_rate_myr_dLdt'].tolist()) 
+            calving_thickness_model.append(output_df['calving_thick'].tolist())
+            #print("the type of output_df['length_change_rate_myr_dLdt'] is :",type(output_df['length_change_rate_myr_dLdt']))
+            print("the type of output_df['calving_thick'] is :",type(output_df['calving_thick']))
+        else:
+            _, y_values[i],_ = model_function(calving_k = k, **kwags)
     # Visualize the relationship and save the figure
     fig = plt.figure(figsize=(10, 6))
     plt.plot(k_values, y_values)
@@ -929,8 +980,34 @@ def Visualize_parameter (model_function = None, k_bndhigh = None, k_bndlow = Non
     plt.ylabel('model_function')
     fig_fullfn = output_fp + str(reg) + k_name +'-variation.png'
     fig.savefig(fig_fullfn, bbox_inches='tight', dpi=300)
+    
+
+    # Debug output
+    print("k_values:", k_values)
+    print("y_values:", y_values)
+    print("lengthchange_rate:", lengthchange_rate)
+    print("the type of lengthchange_rate is :",type(lengthchange_rate))
+    #print(lengthchange_rate.apply(type))
+
+    ## visulize the relationship between k_values and lenthchange_rate
+    # # # # # # # # # # # # # # # # if calibrate_length:
+    # # # # # # # # # # # # # # # #     fig = plt.figure(figsize=(10, 6))
+    # # # # # # # # # # # # # # # #     # Normalize k_values to a colormap
+    # # # # # # # # # # # # # # # #     norm = plt.Normalize(vmin=min(k_values), vmax=max(k_values))
+    # # # # # # # # # # # # # # # #     cmap = plt.cm.viridis  # You can use other colormaps like 'plasma', 'coolwarm', etc.
+    # # # # # # # # # # # # # # # #     # Plot each lengthchange_rate list with a different color based on k_values
+    # # # # # # # # # # # # # # # #     for i, (k, rate) in enumerate(zip(k_values, lengthchange_rate)):
+    # # # # # # # # # # # # # # # #         plt.plot(rate, label=f"k={k:.2f}", color=cmap(norm(k)))  # Plot with corresponding color
+    # # # # # # # # # # # # # # # #     # Add colorbar to indicate k_values scale
+    # # # # # # # # # # # # # # # #     sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+    # # # # # # # # # # # # # # # #     sm.set_array([])
+    # # # # # # # # # # # # # # # #     plt.colorbar(sm, label='k_values')
+    # # # # # # # # # # # # # # # #     plt.xlabel('Date')
+    # # # # # # # # # # # # # # # #     plt.ylabel('Length Change Rate (m a-1)')
+    # # # # # # # # # # # # # # # #     fig_fullfn = output_fp + str(reg) + k_name + '-variation-lengthchange.png'
+    # # # # # # # # # # # # # # # #     fig.savefig(fig_fullfn, bbox_inches='tight', dpi=300)
     #plt.show()
-    return k_values, y_values
+    return k_values, y_values,lengthchange_rate,calving_thickness_model
 
 
 
@@ -972,6 +1049,9 @@ def pbs(obs, pred, R):
     # TODO: Consier other likelihoods and observation models.
     # TODO: Look into iterative versions of importance sampling.
 
+    # Check if R is a list, convert it to a numpy array if so
+    R = np.array(R) if isinstance(R, list) else R
+    pred = np.array(pred) if isinstance(pred, list) else pred
     # Dimensions.
     n_obs = np.size(obs)  # Number of obs
     ens_mem = np.shape(pred)[-1]
@@ -989,8 +1069,15 @@ def pbs(obs, pred, R):
         residual = obs - pred
         llh = -0.5 * ((residual**2) * (1/R))
     else:
-        residual = obs - pred
-        llh = -0.5 * ((1/R)@(residual**2))
+        #pdb.set_trace()
+        residual = np.array(obs) - np.array(pred)
+        # if isinstance(obs, list) and isinstance(pred, list):
+        #     residual = [a - b for a, b in zip(obs, pred)]
+        # elif isinstance(obs, np.ndarray) and isinstance(pred, np.ndarray):
+        #     residual = obs - pred
+        # else:
+        #     raise TypeError("A and B must be both lists or both arrays.")
+        llh = -0.5 * (1/R) * (residual**2)
 
     # Log of normalizing constant
     # A properly scaled version of this could be output for model comparison.
@@ -999,8 +1086,8 @@ def pbs(obs, pred, R):
     # Weights
     logw = llh - log_z  # Log of posterior weights
     weights = np.exp(logw)  # Posterior weights
-
-    if np.size(weights) == ens_mem and np.round(np.sum(weights), 10) == 1:
+    
+    if np.shape(weights)[-1] == ens_mem and np.round(np.sum(weights), 10) == 1:
         pass
     else:
         raise Exception('Something wrong with the PBS')
@@ -1464,12 +1551,20 @@ if option_ind_calving_k:
     calving_fp = pygem_prms.main_directory + '/../calving_data/'
     #calving_fn = 'Northern_hemisphere_calving_flux_Kochtitzky_et_al_for_David_Rounce_with_melt_v14-wromainMB-w17_19.csv'
     #calving_fn = 'frontalablation_data_test.csv'
-    calving_fn = 'frontalablation_data_test_01_'+ pygem_prms.glac_no[0].split('.')[1]+'.csv'
+    calving_fn = 'frontalablation_data_test_'+pygem_prms.glac_no[0].split('.')[0]+'_'+ pygem_prms.glac_no[0].split('.')[1]+'.csv'
     fa_glac_data = pd.read_csv(calving_fp + calving_fn)
     hugonnet_fn = 'df_pergla_global_20yr-filled.csv'
     mb_data = pd.read_csv(pygem_prms.hugonnet_fp + hugonnet_fn)
     
     fa_glac_data['O1Region'] = [int(x.split('-')[1].split('.')[0]) for x in fa_glac_data.RGIId.values]
+
+
+    # Load lenght change data
+    #TODO Set the condition for calibtation variables, calibrate FA or dLdt or both, and the condition for monthly or annual calibration
+    lengthchange_fp = pygem_prms.main_directory  + '/../lengthchange_data/'
+    lengthchange_fn = 'lengthchange_annual_'+ pygem_prms.glac_no[0].split('.')[0]+'_'+pygem_prms.glac_no[0].split('.')[1]+'.csv'
+    lengthchange_data = pd.read_csv(lengthchange_fp + lengthchange_fn)
+    lengthchange_data['O1Region'] = [int(x.split('-')[1].split('.')[0]) for x in lengthchange_data.RGIId.values]
     
     calving_k_bndhigh_set = np.copy(calving_k_bndhigh)
     calving_k_bndlow_set = np.copy(calving_k_bndlow)
@@ -1477,6 +1572,9 @@ if option_ind_calving_k:
     # print("calving_k_bndhigh_set is :",calving_k_bndhigh_set)
     # print("calving_k_bndlow_set is :",calving_k_bndlow_set)
     # print("calving_k_step_set is :",calving_k_step_set)
+
+    # whether we do store_monthly_step
+    store_monthly_step = True
     
     for reg in regions:
         
@@ -1487,8 +1585,12 @@ if option_ind_calving_k:
         # Regional data
         fa_glac_data_reg = fa_glac_data.loc[fa_glac_data['O1Region'] == reg, :].copy()
         fa_glac_data_reg.reset_index(inplace=True, drop=True)
+
+        lengthchange_data_reg = lengthchange_data.loc[lengthchange_data['O1Region'] == reg, :].copy()
+        lengthchange_data_reg.reset_index(inplace=True, drop=True)
         
         print('fa_glac_data_reg 1st:',fa_glac_data_reg)
+        print('lengthchange_data_reg 1st:',lengthchange_data_reg)
         fa_glac_data_reg['glacno'] = np.nan
 #        fa_glac_data_reg['glacno'] = [str(int(x.split('-')[1].split('.')[0])) + '.' + x.split('-')[1].split('.')[1]
 #                                      for x in fa_glac_data_reg.RGIId]
@@ -1498,13 +1600,22 @@ if option_ind_calving_k:
             if not fa_glac_data_reg.loc[nglac,'RGIId'] == 'all' and len(fa_glac_data_reg.loc[nglac,'RGIId']) == 14:
                 fa_glac_data_reg.loc[nglac,'glacno'] = (str(int(rgiid.split('-')[1].split('.')[0])) + '.' + 
                                                         rgiid.split('-')[1].split('.')[1])
-        print('************01********** the regional FA data is ready')
+                
+        for nglac, rgiid in enumerate(lengthchange_data_reg.RGIId):
+            # Avoid regional data and observations from multiple RGIIds (len==14)
+            if not lengthchange_data_reg.loc[nglac,'RGIId'] == 'all' and len(lengthchange_data_reg.loc[nglac,'RGIId']) == 14:
+                lengthchange_data_reg.loc[nglac,'glacno'] = (str(int(rgiid.split('-')[1].split('.')[0])) + '.' + 
+                                                        rgiid.split('-')[1].split('.')[1])
+                
+        print('************01********** the regional FA/dLdt data is ready')
         print("the regional FA data is:",fa_glac_data_reg)
+        print("the regional dLdt data is:",lengthchange_data_reg)
 
         # Drop observations that aren't of individual glaciers
         fa_glac_data_reg = fa_glac_data_reg.dropna(axis=0, subset=['glacno'])
-        
         fa_glac_data_reg.reset_index(inplace=True, drop=True)
+        lengthchange_data_reg = lengthchange_data_reg.dropna(axis=0, subset=['glacno'])
+        lengthchange_data_reg.reset_index(inplace=True, drop=True)
         print('************02********** after drop the nan, the regional FA is ready')
         print("after dropping the nan, the regional FA data is:",fa_glac_data_reg)
         reg_calving_gta_obs = fa_glac_data_reg[frontal_ablation_Gta_cn].sum()
@@ -1512,7 +1623,10 @@ if option_ind_calving_k:
         print('reg_calving_gta_obs is:',reg_calving_gta_obs)
         
         # Glacier numbers for model runs
-        glacno_reg_wdata = sorted(list(fa_glac_data_reg.glacno.values))
+        #TODO Set the condition for calibtation variables, calibrate FA or dLdt or both
+        glacno_reg_wdata_FA = sorted(list(fa_glac_data_reg.glacno.values))
+        glacno_reg_wdata_dLdt = sorted(list(lengthchange_data_reg.glacno.values))
+        glacno_reg_wdata = sorted(list(set(glacno_reg_wdata_FA).intersection(set(glacno_reg_wdata_dLdt))))
         
         main_glac_rgi_all = modelsetup.selectglaciersrgitable(glac_no=glacno_reg_wdata)
         # Tidewater glaciers
@@ -1540,7 +1654,8 @@ if option_ind_calving_k:
 
             output_cns = ['RGIId', 'calving_k', 'calving_k_nmad', 'calving_thick', 'calving_flux_Gta', 'fa_gta_obs', 'fa_gta_obs_unc', 'fa_gta_max', 
                           'calving_flux_Gta_bndlow', 'calving_flux_Gta_bndhigh', 'no_errors', 'oggm_dynamics', 
-                          'mb_clim_gta', 'mb_total_gta', 'mb_clim_mwea', 'mb_total_mwea','length_change_m_bndlow','length_change_m_bndhigh',
+                          'mb_clim_gta', 'mb_total_gta', 'mb_clim_mwea', 'mb_total_mwea','length_change_ma_obs',
+                          'length_change_ma_obs_unc','length_change_m_bndlow','length_change_m_bndhigh',
                           'length_change_rate_myr_dLdt_bndlow','length_change_rate_myr_dLdt_bndhigh']
             
             output_df_all = pd.DataFrame(np.zeros((main_glac_rgi.shape[0],len(output_cns))), columns=output_cns)
@@ -1551,11 +1666,15 @@ if option_ind_calving_k:
             # Load observations 
             fa_obs_dict = dict(zip(fa_glac_data_reg.RGIId, fa_glac_data_reg[frontal_ablation_Gta_cn]))
             fa_obs_unc_dict = dict(zip(fa_glac_data_reg.RGIId, fa_glac_data_reg[frontal_ablation_Gta_unc_cn]))
+            lengthchange_obs_dict = dict(zip(lengthchange_data_reg.RGIId, lengthchange_data_reg['dLdt_m_per_yr']))
+            lengthchange_obs_unc_dict = dict(zip(lengthchange_data_reg.RGIId, lengthchange_data_reg['dLdt_m_per_yr_unc']))
     #        fa_glacname_dict = dict(zip(fa_glac_data_reg.RGIId, fa_glac_data_reg.glacier_name))
             rgi_area_dict = dict(zip(main_glac_rgi.RGIId, main_glac_rgi.Area))
             
             output_df_all['fa_gta_obs'] = output_df_all['RGIId'].map(fa_obs_dict)
             output_df_all['fa_gta_obs_unc'] = output_df_all['RGIId'].map(fa_obs_unc_dict)
+            output_df_all['length_change_ma_obs'] = output_df_all['RGIId'].map(lengthchange_obs_dict)
+            output_df_all['length_change_ma_obs_unc'] = output_df_all['RGIId'].map(lengthchange_obs_unc_dict)
     #        output_df_all['name'] = output_df_all['RGIId'].map(fa_glacname_dict)
             output_df_all['area_km2'] = output_df_all['RGIId'].map(rgi_area_dict)
             
@@ -1622,6 +1741,11 @@ if option_ind_calving_k:
                     rgiid_ind = main_glac_rgi_ind.loc[0,'RGIId']
                     fa_glac_data_ind = fa_glac_data_reg.loc[fa_glac_data_reg.RGIId == rgiid_ind, :]
                     fa_glac_data_ind.reset_index(inplace=True, drop=True)
+                    lengthchange_data_ind = lengthchange_data_reg.loc[lengthchange_data_reg.RGIId == rgiid_ind, :]
+                    lengthchange_data_ind.reset_index(inplace=True,drop=True)
+                    lengthchange_dLdt_obs_ind = ast.literal_eval(lengthchange_data_ind.loc[0,'dLdt_m_per_yr'])
+                    lengthchnage_dLdt_unc_obs_ind = ast.literal_eval(lengthchange_data_ind.loc[0,'dLdt_m_per_yr_unc'])
+
                     print("============================ FIRST ROUND CALIBRATION for the glacier :", rgiid_ind," ============================")
                     # Update the data
                     fa_gta_max = output_df_all.loc[nglac,'fa_gta_max']
@@ -1642,7 +1766,7 @@ if option_ind_calving_k:
                                 reg_calving_flux(main_glac_rgi_ind, calving_k_bndhigh, fa_glac_data_reg=fa_glac_data_ind, 
                                                  frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
                                                  prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
-                                                 ignore_nan=False, debug=debug_reg_calving_fxn))
+                                                 ignore_nan=False, debug=debug_reg_calving_fxn,store_monthly_step=store_monthly_step))
                         reg_length_change_m_bndhigh = output_df_bndhigh.loc[0,'length_change_m']
                         reg_length_change_rate_myr_dLdt_bndhigh = output_df_bndhigh.loc[0,'length_change_rate_myr_dLdt']
                         print("do the reg_calving_flux_bndhigh: End")
@@ -1661,7 +1785,7 @@ if option_ind_calving_k:
                                 reg_calving_flux(main_glac_rgi_ind, calving_k_bndlow, fa_glac_data_reg=fa_glac_data_ind,
                                                  frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
                                                  prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
-                                                 ignore_nan=False, debug=debug_reg_calving_fxn))
+                                                 ignore_nan=False, debug=debug_reg_calving_fxn,store_monthly_step=store_monthly_step))
                         reg_length_change_m_bndlow = output_df_bndlow.loc[0,'length_change_m']
                         reg_length_change_rate_myr_dLdt_bndlow = output_df_bndlow.loc[0,'length_change_rate_myr_dLdt']
                         print("do the reg_calving_flux_bandlow: End")
@@ -1714,49 +1838,155 @@ if option_ind_calving_k:
                     
                     if debug:
                         print('  fa_data  [Gt/yr]:', np.round(reg_calving_gta_obs,4))
+                        print(' fa_data_unc [Gt/yr]:',np.round(fa_glac_data_ind.loc[0,frontal_ablation_Gta_unc_cn]),4)
                         print('  fa_model_bndlow [Gt/yr] :', reg_calving_gta_mod_bndlow)
                         print('  fa_model_bndhigh [Gt/yr] :', reg_calving_gta_mod_bndhigh)
+                        #print('lengthchange_obs [m/yr]:', output_df_bndlow.loc[0,'length_change_ma_obs'])
                         print('  length_change_m_bndlow [m]:', reg_length_change_m_bndlow)
                         print('  length_change_m_bndhigh [m]:', reg_length_change_m_bndhigh)
                         print('  length_change_rate_myr_bndlow [m/yr] :',reg_length_change_rate_myr_dLdt_bndlow)
                         print('  length_change_rate_myr_bndhigh [m/yr] :',reg_length_change_rate_myr_dLdt_bndhigh)
+
+                        # plot the model vs observation comparison
+                        # plot the model vs observation comparison of 20-year averaged fa
+                        #TODO add the condition with compare the model and observation for fa / dLdt
+                        # Visualization_timeseries.plot_model_vs_observation([reg_calving_gta_mod_bndlow,reg_calving_gta_mod_bndhigh],reg_calving_gta_obs,plot_type='point',
+                        #                                                    model_label='Modeled frontal ablation (Gt a⁻¹)',obs_label='Observed frontal ablation (Gt a⁻¹)',
+                        #                                                    model_legends=['bndlow','bndhigh'],start_date = 2000,
+                        #                                                    title='Calving flux comparison model vs observation',observation_error=fa_glac_data_ind.loc[0,frontal_ablation_Gta_unc_cn],
+                        #                                                    save_path=save_path_figure,save_name='Calving flux comparison model vs observation')
+                        # plot the model vs observation comparison of 20-year timeseries fa /dLdt
+                        # TODO check with the plot in reg_calving_flux, avoid repeat
+                        # Convert the list to a NumPy array
+                        reg_length_change_rate_myr_dLdt_bndlow_array = np.array(reg_length_change_rate_myr_dLdt_bndlow)
+                        reg_length_change_rate_myr_dLdt_bndhigh_array = np.array(reg_length_change_rate_myr_dLdt_bndhigh)
+                        # Reshape the array and calculate the mean
+                        reg_length_change_rate_myr_dLdt_bndlow_annual = np.nanmean(reg_length_change_rate_myr_dLdt_bndlow_array.reshape(-1, 12), axis=1)
+                        reg_length_change_rate_myr_dLdt_bndhigh_annual = np.nanmean (reg_length_change_rate_myr_dLdt_bndhigh_array.reshape(-1, 12), axis=1)
                     
+                        # Visualization_timeseries.plot_model_vs_observation([reg_length_change_rate_myr_dLdt_bndlow_annual,reg_length_change_rate_myr_dLdt_bndhigh_annual],lengthchange_dLdt_obs_ind,plot_type='timeseries',
+                        #                                                    model_legends=['bndlow','bndhigh'],title ='length change rate comparison model vs observation',xlabel='Year',
+                        #                                                    ylabel = 'length change rate (m a⁻¹)',observation_error=lengthchnage_dLdt_unc_obs_ind,start_date = 2000,
+                        #                                                    save_path=save_path_figure,save_name='length change rate comparison model vs observation')
                         
+
 #                     run_opt = False
-#                     if debug:
-#                     # visulize th parameter with model_function
-#                         k_value_arrary, reg_calving_gta_mod_array = Visualize_parameter (model_function = reg_calving_flux, k_bndhigh = calving_k_bndhigh,
-#                                                                                         k_bndlow = calving_k_bndlow, k_step = calving_k_step, k_name ='yield strength',
-#                                                                                         main_glac_rgi = main_glac_rgi_ind, fa_glac_data_reg=fa_glac_data_ind,
-#                                                                                         frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
-#                                                                                         prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
-#                                                                                         ignore_nan=False, debug=debug_reg_calving_fxn)
-#                         print("k_value_array :",k_value_arrary)
-#                         print("reg_calving_gta_mod_array:",reg_calving_gta_mod_array)
-#                         fa_gta_obs_unc = output_df_all.loc[nglac,'fa_gta_obs_unc']
-#                         Weights_k, Neff_k = pbs(reg_calving_gta_obs,reg_calving_gta_mod_array,fa_gta_obs_unc**2)
-#                         k_weighted_av = np.average(k_value_arrary,weights = Weights_k)
-#                         k_weighted_std = np.sqrt(np.average((k_value_arrary - k_weighted_av)**2,weights = Weights_k))
-#                         calving_flux_Gta_weighted = np.average(reg_calving_gta_mod_array,weights = Weights_k)
-#                         print("k_weighted_av:",k_weighted_av, "k_weighted_std :", k_weighted_std,"Neff_k is:",Neff_k,"weight_k_array is :",Weights_k)
-# #                         # Update the calving_k with the weighted average
-#                         output_df, reg_calving_gta_mod_bndweighted, reg_calving_gta_obs = (
-#                         reg_calving_flux(main_glac_rgi_ind, k_weighted_av, fa_glac_data_reg=fa_glac_data_ind,
-#                                             frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
-#                                             prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
-#                                             ignore_nan=False, debug=debug_reg_calving_fxn))
+                    if debug:
+                        # visulize th parameter with model_function
+                        #pdb.set_trace() 
+                        k_value_arrary, reg_calving_gta_mod_array,lengthchange_model_arrary,calving_thickness_model_array = Visualize_parameter (model_function = reg_calving_flux, k_bndhigh = calving_k_bndhigh,
+                                                                                        k_bndlow = calving_k_bndlow, k_step = calving_k_step, k_name ='yield strength',
+                                                                                        main_glac_rgi = main_glac_rgi_ind, fa_glac_data_reg=fa_glac_data_ind,
+                                                                                        frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
+                                                                                        prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
+                                                                                        ignore_nan=False, debug=debug_reg_calving_fxn,calibrate_length=True,store_monthly_step=store_monthly_step)
+                        #pdb.set_trace() 
+                        if store_monthly_step:
+                            # Flatten the nested lists
+                            lengthchange_model_arrary_flattened = [sublist[0] for sublist in lengthchange_model_arrary]
+                            lengthchange_model_arrary_monthly =  lengthchange_model_arrary_flattened
+                            lengthchange_model_arrary_annual = [[np.mean(sublist[i:i + 12]) for i in range(0, len(sublist), 12)] for sublist in lengthchange_model_arrary_monthly]
+                            # calving_thickness_model_array_flattend = [sublist[0] for sublist in calving_thickness_model_array]
+                            # calving_thickness_model_array_monthly =  calving_thickness_model_array_flattend
+                            # calving_thickness_model_array_annual = [[np.mean(sublist[i:i + 12]) for i in range(0, len(sublist), 12)] for sublist in calving_thickness_model_array_monthly]
+                        else:
+                            lengthchange_model_arrary_annual = lengthchange_model_arrary
+                            # calving_thickness_model_array_annual = calving_thickness_model_array
                         
-#                         print('----- final : after optimization of the FA-----')
-#                         #output_df_all.loc[nglac,'calving_k'] = output_df.loc[0,'calving_k']
-#                         print("weighted calving_flux_Gta is :",calving_flux_Gta_weighted,"calving_flux_Gta with weighted calving_k is :",output_df.loc[0,'calving_flux_Gta'])
-#                         output_df_all.loc[nglac,'calving_k'] = k_weighted_av                      
-#                         output_df_all.loc[nglac,'calving_k_nmad'] = k_weighted_std
-#                         output_df_all.loc[nglac,'calving_thick'] = output_df.loc[0,'calving_thick']
-#                         #output_df_all.loc[nglac,'calving_flux_Gta'] = output_df.loc[0,'calving_flux_Gta']
-#                         output_df_all.loc[nglac,'calving_flux_Gta'] = calving_flux_Gta_weighted
-#                         output_df_all.loc[nglac,'no_errors'] = output_df.loc[0,'no_errors']
-#                         output_df_all.loc[nglac,'oggm_dynamics'] = output_df.loc[0,'oggm_dynamics']
- 
+                        #pdb.set_trace()   
+                        print("k_value_array :",k_value_arrary)
+                        print("reg_calving_gta_mod_array:",reg_calving_gta_mod_array)
+                        print("lengthchange_model_array:",lengthchange_model_arrary)
+                        print('lengthchange_dLdt_obs_ind:',lengthchange_dLdt_obs_ind)
+                        print('lengthchnage_dLdt_unc_obs_ind :',lengthchnage_dLdt_unc_obs_ind)
+                        print("lengthchange_model_array_annual :",lengthchange_model_arrary_annual)
+                        fa_gta_obs_unc = output_df_all.loc[nglac,'fa_gta_obs_unc']
+                        print("the type of lengthchange_model_arrary :",type(lengthchange_model_arrary))
+                        print("the length of lengthchange_model_arrary :",len(lengthchange_model_arrary))
+                        print("the type of lengthchange_model_arrary[0] :",type(lengthchange_model_arrary[0]))
+                        print("the length of lengthchange_model_arrary[0] :",len(lengthchange_model_arrary[0]))
+                        print("lengthchange_model_arrary[0][0] is",lengthchange_model_arrary[0][0])
+                        print("calving_thickness_model_arrayis :",calving_thickness_model_array)
+                        #pdb.set_trace() 
+                         
+                        # Weights_k, Neff_k = pbs(reg_calving_gta_obs,reg_calving_gta_mod_array,fa_gta_obs_unc**2)
+                        # k_weighted_av = np.average(k_value_arrary,weights = Weights_k)
+                        # k_weighted_std = np.sqrt(np.average((k_value_arrary - k_weighted_av)**2,weights = Weights_k))
+                        # calving_flux_Gta_weighted = np.average(reg_calving_gta_mod_array,weights = Weights_k)
+                        # print("k_weighted_av:",k_weighted_av, "k_weighted_std :", k_weighted_std,"Neff_k is:",Neff_k,"weight_k_array is :",Weights_k)
+                        # do the pbs for lengthchange rate
+                        #pdb.set_trace()
+                        # convert the input of pbs as the m*1/m*N array
+                        lengthchange_dLdt_obs_ind_array = np.array(lengthchange_dLdt_obs_ind).reshape(len(lengthchange_dLdt_obs_ind),1)
+                        lengthchange_model_arrary_annual_array = np.array(lengthchange_model_arrary_annual).reshape(len(lengthchange_model_arrary_annual[0]), len(lengthchange_model_arrary_annual))
+                        lengthchnage_dLdt_unc_obs_ind_2 = [x**2 for x in lengthchnage_dLdt_unc_obs_ind]
+                        lengthchnage_dLdt_unc_obs_ind_2_array = np.array(lengthchnage_dLdt_unc_obs_ind_2).reshape(len(lengthchnage_dLdt_unc_obs_ind_2),1)
+                        Weights_k, Neff_k = pbs(lengthchange_dLdt_obs_ind_array,lengthchange_model_arrary_annual_array,lengthchnage_dLdt_unc_obs_ind_2_array)
+                        #pdb.set_trace()
+
+                        k_weighted_av = np.average(k_value_arrary,weights = sum( Weights_k))
+                        k_weighted_std = np.sqrt(np.average((k_value_arrary - k_weighted_av)**2,weights = sum(Weights_k)))
+                        calving_flux_Gta_weighted = np.average(reg_calving_gta_mod_array,weights = sum(Weights_k) )
+                        reg_length_change_rate_myr_dLdt_weighted_annual = np.average(lengthchange_model_arrary_annual_array,axis =1, weights = Weights_k)
+                        calving_thick_model_weighted = np.average(calving_thickness_model_array,axis =0, weights = sum(Weights_k))
+                        print("k_weighted_av:",k_weighted_av, "k_weighted_std :", k_weighted_std,"Neff_k is:",Neff_k,"weight_k_array is :",Weights_k)
+                                                   
+                        # Update the calving_k with the weighted average
+                        output_df_weighted, reg_calving_gta_mod_bndweighted, reg_calving_gta_obs = reg_calving_flux(main_glac_rgi_ind, k_weighted_av, fa_glac_data_reg=fa_glac_data_ind,
+                                            frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
+                                            prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
+                                            ignore_nan=False, debug=debug_reg_calving_fxn,store_monthly_step=store_monthly_step)
+                        # reg_length_change_rate_myr_dLdt_weighted = output_df_weighted.loc[0,'length_change_rate_myr_dLdt']
+                        # reg_length_change_rate_myr_dLdt_weighted_array = np.array(reg_length_change_rate_myr_dLdt_weighted)
+                        # reg_length_change_rate_myr_dLdt_weighted_annual = np.nanmean(reg_length_change_rate_myr_dLdt_weighted_array.reshape(-1, 12), axis=1)
+                        print("reg_length_change_rate_myr_dLdt_weighted_annual:",reg_length_change_rate_myr_dLdt_weighted_annual)
+                        print('----- final : after optimization of the FA-----')
+                        #output_df_all.loc[nglac,'calving_k'] = output_df.loc[0,'calving_k']
+                        print("weighted calving_flux_Gta is :",calving_flux_Gta_weighted,"calving_flux_Gta with weighted calving_k is :", calving_flux_Gta_weighted)
+                        output_df_all.loc[nglac,'calving_k'] = k_weighted_av                      
+                        output_df_all.loc[nglac,'calving_k_nmad'] = k_weighted_std
+                        output_df_all.loc[nglac,'calving_thick'] = calving_thick_model_weighted
+                        #output_df_all.loc[nglac,'calving_flux_Gta'] = output_df.loc[0,'calving_flux_Gta']
+                        output_df_all.loc[nglac,'calving_flux_Gta'] = calving_flux_Gta_weighted
+                        output_df_all.loc[nglac,'no_errors'] = 1
+                        output_df_all.loc[nglac,'oggm_dynamics'] =1
+                         
+                        #pdb.set_trace() 
+
+                        # #TODO add the condition with compare the model and observation for fa / dLdt
+                        Visualization_timeseries.plot_model_vs_observation((np.append(reg_calving_gta_mod_array,calving_flux_Gta_weighted )).tolist(),reg_calving_gta_obs,plot_type='point',
+                                                                           model_label='Modeled frontal ablation (Gt a⁻¹)',obs_label='Observed frontal ablation (Gt a⁻¹)',
+                                                                           model_legends= list(map(lambda x: f"{x:.2f}", np.append(k_value_arrary, k_weighted_av))),start_date = 2000,
+                                                                           title='Calving flux comparison model vs observation',observation_error=fa_glac_data_ind.loc[0,frontal_ablation_Gta_unc_cn],
+                                                                           save_path=save_path_figure,save_name='Calving flux comparison model vs observation (weighted)')
+                        Visualization_timeseries.plot_model_vs_observation([reg_length_change_rate_myr_dLdt_bndlow_annual,reg_length_change_rate_myr_dLdt_bndhigh_annual,reg_length_change_rate_myr_dLdt_weighted_annual],
+                                                                           lengthchange_dLdt_obs_ind,plot_type='timeseries',model_legends=['bndlow','bndhigh','weighted'],title ='length change rate comparison model vs observation',xlabel='Year',
+                                                                           ylabel = 'length change rate (m a⁻¹)',observation_error=lengthchnage_dLdt_unc_obs_ind,start_date = 2000,
+                                                                           save_path=save_path_figure,save_name='length change rate comparison model vs observation(low_high_weighted)')
+                        # Visualization_timeseries.plot_model_vs_observation([reg_length_change_rate_myr_dLdt_bndlow_annual,reg_length_change_rate_myr_dLdt_bndhigh_annual,reg_length_change_rate_myr_dLdt_weighted_annual],
+                        #                                                    lengthchange_dLdt_obs_ind,plot_type='timeseries',model_legends=['bndlow','bndhigh','weighted'],
+                        #                                                    title ='length change rate comparison model vs observation',xlabel='Year',ylabel = 'length change rate (m a⁻¹)',
+                        #                                                    observation_error=lengthchnage_dLdt_unc_obs_ind,start_date = 2000,save_path=save_path_figure,
+                        #                                                    save_name='length change rate comparison model vs observation (weighted)')
+                        #pdb.set_trace() 
+                        length_change_model_we = np.column_stack((lengthchange_model_arrary_annual_array, reg_length_change_rate_myr_dLdt_weighted_annual))
+                 
+                        #print("length_change_model_we:",length_change_model_we)
+                        #pdb.set_trace() 
+                        Visualization_timeseries.plot_model_vs_observation(length_change_model_we,lengthchange_dLdt_obs_ind,plot_type='timeseries',model_legends= list(map(lambda x: f"{x:.2f}", np.append(k_value_arrary, k_weighted_av))),
+                                                                           title ='length change rate comparison model vs observation',xlabel='Year',ylabel = 'length change rate (m a⁻¹)',
+                                                                           observation_error=lengthchnage_dLdt_unc_obs_ind,start_date = 2000,save_path=save_path_figure,
+                                                                           save_name='length change rate comparison model vs observation (weighted)')
+                        # # # # # # print("lengthchange_model_arrary_annual is :",lengthchange_model_arrary_annual)
+                        # # # # # # length_change_model_we=np.append(lengthchange_model_arrary_annual,reg_length_change_rate_myr_dLdt_weighted)
+                        # # # # # # print("the type of length_change_model_we is :",type(length_change_model_we))
+                        # # # # # # print("length_change_model_we is :",length_change_model_we)
+                        # # # # # # pdb.set_trace() 
+                        # # # # # # Visualization_timeseries.plot_model_vs_observation(length_change_model_we,lengthchange_dLdt_obs_ind,plot_type='timeseries',
+                        # # # # # #                                                    model_legends=(list(map(str,k_value_arrary))).append(str(k_weighted_av)),title ='length change rate comparison model vs observation',xlabel='Year',
+                        # # # # # #                                                    ylabel = 'length change rate (m a⁻¹)',observation_error=lengthchnage_dLdt_unc_obs_ind, start_date =2000,
+                        # # # # # #                                                    save_path=save_path_figure,save_name='length change rate comparison model vs observation (weighted)')                        
+
 #                     # if bndhigh_good and bndlow_good:
 #                     #     print("bandhigh_good:",bndhigh_good)
 #                     #     print("bandlow_good:",bndlow_good)
