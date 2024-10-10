@@ -17,7 +17,8 @@ import os
 import seaborn as sns
 from datetime import datetime
 from matplotlib.lines import Line2D  # Import Line2D for custom legend
-
+import pdb
+import matplotlib.cm as cm
 
 # Load the data
 
@@ -80,6 +81,44 @@ def plot_timeseries_Numpy(data, start_date='2000-01-01', end_date='2020-12-31', 
     #plt.show()
     
 
+
+# function to plot timeseries of list data
+def plot_timeseries_List(data = None, start_year=2020,ylabel= None,xlabel= None,
+                         title= None, save_path=None,save_name =None):
+    """
+    Plots a time series of variable with dashed grid lines after each year.
+    Parameters:
+    - data (list): The variable data.
+    - start_year (int) The starting year of the time series.
+    - ylabel (str or None): The label for the y-axis. If None, the y-axis label will be 'Variable Name'.
+    - xlabel (str or None): The label for the x-axis. If None, the x-axis label will be 'Date'.
+    - title (str or None): The title for the figure. If None, the figure title will be 'Time Series'.
+    - save_path (str or None): The file path to save the figure. If None, the figure will not be saved.
+    - save_name (str or None): The file name to save the figure. If None, the figure will not be saved.
+    """
+    # Generate a list of years based on the length of the data
+    years = list(range(start_year, start_year + len(data)))
+    
+    # Create the plot
+    plt.figure(figsize=(10, 6))
+    plt.plot(years, data, marker='*', linestyle='-', color='k')
+    
+    # Add labels and title
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.title(title)
+    
+    # Show the grid and the plot
+    #plt.grid(True)
+    #plt.show()
+    
+    # Save the figure if save_path is provided
+    if save_path and save_name:
+        # Ensure the directory exists
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        save_path_full = os.path.join(save_path, save_name)
+        plt.savefig(save_path_full, bbox_inches='tight')
+        print(f"Figure saved to {save_path_full}")
 
 
 # function to plot timeseries of xarray data
@@ -440,3 +479,169 @@ def animate_time_series(gdir, filesuffix ='',variable='thickness_m', group='fl_0
 
 # # Call the function to create and show the animation
 # animate_time_series(ds, save_path='time_series_animation.gif')
+            
+
+# Function to plot the comparison of the model output and observations
+def plot_model_vs_observation(models_output, observation_data, dates=None, start_date = None,plot_type='point', 
+                              model_legends= None, model_label ='Model Output', obs_label='Observation', 
+                              title='Model vs Observation Comparison', ylabel=None, xlabel='Time/Points', 
+                              save_path=None,save_name=None,observation_error=None):
+    """
+    Plots the comparison between model output and observation data.
+    
+    Parameters:
+    - models_output:A list of lists/arrays, where each sublist/array contains model output values.
+    - observation_data: A list or array of observation values.
+    - dates: Optional list of dates for timeseries comparison (should match the length of model_output/observation_data).
+    - start_date: Optional start date for timeseries comparison. e.g. 2000
+    - plot_type: 'point' for scatter plot (point-to-point comparison), 'timeseries' for timeseries comparison.
+    - model_legends: A list of labels for each model in the models_output list.
+    - model_label: Label for the model data in the plot.
+    - obs_label: Label for the observation data in the plot.
+    - title: Title of the plot.
+    - ylabel: Label for the y-axis.
+    - xlabel: Label for the x-axis.
+    - save_path (str, optional): The file path to save the figure. If None, the figure will not be saved.
+    - save_name (str, optional): The file name to save the figure. If None, the figure will not be saved.
+    - observation_error: Optional list or array of error values associated with the observation data.
+ 
+    Returns:
+    - None: Displays the plot and optionally saves it.
+    """
+
+    if model_legends is None:
+        # Generate default labels if not provided
+        model_legends = [f"Model {i+1}" for i in range(len(models_output))]
+            # Plot each model's output against the observation data
+    # Define the number of models you have
+    num_models = len(models_output)
+    print(f"Number of models: {num_models}")
+    # Create a colormap and generate a list of colors from it
+    cmap = cm.get_cmap('Greys', num_models-1)  # You can choose any colormap you like
+    colors = cmap(np.linspace(0.3, 1, num_models))
+
+    if plot_type == 'point':
+        # Point-to-point comparison (scatter plot)
+        plt.figure(figsize=(8, 6))
+
+        for i, model_output in enumerate(models_output):
+            color = colors[i] if i < num_models - 1 else 'r'  # Use specified color for all but the last model
+            plt.errorbar(model_output, observation_data, yerr=observation_error, fmt='o', label=model_legends[i], capsize=4,
+                        ecolor=color, elinewidth=2,mec=color,mfc =color)
+        
+        # Plot 1:1 line for reference
+        # Check if elements in models_output are lists/arrays or just float values
+        # Check if models_output is a collection (list/array) or a single float values
+        # Flatten models_output elements if they are iterable, otherwise treat them as single values
+        flattened_model_output = []
+        for m in models_output:
+            #print(f"Type of element in models_output: {type(m)}")  # Print type for debugging
+
+            if isinstance(m, (list, np.ndarray)):  # If it's iterable, add elements
+                flattened_model_output.extend(m)   # Add the contents of the iterable
+            elif isinstance(m, (float, np.float64)):  # If it's a scalar value, append it directly
+                flattened_model_output.append(m)
+            else:
+                raise TypeError(f"Unexpected type in models_output: {type(m)}")  # Raise an error for unexpected types
+
+        # Check if observation_data is iterable, otherwise treat it as a scalar value
+        if isinstance(observation_data, (list, np.ndarray)):
+            observation_min = min(observation_data)
+            observation_max = max(observation_data)
+        elif isinstance(observation_data, (float, np.float64)):  # Handle scalar case
+            observation_min = observation_data
+            observation_max = observation_data
+        else:
+            raise TypeError(f"Unexpected type for observation_data: {type(observation_data)}")
+
+        # Now calculate min_val using the flattened model output and observation_data
+        min_val = min(min(flattened_model_output), observation_min)
+        max_val = max(max(flattened_model_output), observation_max)
+
+        plt.plot([min_val, max_val], [min_val, max_val], 'k--', label='1:1 Line')  # Reference line for perfect agreement
+        
+        plt.xlabel(model_label)
+        plt.ylabel(obs_label)
+        plt.title(title)
+        # Adjust the legend: place it outside, split into multiple columns
+        #pdb.set_trace()
+        if num_models > 5:
+            plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=6, fontsize='small', title= None)
+            # Adjust layout to make room for the legend
+            plt.tight_layout()
+            plt.subplots_adjust(bottom=0.3)  # Add space at the bottom for the legend
+        else:
+            plt.legend()
+
+        #plt.grid(True)
+        #plt.show()
+
+    elif plot_type == 'timeseries':
+        # Timeseries comparison (line plot)
+        if dates is None:
+            dates = np.arange(len(observation_data))+start_date  # Default to index if dates are not provided
+        
+        plt.figure(figsize=(10, 6))
+        # Plot each model's output as a line
+        #pdb.set_trace()
+
+        if isinstance(models_output, list):
+            models_output = np.array(models_output)
+
+        #pdb.set_trace()
+        # The number of dates should match the number of data points in the model output
+        if models_output.shape[1] != np.size(dates):
+            models_output = models_output.T
+            # Define the number of models you have
+            num_models = len(models_output)
+            print(f"Number of models after transpose: {num_models}")
+            # Create a colormap and generate a list of colors from it
+            cmap = cm.get_cmap('Greys', num_models-1)  # You can choose any colormap you like
+            colors = cmap(np.linspace(0.3, 1, num_models))
+            #raise ValueError("The number of dates should match the number of data points in the model output.")
+        #pdb.set_trace()
+        for i, model_output in enumerate(models_output):
+            # print(f"Model output shape: {model_output.shape}")
+            # print("type of model_output: ", type(model_output))
+            # print("type of dates: ", type(dates))
+            # print("model_output: ", model_output)
+            # print("dates are :",dates)
+            linestyle = '-' if i < num_models - 1 else '--'  # Use solid line for all but the last model
+            color = colors[i] if i < num_models - 1 else 'r'  # Use specified color for all but the last model
+            plt.plot(dates, model_output, label=model_legends[i], linestyle=linestyle, marker=None, color=color)
+        
+        # Plot the observation data with error bars
+            
+        plt.errorbar(dates, observation_data, yerr=observation_error, fmt='x', label=obs_label, ecolor='#056eee', elinewidth=2, capsize=4,
+                     mec='#056eee',mfc  ='#056eee', alpha=1)
+
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
+        plt.title(title)
+        #Set the x-ticks and x-tick labels
+        plt.xticks(dates, rotation=0)
+        # Adjust the legend: place it outside, split into multiple columns
+        if models_output.shape[0] > 5:
+            plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=6, fontsize='small', title= None)
+            # Adjust layout to make room for the legend
+            plt.tight_layout()
+            plt.subplots_adjust(bottom=0.3)  # Add space at the bottom for the legend
+        else:
+            plt.legend()
+        # plt.grid(True)
+        # plt.show()
+
+    else:
+        raise ValueError("Invalid plot_type. Choose 'point' for point-to-point comparison or 'timeseries' for timeseries comparison.")
+
+    # Save the figure if save_path is provided
+    if save_path and save_name:
+        # Ensure the directory exists
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        save_path_full = os.path.join(save_path, save_name)
+        plt.savefig(save_path_full, bbox_inches='tight')
+        print(f"Figure saved to {save_path_full}")
+
+
+        # Display the plot
+        #plt.show()
