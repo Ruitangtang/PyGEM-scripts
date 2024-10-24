@@ -62,13 +62,13 @@ overwrite = True
 #output_fp = pygem_prms.main_directory + '/../calving_data/analysis_sermeq/'
 output_fp = pygem_prms.main_directory + '/../calving_data/analysis/'
 
-option_merge_data = False        # Merge frontal ablation datasets and add mbclim data
-option_ind_calving_k = True    # Calibrate individual glaciers
+option_merge_data = False
+option_ind_calving_k = False
 option_reg_calving_k = False    # Calibrate all glaciers regionally
 if option_reg_calving_k:
     drop_ind_glaciers = False # For region 9 decide if using individual glacier data or regional data
 option_merge_calving_k = False  # Merge all regions together
-option_update_mb_data = False   # Update gdirs with the new mass balance data
+option_update_mb_data = True   # Update gdirs with the new mass balance data
 option_plot_calving_k = False    # Plots of the calibration performance
 option_scrap = False             # Scrap calculations
 
@@ -2966,100 +2966,100 @@ if option_ind_calving_k:
 
 
 # #%% ----- MERGE CALIBRATED CALVING DATASETS -----
-# if option_merge_calving_k:
+if option_merge_calving_k:
     
-#     for nreg, reg in enumerate(regions):
+    for nreg, reg in enumerate(regions):
         
-#         # Load quality controlled frontal ablation data 
-#         output_fn_reg = str(reg) + '-calving_cal_ind.csv'
+        # Load quality controlled frontal ablation data 
+        output_fn_reg = str(reg) + '-calving_cal_ind.csv'
         
-#         assert os.path.exists(output_fp + output_fn_reg), 'Calibrated frontal ablation output dataset does not exist'
+        assert os.path.exists(output_fp + output_fn_reg), 'Calibrated frontal ablation output dataset does not exist'
         
-#         output_df_reg = pd.read_csv(output_fp + output_fn_reg)
+        output_df_reg = pd.read_csv(output_fp + output_fn_reg)
         
-#         if not 'calving_k_nmad' in list(output_df_reg.columns):
-#             output_df_reg['calving_k_nmad'] = 0
+        if not 'calving_k_nmad' in list(output_df_reg.columns):
+            output_df_reg['calving_k_nmad'] = 0
         
-#         if nreg == 0:
-#             output_df_all = output_df_reg
-#         else:
-#             output_df_all = pd.concat([output_df_all, output_df_reg], axis=0)
+        if nreg == 0:
+            output_df_all = output_df_reg
+        else:
+            output_df_all = pd.concat([output_df_all, output_df_reg], axis=0)
             
-#         output_fn_reg_missing = output_fn_reg.replace('.csv','-missing.csv')
-#         if os.path.exists(output_fp + output_fn_reg_missing):
+        output_fn_reg_missing = output_fn_reg.replace('.csv','-missing.csv')
+        if os.path.exists(output_fp + output_fn_reg_missing):
             
-#             # Check if second correction exists
-#             output_fn_reg_missing_v2 = output_fn_reg_missing.replace('.csv','_wmbtotal_correction.csv')
-#             if os.path.exists(output_fp + output_fn_reg_missing_v2):            
-#                 output_df_reg_missing = pd.read_csv(output_fp + output_fn_reg_missing_v2)
-#             else:
-#                 output_df_reg_missing = pd.read_csv(output_fp + output_fn_reg_missing)
+            # Check if second correction exists
+            output_fn_reg_missing_v2 = output_fn_reg_missing.replace('.csv','_wmbtotal_correction.csv')
+            if os.path.exists(output_fp + output_fn_reg_missing_v2):            
+                output_df_reg_missing = pd.read_csv(output_fp + output_fn_reg_missing_v2)
+            else:
+                output_df_reg_missing = pd.read_csv(output_fp + output_fn_reg_missing)
                 
-#             if not 'calving_k_nmad' in list(output_df_reg_missing.columns):
-#                 output_df_reg_missing['calving_k_nmad'] = 0
+            if not 'calving_k_nmad' in list(output_df_reg_missing.columns):
+                output_df_reg_missing['calving_k_nmad'] = 0
             
-#             output_df_all = pd.concat([output_df_all, output_df_reg_missing], axis=0)
+            output_df_all = pd.concat([output_df_all, output_df_reg_missing], axis=0)
         
-#     output_fn_all = 'all-calving_cal_ind.csv'
-#     output_df_all.to_csv(output_fp + output_fn_all, index=0)
+    output_fn_all = 'all-calving_cal_ind.csv'
+    output_df_all.to_csv(output_fp + output_fn_all, index=0)
 
 
 # #%% ----- UPDATE MASS BALANCE DATA WITH FRONTAL ABLATION ESTIMATES -----
-# if option_update_mb_data:
+if option_update_mb_data:
     
-#     # Load calving glacier data (already quality controlled during calibration)
-#     #calving_fp = pygem_prms.main_directory + '/../calving_data/analysis_sermeq/'
-#     calving_fp = pygem_prms.main_directory + '/../calving_data/analysis/'
-#     calving_fn = 'all-calving_cal_ind.csv'
-#     assert os.path.exists(calving_fp + calving_fn), 'Calibrated frontal ablation output dataset does not exist'
-#     fa_glac_data = pd.read_csv(calving_fp + calving_fn)
+    # Load calving glacier data (already quality controlled during calibration)
+    #calving_fp = pygem_prms.main_directory + '/../calving_data/analysis_sermeq/'
+    calving_fp = pygem_prms.main_directory + '/../calving_data/analysis/'
+    calving_fn = 'all-calving_cal_ind.csv'
+    assert os.path.exists(calving_fp + calving_fn), 'Calibrated frontal ablation output dataset does not exist'
+    fa_glac_data = pd.read_csv(calving_fp + calving_fn)
 
-#     # Load mass balance data
-#     hugonnet_fn = 'df_pergla_global_20yr-filled.csv'
-#     mb_data = pd.read_csv(pygem_prms.hugonnet_fp + hugonnet_fn)
-#     mb_rgiids = list(mb_data.RGIId)
+    # Load mass balance data
+    hugonnet_fn = 'df_pergla_global_20yr-filled.csv'
+    mb_data = pd.read_csv(pygem_prms.hugonnet_fp + hugonnet_fn)
+    mb_rgiids = list(mb_data.RGIId)
 
-#     # Record prior data
-#     mb_data['mb_romain_mwea'] = mb_data['mb_mwea']
-#     mb_data['mb_romain_mwea_err'] = mb_data['mb_mwea_err']
-#     mb_data['mb_clim_mwea'] = mb_data['mb_mwea']
-#     mb_data['mb_clim_mwea_err'] = mb_data['mb_mwea_err']
+    # Record prior data
+    mb_data['mb_romain_mwea'] = mb_data['mb_mwea']
+    mb_data['mb_romain_mwea_err'] = mb_data['mb_mwea_err']
+    mb_data['mb_clim_mwea'] = mb_data['mb_mwea']
+    mb_data['mb_clim_mwea_err'] = mb_data['mb_mwea_err']
 
-#     # Update mass balance data
-#     for nglac, rgiid in enumerate(fa_glac_data.RGIId):
+    # Update mass balance data
+    for nglac, rgiid in enumerate(fa_glac_data.RGIId):
         
-#         O1region = int(rgiid.split('-')[1].split('.')[0])
-#         if O1region in regions:        
+        O1region = int(rgiid.split('-')[1].split('.')[0])
+        if O1region in regions:        
 
-#             # Update the mass balance data in Romain's file
-#             mb_idx = mb_rgiids.index(rgiid)
-#             mb_data.loc[mb_idx,'mb_mwea'] = fa_glac_data.loc[nglac,'mb_total_mwea']
-#             mb_data.loc[mb_idx,'mb_clim_mwea'] = fa_glac_data.loc[nglac,'mb_clim_mwea']
+            # Update the mass balance data in Romain's file
+            mb_idx = mb_rgiids.index(rgiid)
+            mb_data.loc[mb_idx,'mb_mwea'] = fa_glac_data.loc[nglac,'mb_total_mwea']
+            mb_data.loc[mb_idx,'mb_clim_mwea'] = fa_glac_data.loc[nglac,'mb_clim_mwea']
             
-#             print(rgiid, 'mb_mwea (the updated total mb):', np.round(mb_data.loc[mb_idx,'mb_mwea'],2), 
-#                   'mb_clim (updated climate mb considering calving):', np.round(mb_data.loc[mb_idx,'mb_clim_mwea'],2), 
-#                   'mb_romain (the initial mb obs):', np.round(mb_data.loc[mb_idx,'mb_romain_mwea'],2))
+            print(rgiid, 'mb_mwea (the updated total mb):', np.round(mb_data.loc[mb_idx,'mb_mwea'],2), 
+                  'mb_clim (updated climate mb considering calving):', np.round(mb_data.loc[mb_idx,'mb_clim_mwea'],2), 
+                  'mb_romain (the initial mb obs):', np.round(mb_data.loc[mb_idx,'mb_romain_mwea'],2))
 
-#     # Export the updated dataset
-#     mb_data.to_csv(pygem_prms.hugonnet_fp + hugonnet_fn.replace('.csv','-facorrected.csv'), index=False)
+    # Export the updated dataset
+    mb_data.to_csv(pygem_prms.hugonnet_fp + hugonnet_fn.replace('.csv','-facorrected.csv'), index=False)
 
-#     # Update gdirs
-# #    rgiids = ['RGI60-' + x for x in pygem_prms.glac_no]
-# #    for nglac, rgiid in enumerate(rgiids):
-#     for nglac, rgiid in enumerate(fa_glac_data.RGIId):
+    # Update gdirs
+#    rgiids = ['RGI60-' + x for x in pygem_prms.glac_no]
+#    for nglac, rgiid in enumerate(rgiids):
+    for nglac, rgiid in enumerate(fa_glac_data.RGIId):
         
-#         O1region = int(rgiid.split('-')[1].split('.')[0])
-#         if O1region in regions:    
+        O1region = int(rgiid.split('-')[1].split('.')[0])
+        if O1region in regions:    
 
-#             print(rgiid)
+            print(rgiid)
         
-#             # Select subsets of data
-#             glacier_str = rgiid.split('-')[1]
+            # Select subsets of data
+            glacier_str = rgiid.split('-')[1]
     
-#             gdir = single_flowline_glacier_directory_with_calving(glacier_str, 
-#                                                                   logging_level='CRITICAL',
-#                                                                   reset=True
-#                                                                   )
+            gdir = single_flowline_glacier_directory_with_calving(glacier_str, 
+                                                                  logging_level='CRITICAL',
+                                                                  reset=True
+                                                                  )
 
 
 # #%%
