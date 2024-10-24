@@ -19,7 +19,9 @@ from pygem.utils._funcs_selectglaciers import get_same_glaciers, glac_num_fromra
 #main_directory = os.getcwd()
 #main_directory = '/home/ruitang/PyGEM_2023/PyGEM-Test-Simple/Output/'      # file path hack if data is in different location from code
 #main_directory = '/home/ruitang/PyGEM_2023/PyGEM-Test-Tidewater/Output_Sermeq_1/'      # file path hack if data is in different location from code
-main_directory = '/home/ruitang/OGGM-Ruitang/Results/Test_KS_1T_24Jun/RGI_1.03890/Output/'      # file path hack if data is in different location from code
+#main_directory = '/home/ruitang/OGGM-Ruitang/Results/Test_KS_1T_24Jun/RGI_17.15808/Output/'      # file path hack if data is in different location from code
+main_directory = '/home/ruitang/OGGM-Ruitang/Results/Test_KS_1T_24Jun/RGI_17.15808/Output/'      # file path hack if data is in different location from code
+
 
 
 #clear the old output part
@@ -60,7 +62,7 @@ output_filepath = main_directory + '/../Output/'
 model_run_date = datetime.today().strftime('%Y-%m-%d')
 
 #%% ===== GLACIER SELECTION =====
-rgi_regionsO1 = [1]                 # 1st order region number (RGI V6.0)
+rgi_regionsO1 = [17]                 # 1st order region number (RGI V6.0)
 rgi_regionsO2 = 'all'               # 2nd order region number (RGI V6.0)
 # RGI glacier number (RGI V6.0)
 #  Three options: (1) use glacier numbers for a given region (or 'all'), must have glac_no set to None
@@ -74,7 +76,8 @@ glac_no = None
 #glac_no = ['15.03732'] # Khumbu Glacier
 #glac_no = ['1.10689'] # Columbia Glacier
 #glac_no = ['1.03622'] # LeConte Glacier
-glac_no = ['1.03890'] #  Glacier
+#glac_no = ['1.03377'] #  Dawes Glacier
+glac_no = ['17.15808'] #  San Rafael Glacier
 
 
 if glac_no is not None:
@@ -86,9 +89,11 @@ min_glac_area_km2 = 0                 # Filter for size of glaciers to include (
 include_landterm = False                # Switch to include land-terminating glaciers
 include_laketerm = False                # Switch to include lake-terminating glaciers
 include_tidewater = True               # Switch to include marine-terminating glaciers
-include_calving = False               # Switch to ignore calving and treat tidewater glaciers as land-terminating
+include_calving = True
 
-oggm_base_url = 'https://cluster.klima.uni-bremen.de/~oggm/gdirs/oggm_v1.6/L1-L2_files/elev_bands/'
+#oggm_base_url = 'https://cluster.klima.uni-bremen.de/~oggm/gdirs/oggm_v1.6/L1-L2_files/elev_bands/'
+oggm_base_url = 'https://cluster.klima.uni-bremen.de/~oggm/gdirs/oggm_v1.6/L1-L2_files/2023.2/elev_bands_w_data/'
+
 #oggm_base_url = 'https://cluster.klima.uni-bremen.de/~oggm/gdirs/oggm_v1.6/L1-L2_files/elev_bands/'
 
 #oggm_base_url = 'https://cluster.klima.uni-bremen.de/~oggm/gdirs/oggm_v1.6/L1-L2_files/centerlines'
@@ -107,8 +112,8 @@ if ref_spinupyears > 0:
     assert 0==1, 'Code needs to be tested to ensure spinup years are correctly accounted for in output files'
 
 # GCM period used for simulation run 
-gcm_startyear = 2000                # first year of model run (simulation dataset)
-gcm_endyear = 2019                  # last year of model run (simulation dataset)
+gcm_startyear = 2000
+gcm_endyear = 2100
 gcm_wateryear = 'calendar'          # options for years: 'calendar', 'hydro', 'custom'
 gcm_bc_startyear = 1981             # first year used for GCM bias correction
 gcm_spinupyears = 0                 # spin up years for simulation (output not set up for spinup years at present)
@@ -126,7 +131,7 @@ if hindcast:
 #%% ===== CALIBRATION OPTIONS =====
 # Calibration option ('emulator', 'MCMC', 'MCMC_fullsim' 'HH2015', 'HH2015mod')
 #option_calibration = 'HH2015'
-option_calibration = 'emulator'
+option_calibration = 'MCMC'
 #option_calibration = 'MCMC'
 # Prior distribution (specify filename or set equal to None)
 priors_reg_fullfn = main_directory + '/../csvs/priors_region.csv'
@@ -229,9 +234,9 @@ elif option_calibration in ['MCMC', 'MCMC_fullsim']:
 
 # ----- Calibration Dataset -----
 # Hugonnet geodetic mass balance data
-hugonnet_fp = main_directory + '/../DEMs/Hugonnet2020/'
+hugonnet_fp = main_directory + '/../../DEMs/Hugonnet2020/'
 #hugonnet_fp = main_directory + '/../PyGEM-Test-Simple/DEMs/Hugonnet2020/'
-hugonnet_fn = 'df_pergla_global_20yr-filled.csv'
+hugonnet_fn = 'df_pergla_global_20yr-filled-facorrected.csv'
 #hugonnet_fn = 'df_pergla_global_20yr-filled-facorrected.csv'
 if '-filled' in hugonnet_fn:
     hugonnet_mb_cn = 'mb_mwea'
@@ -253,11 +258,16 @@ hugonnet_area_cn = 'area_km2'
 
 # ----- Frontal Ablation Dataset -----
 #calving_fp = main_directory + '/../calving_data/analysis_sermeq/'
-calving_fp =  main_directory + '/../calving_data/'
-#calving_fp =  main_directory + '/../calving_data/analysis/'
+#calving_fp =  main_directory + '/../calving_data/'
+calving_fp =  main_directory + '/../calving_data/analysis/'
 #calving_fp =  main_directory + '/../PyGEM-Test-Simple/calving_data/'
 #calving_fn = 'all-calving_cal_ind.csv'
-calving_fn = 'frontalablation_data_test.csv'
+calving_fn = 'all-calving_cal_ind.csv'
+
+
+# ----- Length change Dateset -----
+lengthchange_fp = main_directory + '/../lengthchange_data/'
+lengthchange_fn = 'lengthchange_data.csv'
 # ----- Ice thickness calibration parameter -----
 icethickness_cal_frac_byarea = 0.9  # Regional glacier area fraction that is used to calibrate the ice thickness
                                     #  e.g., 0.9 means only the largest 90% of glaciers by area will be used to calibrate
@@ -265,8 +275,8 @@ icethickness_cal_frac_byarea = 0.9  # Regional glacier area fraction that is use
 
 #%% ===== SIMULATION AND GLACIER DYNAMICS OPTIONS =====
 # Glacier dynamics scheme (options: 'OGGM', 'MassRedistributionCurves', None)
-option_dynamics = 'OGGM'
-#option_dynamics = None
+#option_dynamics = 'OGGM'
+option_dynamics ='OGGM'
 # Bias adjustment option (options: 0, 1, 2, 3) 
 #  0: no adjustment
 #  1: new prec scheme and temp building on HH2015
@@ -299,7 +309,7 @@ if option_dynamics in ['OGGM', 'MassRedistributionCurves']:
     glena_reg_fullfn = main_directory + '/../csvs/glena_region.csv'
     print("glena_reg_fullfn is :",glena_reg_fullfn)
     #glena_reg_fullfn = main_directory + '/../PyGEM-Test-Simple/Output/calibration/glena_region.csv'
-    use_reg_glena = True
+    use_reg_glena = False
     if use_reg_glena:
         assert os.path.exists(glena_reg_fullfn), 'Regional glens a calibration file does not exist.'
     else:
@@ -412,15 +422,15 @@ cmip5_fp_fx_ending = '_r0i0p0_fx/'
 
 # CMIP6 (GCM data)
 #cmip6_fp_prefix = main_directory + '/../climate_data/cmip6/'
-cmip6_fp_prefix = main_directory + '/../../climate_data/cmip6/'
-
+#cmip6_fp_prefix = main_directory + '/../../climate_data/cmip6/'
+cmip6_fp_prefix = '/home/ruitang/GeoFag_Ruitang/Test_Tidewater/climate_data/cmip6/'
 # CESM2 Large Ensemble (GCM data)
 #cesm2_fp_var_prefix = main_directory + '/../climate_data/cesm2/'
-cesm2_fp_var_prefix = main_directory + '/../../climate_data/cesm2/'
+cesm2_fp_var_prefix = main_directory + '/../../climate_data/CESM2/'
 
 cesm2_fp_var_ending = '_mon/'
 #cesm2_fp_fx_prefix = main_directory + '/../climate_data/cesm2/'
-cesm2_fp_fx_prefix = main_directory + '/../../climate_data/cesm2/'
+cesm2_fp_fx_prefix = main_directory + '/../../climate_data/CESM2/'
 
 cesm2_fp_fx_ending = '_fx/'
 
