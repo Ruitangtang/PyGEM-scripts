@@ -48,26 +48,42 @@ def plot_timeseries_Numpy(data, start_date='2000-01-01', end_date='2020-12-31', 
     if data is None or len(data) != len(date_range):
         raise ValueError("Data length must match the number of time points in the date range.")
     # Format the datetime index to 'YYYY-MM' for tick labels
-    date_range_Tick = [d.strftime('%Y-%m') for d in date_range]
+    # date_range_Tick = [d.strftime('%Y-%m') for d in date_range]
 
     
     # Plotting the data with the new datetime index
     plt.figure(figsize=(12, 6))
     plt.plot(date_range, data , color='blue')
     
-    # set x-axis ticks and lables
-    plt.xticks(date_range, date_range_Tick, rotation=45, ha='right')
+    # Set x-axis ticks for January and July of each year, and x,y labels
+    major_ticks = date_range[(date_range.month == 7)]  # Get every January and July
+    plt.xticks(major_ticks)  # Set ticks at major_ticks
+    # Create labels for ticks
+    tick_labels = []
+    for date in major_ticks:
+        month_str = date.strftime('%b')  # Get month abbreviation (Jan or Jul)
+        year_str = date.strftime('%Y')    # Get year
+        if date.year % 2 == 0:  # Only label every 2 years
+            tick_labels.append(f"{month_str}\n{year_str}")  # Format to two lines
+        else:
+            tick_labels.append("")  # Empty label for non-5-year marks
+    plt.gca().set_xticklabels(tick_labels, rotation=0, ha='center')  # Set tick labels
+
+
     plt.xlabel('Date')
     plt.ylabel(Y_label if Y_label else 'Variable Name')
 
-        # Adding labels and title
+    # Adding labels and title
     plt.title(F_title)
 
     # Adding dashed vertical lines after each year
-    years = pd.date_range(start=date_range.min(), end=date_range.max(), freq='YS')  # Year start frequency
+    years = pd.date_range(start=date_range.min(), end=date_range.max(), freq='Y')  # Year start frequency
     for year in years:
         plt.axvline(x=year, linestyle='--', color='gray', linewidth=0.5)  # Add a dashed vertical line
-    
+
+    # Set x-axis limits based on the min and max of the date_range
+    plt.xlim(date_range.min(), date_range.max())    
+
     # Show legend
     plt.legend()
 
