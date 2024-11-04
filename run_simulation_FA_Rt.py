@@ -67,6 +67,15 @@ cfg.PARAMS['hydro_month_sh']=1
 cfg.PARAMS['trapezoid_lambdas'] = 1
 
 
+# ---- Store_monthly_step ----
+store_monthly_step = True # True: store monthly step results; False: store annual results
+mb_elev_feedback = 'Monthly' # 'Monthly' or 'Annual'
+# TODO : Add the option to store monthly step results for mass balance and glacier dynamics
+Dynamic_step_Monthly = True # True: dynamic step is Monthly; False: annual step
+
+save_path_parameter = pygem_prms.output_filepath + '/parameter/'
+
+
 # ----- FUNCTIONS -----
 def getparser():
     """
@@ -1359,31 +1368,30 @@ def main(list_packed_vars):
                             calving_k = np.median(calving_df_reg.calving_k)
                             calving_k_nmad = 0
                         
-                        if sim_iters == 1:
-                            calving_k_values = np.array([calving_k])
-                        else:
-                            calving_k_values = calving_k + np.random.normal(loc=0, scale=calving_k_nmad, size=sim_iters)
-                            calving_k_values[calving_k_values < 0.001] = 0.001
-                            calving_k_values[calving_k_values > 5] = 5
+#                         if sim_iters == 1:
+#                             calving_k_values = np.array([calving_k])
+#                         else:
+#                             calving_k_values = calving_k + np.random.normal(loc=0, scale=calving_k_nmad, size=sim_iters)
+#                             calving_k_values[calving_k_values < 0.001] = 0.001
+#                             calving_k_values[calving_k_values > 5] = 5
                             
-#                            calving_k_values[:] = calving_k
+# #                            calving_k_values[:] = calving_k
                             
-                            while not abs(np.median(calving_k_values) - calving_k) < 0.001:
-                                calving_k_values = calving_k + np.random.normal(loc=0, scale=calving_k_nmad, size=sim_iters)
-                                calving_k_values[calving_k_values < 0.001] = 0.001
-                                calving_k_values[calving_k_values > 5] = 5
+#                             while not abs(np.median(calving_k_values) - calving_k) < 0.001:
+#                                 calving_k_values = calving_k + np.random.normal(loc=0, scale=calving_k_nmad, size=sim_iters)
+#                                 calving_k_values[calving_k_values < 0.001] = 0.001
+#                                 calving_k_values[calving_k_values > 5] = 5
                                 
-                                print(calving_k, np.median(calving_k_values))
+#                                 print(calving_k, np.median(calving_k_values))
                             
-                            assert abs(np.median(calving_k_values) - calving_k) < 0.001, 'calving_k distribution too far off'
+#                             assert abs(np.median(calving_k_values) - calving_k) < 0.001, 'calving_k distribution too far off'
 
                         #TODO read the calving_k_value from the run_calibration_FA_Rt_New.py and doing the particle_resampling,here is done by outside and hard read
-                        calving_k_values = np.array([2.7, 0.8, 2.4, 1.9, 0.8, 3.0, 0.6, 1.6, 2.7, 
-                                                     2.0, 2.1, 1.9, 1.6, 1.1, 1.8, 0.5, 0.7, 2.6,
-                                                     2.1, 2.1, 1.4, 2.6, 1.8, 3.0, 1.2, 1.5, 1.7,
-                                                     1.9, 1.2, 2.7, 0.8, 0.2, 2.2, 2.0, 1.8, 1.6,
-                                                     0.1, 1.6, 2.0, 2.1, 0.9, 0.9, 2.0, 1.5, 1.8,
-                                                     0.4, 1.2, 0.4, 2.8, 2.8])
+                        #load the calving_k assemble from the run_calibration_FA_Rt_New.py based on the particle_resampling
+                        #TODO check the distribution of calving_k_values, if it is unifrom it works, otherwise, need to do the resampling, or increase the sample size in run_calibration_FA_Rt_New.py
+                        df_calving_k_assemble = pd.read_csv(os.path.join(save_path_parameter,'tau_value_model_resample_assemble.csv'))
+                        calving_k_values_assemble = df_calving_k_assemble['tau_resample'].to_numpy()
+                        calving_k_values = np.random.choice(calving_k_values_assemble,size = sim_iters,replace = True)
 
                         if debug:                        
                             print('calving_k_values:', np.mean(calving_k_values), np.std(calving_k_values), '\n', calving_k_values)
@@ -1425,6 +1433,7 @@ def main(list_packed_vars):
                         glena_idx = np.where(glena_O1regions == glacier_rgi_table.O1Region)[0][0]
                         glen_a_multiplier = glena_df.loc[glena_idx,'glens_a_multiplier']
                         fs = glena_df.loc[glena_idx,'fs']
+                        fs = cfg.PARAMS['fs']
                     else:
                         fs = pygem_prms.fs
                         glen_a_multiplier = pygem_prms.glen_a_multiplier
@@ -1591,7 +1600,7 @@ def main(list_packed_vars):
                             ev_model = CalvingFluxBasedModelJanRt(nfls, y0=0, mb_model=mbmod,
                                                     glen_a=cfg.PARAMS['glen_a']*glen_a_multiplier, fs=fs,
                                                     is_tidewater=gdir.is_tidewater,
-                                                    water_level=water_level
+                                                    water_level=water_level,mb_elev_feedback=mb_elev_feedback
                                                     )
                             print("evmodel assigned")
                         except:
@@ -1607,11 +1616,11 @@ def main(list_packed_vars):
                                     do_fl_diag = cfg.PARAMS['store_fl_diagnostics']
                                     if do_fl_diag:
                                         fl_diag_path = gdir.get_filepath('fl_diagnostics',delete=True)
-                                        diag, fl_diag_dss = ev_model.run_until_and_store(nyears,store_monthly_step= True,fl_diag_path=fl_diag_path)
+                                        diag, fl_diag_dss = ev_model.run_until_and_store(nyears,store_monthly_step= store_monthly_step,fl_diag_path=fl_diag_path)
                                         print('diag is :',diag)
                                         #pdb.set_trace()
                                     else:
-                                        diag = ev_model.run_until_and_store(nyears,store_monthly_step= True)
+                                        diag = ev_model.run_until_and_store(nyears,store_monthly_step= store_monthly_step)
                                         print('diag is :',diag)
                                 except:
                                     print("oggm ver >1.3, run_until_and store failed")
@@ -1635,9 +1644,16 @@ def main(list_packed_vars):
                                         print('calving_m3_since_y0:', ev_model.calving_m3_since_y0)
                                     calving_m3_month = ((diag.calving_m3.values[1:] - diag.calving_m3.values[0:-1]) * 
                                                         pygem_prms.density_ice / pygem_prms.density_water)
-                                    calving_m3_annual = calving_m3_month.reshape(-1,12).sum(1)
-                                    length_change_m_monthly = (diag.length_m.values[1:] - diag.length_m.values[0:-1])
-                                    length_change_m_annual = np.nansum(length_change_m_monthly.reshape(-1, 12), axis=1)
+                                    
+                                    #length_change_m_monthly = (diag.length_m.values[1:] - diag.length_m.values[0:-1])
+                                    #TODO check the length change rate should be [0:-1] or [1:], keep consistent with dLdt monthly in run_calibration_FA_Rt_New.py
+                                    length_change_m_monthly = diag.length_change_rate_myr.values[1:]
+                                    if Dynamic_step_Monthly:
+                                        calving_m3_annual = calving_m3_month.reshape(-1,12).sum(1)
+                                        length_change_m_annual = np.nanmean(length_change_m_monthly.reshape(-1, 12), axis=1)
+                                    else:
+                                        calving_m3_annual = calving_m3_month
+                                        length_change_m_annual = length_change_m_monthly
                                     #pdb.set_trace()
                                     print("calving_m3_annual is:",calving_m3_annual)
                                     print("the frontalablation is updated totally :",calving_m3_month.shape[0])
@@ -1861,7 +1877,7 @@ def main(list_packed_vars):
                             area_initial = mbmod.glac_bin_area_annual[:,0].sum()
                             #%% Dynamic running step
                             # if the dynamic step is monthly, the volume is monthly, need to be calculated as annual
-                            Dynamic_step_Monthly =True
+                            #Dynamic_step_Monthly =True
                             # if Dynamic_step_Monthly :
                             #     mb_mwea_diag = ((diag.volume_m3.values[-1] - diag.volume_m3.values[0]) 
                             #                     / area_initial / nyears/12 * pygem_prms.density_ice / pygem_prms.density_water)
@@ -1887,7 +1903,7 @@ def main(list_packed_vars):
                             try:
                                 if np.abs(mb_mwea_diag - mb_mwea_mbmod) > 1e-6:
                                     print("np.abs(mb_mwea_diag - mb_mwea_mbmod) > 1e-6")
-                                    ev_model.mb_model.ensure_mass_conservation(diag)
+                                    ev_model.mb_model.ensure_mass_conservation(diag,Dynamic_step_Monthly = Dynamic_step_Monthly)
                             except:
                                 if debug:
                                     print(traceback.format_exc())
@@ -1907,11 +1923,14 @@ def main(list_packed_vars):
                             output_glac_refreeze_monthly[:, n_iter] = mbmod.glac_wide_refreeze
                             output_glac_melt_monthly[:, n_iter] = mbmod.glac_wide_melt
                             output_glac_frontalablation_monthly[:, n_iter] = mbmod.glac_wide_frontalablation
-                            output_glac_length_monthly[:, n_iter] = diag.length_m.values[:-1]
-                            output_glac_length_change_monthly[:, n_iter] = mbmod.glac_length_change
                             output_glac_massbaltotal_monthly[:, n_iter] = mbmod.glac_wide_massbaltotal
                             output_glac_runoff_monthly[:, n_iter] = mbmod.glac_wide_runoff
                             output_glac_snowline_monthly[:, n_iter] = mbmod.glac_wide_snowline
+                            if Dynamic_step_Monthly:
+                                # the length_m read from the flowline
+                                output_glac_length_monthly[:, n_iter] = diag.length_m.values[:-1]
+                                # this length change is from the SermeQ
+                                output_glac_length_change_monthly[:, n_iter] = mbmod.glac_length_change
                             
 
                             # calving_m3_month = ((diag.calving_m3.values[1:] - diag.calving_m3.values[0:-1]) * 
@@ -1922,7 +1941,7 @@ def main(list_packed_vars):
 
                             #%% Dynamic running step
                             # if the dynamic step is monthly, the volume is monthly, need to be calculated as annual
-                            Dynamic_step_Monthly =True
+                            #Dynamic_step_Monthly =True
                             try:
                                 if Dynamic_step_Monthly:
                                     area_m2_annual = (((diag.area_m2.values[:-1]).reshape(-1,12))[:,0]).flatten()
