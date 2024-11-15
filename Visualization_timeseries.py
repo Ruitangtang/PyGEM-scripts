@@ -10,7 +10,7 @@ import xarray as xr
 import pickle
 import math
 import matplotlib.pyplot as plt
-from matplotlib.ticker import AutoMinorLocator
+from matplotlib.ticker import AutoMinorLocator,MultipleLocator
 from matplotlib.animation import FuncAnimation, PillowWriter
 import matplotlib.animation as animation
 import os
@@ -661,3 +661,151 @@ def plot_model_vs_observation(models_output, observation_data, dates=None, start
 
         # Display the plot
         #plt.show()
+
+
+
+def plot_timeseries_stats(data, start_date=2000, end_date=2019, save_name=None,
+                          save_path=None, Y_label=None, F_title='Time Series'):
+    """
+    Plots a time series of variable with its statistic information (mean/median/std
+    /q25/q75/min/max/nmad) with dashed grid lines after each year.
+
+    Parameters:
+    - data (numpy array): The variable data.
+    - start_date (str) The starting date of the time series in 'YYYY-MM-DD' format.
+    - end_date (str) The ending date of the time series in 'YYYY-MM-DD' format.
+    - save_name (str or None): The file name to save the figure. If None, the figure will not be saved.
+    - save_path (str or None): The file path to save the figure. If None, the figure will not be saved.
+    - Y_label (str or None): The label for the y-axis. If None, the y-axis label will be 'Variable Name'.
+    - F_title (str or None): The title for the figure. If None, the figure title will be 'Time Series'.
+    """
+
+    # Create the datetime index with monthly/annual frequency
+    date_range = np.arange(start_date,end_date)
+    print("date_range is :",date_range)
+
+    # Check if data length matches date range
+    if data is None or len(data) != len(date_range):
+        raise ValueError("Data length must match the number of time points in the date range.")
+
+    # Create a DataFrame for easier plotting (with years as columns and each row being the data for a year)
+    data_df = pd.DataFrame(data.T, columns=date_range)
+    # Set up the figure
+    plt.figure(figsize=(20, 6))
+    # Plot the statistics with dashed grid lines
+    
+    sns.violinplot(data=data_df, showmeans=False, showmedians=True,fill = False,color = "lightgreen")
+
+    plt.xlabel('Year')
+
+    plt.ylabel(Y_label)
+
+    # Set title
+    plt.title(F_title)
+
+    # set the x-axis ticks
+    ax = plt.gca()  # Get current axis
+    ax.xaxis.set_major_locator(MultipleLocator(10))  # Major ticks every 10 years
+    ax.xaxis.set_minor_locator(MultipleLocator(5))   # Minor ticks every 5 years
+    ax.tick_params(axis='x', which='major', length=10, width=1.5)  # Style for major ticks
+    ax.tick_params(axis='x', which='minor', length=5, width=1)    # Style for minor ticks
+
+    # add the ygrid
+    plt.grid(axis='y', which='both', linestyle='--', linewidth=0.5)
+
+    # Save the figure if save_path is provided
+    if save_path and save_name:
+        save_path_full = os.path.join(save_path, save_name)
+        plt.savefig(save_path_full, bbox_inches='tight')
+        print(f"Figure saved to {save_path_full}")
+
+
+    # Display the plot
+    #plt.show()
+
+
+
+def plot_timeseries_stats_sub(data, start_date=2000, end_date=2100, save_name=None,
+                          save_path=None, Y_label=None, F_title='Time Series'):
+    """
+    Plots a time series of variable with its statistic information (mean/median/std
+    /q25/q75/min/max/nmad) with subplot for each 20 years.
+
+    Parameters:
+    - data (numpy array): The variable data.
+    - start_date (str) The starting date of the time series in 'YYYY-MM-DD' format.
+    - end_date (str) The ending date of the time series in 'YYYY-MM-DD' format.
+    - save_name (str or None): The file name to save the figure. If None, the figure will not be saved.
+    - save_path (str or None): The file path to save the figure. If None, the figure will not be saved.
+    - Y_label (str or None): The label for the y-axis. If None, the y-axis label will be 'Variable Name'.
+    - F_title (str or None): The title for the figure. If None, the figure title will be 'Time Series'.
+    """
+
+    # Create the datetime index with monthly/annual frequency
+    date_range = np.arange(start_date,end_date)
+    print("date_range is :",date_range)
+
+    # Check if data length matches date range
+    if data is None or len(data) != len(date_range):
+        raise ValueError("Data length must match the number of time points in the date range.")
+
+    # Create a DataFrame for easier plotting (with years as columns and each row being the data for a year)
+    data_df = pd.DataFrame(data.T, columns=date_range)
+
+    # Convert data into a "long" format DataFrame (similar to the original code with melt)
+    data_long = data_df.reset_index().melt(id_vars='index', var_name='Year', value_name='Value')
+    data_long.rename(columns={'index': 'Simulation'}, inplace=True)
+
+    # Split the data into 5 chunks (20 years per chunk)
+    chunks = [data_long[(data_long['Year'] >= 2000 + i * 20) & (data_long['Year'] < 2000 + (i + 1) * 20)] for i in range(5)]
+
+    # Create subplots (5 rows × 1 column)
+    fig, axes = plt.subplots(nrows=5, ncols=1, figsize=(18, 15), sharex=False)  # Disable sharex
+    # Loop through each chunk and plot the violin plot
+    for i, chunk in enumerate(chunks):
+        # Plot violin plot with 'Year' on x-axis
+        sns.violinplot(x='Year', y='Value', data=chunk, color="lightgreen", inner="quartile", ax=axes[i])
+        
+        # Set titles and labels for each subplot
+        axes[i].set_ylabel('Glacier Length Change')
+        
+        # Set the x-ticks at positions 0, 5, 10, 15, 20 (indices within each chunk)
+        axes[i].set_xticks(np.arange(0, 20, 5))  # x-ticks at 0, 5, 10, 15, 20
+        
+        # Set the x-tick labels to correspond to the correct years
+        year_labels = np.arange(2000 + i * 20, 2000 + (i + 1) * 20, 5)  # Correct year labels for each chunk
+        axes[i].set_xticklabels(year_labels)  # Set the year labels for the ticks
+        
+        # Enable minor ticks without labels
+        axes[i].tick_params(axis='x', which='minor', length=5, width=1)
+        
+        # Set major ticks every 5 years on x-axis (0, 5, 10, 15, etc.)
+        axes[i].xaxis.set_major_locator(MultipleLocator(5))  # Major ticks at 0, 5, 10, 15, etc.
+        axes[i].xaxis.set_minor_locator(MultipleLocator(1))  # Minor ticks every year (for the grid)
+        
+        # Set x-axis label for the last subplot (shared across all subplots)
+        if i == 4:
+            axes[i].set_xlabel('Year')
+        else:
+            axes[i].set_xlabel(None)
+
+    # Adjust the tick labels for the major ticks to display every 5 years correctly
+    for ax in axes:
+        ax.tick_params(axis='x', which='major', length=10, width=1.5)
+
+    # Add a title for the entire figure
+    plt.suptitle(F_title, fontsize=16)
+
+    # Adjust layout for better spacing
+    plt.tight_layout(rect=[0, 0, 1, 0.96])  # Leave space for the main title
+
+    # Save the figure if save_path is provided
+    if save_path and save_name:
+        save_path_full = os.path.join(save_path, save_name)
+        plt.savefig(save_path_full, bbox_inches='tight')
+        print(f"Figure saved to {save_path_full}")
+
+
+    # Display the plot
+    #plt.show()
+
