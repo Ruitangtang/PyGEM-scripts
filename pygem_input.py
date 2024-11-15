@@ -17,44 +17,7 @@ from pygem.utils._funcs_selectglaciers import get_same_glaciers, glac_num_fromra
 
 #%% ===== MODEL SETUP DIRECTORY =====
 #main_directory = os.getcwd()
-#main_directory = '/home/ruitang/PyGEM_2023/PyGEM-Test-Simple/Output/'      # file path hack if data is in different location from code
-#main_directory = '/home/ruitang/PyGEM_2023/PyGEM-Test-Tidewater/Output_Sermeq_1/'      # file path hack if data is in different location from code
-#main_directory = '/home/ruitang/OGGM-Ruitang/Results/Test_KS_1T_24Jun/RGI_17.15808/Output/'      # file path hack if data is in different location from code
-main_directory = '/home/ruitang/OGGM-Ruitang/Results/Test_KS_1T_24Jun/RGI_17.15808/Output/'      # file path hack if data is in different location from code
-
-
-
-#clear the old output part
-#===== Delete the old folder (oggm_dir and Output) =====
-# output_path_old = main_directory
-# print("output_path_old is",output_path_old )
-# # Check if the directory exists before attempting to delete it
-# if os.path.exists(output_path_old):
-#     shutil.rmtree(output_path_old)
-#     print(f"The directory {output_path_old} has been deleted.")
-# else:
-#     print(f"The directory {output_path_old} does not exist.")
-# os.mkdir(output_path_old)
-
-# # Delete the old oggm_gdirs
-# oggmdir_path_old = main_directory + '/../oggm_gdirs/'
-# # # Check if the directory exists before attempting to delete it
-# if os.path.exists(oggmdir_path_old):
-#     shutil.rmtree(oggmdir_path_old)
-#     print(f"The directory {oggmdir_path_old} has been deleted.")
-# else:
-#     print(f"The directory {oggmdir_path_old} does not exist.")    
-# #===== Delete the log file =====
-# log_path = main_directory + '/../'
-# log_files= glob.glob(os.path.join(log_path, '*.log'))
-# if log_files:
-#     for log_file in log_files:
-#         if os.path.isfile(log_file):
-#             os.remove(log_file)
-#             print(f"Deleted: {log_file}")
-# else:
-#     print("No .log files found.")
-
+main_directory = '/home/ruitang/OGGM-Ruitang/Results/Test_KS_1T_24Jun/RGI_17.15808_Test03/Output/'      # file path hack if data is in different location from code
 
 # Output directory
 output_filepath = main_directory + '/../Output/'
@@ -130,9 +93,7 @@ if hindcast:
 
 #%% ===== CALIBRATION OPTIONS =====
 # Calibration option ('emulator', 'MCMC', 'MCMC_fullsim' 'HH2015', 'HH2015mod')
-#option_calibration = 'HH2015'
 option_calibration = 'MCMC'
-#option_calibration = 'MCMC'
 # Prior distribution (specify filename or set equal to None)
 priors_reg_fullfn = main_directory + '/../csvs/priors_region.csv'
 #priors_reg_fullfn = main_directory + '/../PyGEM-Test-Simple/Output/calibration/priors_region.csv'
@@ -237,7 +198,6 @@ elif option_calibration in ['MCMC', 'MCMC_fullsim']:
 hugonnet_fp = main_directory + '/../../DEMs/Hugonnet2020/'
 #hugonnet_fp = main_directory + '/../PyGEM-Test-Simple/DEMs/Hugonnet2020/'
 hugonnet_fn = 'df_pergla_global_20yr-filled-facorrected.csv'
-#hugonnet_fn = 'df_pergla_global_20yr-filled-facorrected.csv'
 if '-filled' in hugonnet_fn:
     hugonnet_mb_cn = 'mb_mwea'
     hugonnet_mb_err_cn = 'mb_mwea_err'
@@ -257,17 +217,21 @@ hugonnet_time2_cn = 't2'
 hugonnet_area_cn = 'area_km2'
 
 # ----- Frontal Ablation Dataset -----
-#calving_fp = main_directory + '/../calving_data/analysis_sermeq/'
-#calving_fp =  main_directory + '/../calving_data/'
+
 calving_fp =  main_directory + '/../calving_data/analysis/'
-#calving_fp =  main_directory + '/../PyGEM-Test-Simple/calving_data/'
+
 #calving_fn = 'all-calving_cal_ind.csv'
 calving_fn = 'all-calving_cal_ind.csv'
 
 
-# ----- Length change Dateset -----
+# ----- Length change Dataset -----
 lengthchange_fp = main_directory + '/../lengthchange_data/'
 lengthchange_fn = 'lengthchange_data.csv'
+
+# ----- Annual frontal ablation Dataset -----
+frontalablation_fp = main_directory + '/../frontalablation_annual_data/'
+frontalablation_fn = 'frontalablation_data.csv'
+
 # ----- Ice thickness calibration parameter -----
 icethickness_cal_frac_byarea = 0.9  # Regional glacier area fraction that is used to calibrate the ice thickness
                                     #  e.g., 0.9 means only the largest 90% of glaciers by area will be used to calibrate
@@ -275,8 +239,7 @@ icethickness_cal_frac_byarea = 0.9  # Regional glacier area fraction that is use
 
 #%% ===== SIMULATION AND GLACIER DYNAMICS OPTIONS =====
 # Glacier dynamics scheme (options: 'OGGM', 'MassRedistributionCurves', None)
-#option_dynamics = 'OGGM'
-option_dynamics ='OGGM'
+option_dynamics = 'OGGM'
 # Bias adjustment option (options: 0, 1, 2, 3) 
 #  0: no adjustment
 #  1: new prec scheme and temp building on HH2015
@@ -294,7 +257,7 @@ else:
 # Output filepath of simulations
 output_sim_fp = output_filepath + 'simulations/'
 # Output statistics of simulation (options include any of the following 'mean', 'std', '2.5%', '25%', 'median', '75%', '97.5%')
-sim_stat_cns = ['median', 'mad']
+sim_stat_cns = ['mean', 'mad', '2.5%', '25%', 'median', '75%', '97.5%', 'std']
 
 # Output options
 export_essential_data = True        # Export essential data (ex. mass balance components, ElA, etc.)
@@ -307,13 +270,14 @@ if option_dynamics in ['OGGM', 'MassRedistributionCurves']:
     cfl_number = 0.02
     cfl_number_calving = 0.01
     glena_reg_fullfn = main_directory + '/../csvs/glena_region.csv'
-    print("glena_reg_fullfn is :",glena_reg_fullfn)
+    #print("glena_reg_fullfn is :",glena_reg_fullfn)
     #glena_reg_fullfn = main_directory + '/../PyGEM-Test-Simple/Output/calibration/glena_region.csv'
     use_reg_glena = False
     if use_reg_glena:
         assert os.path.exists(glena_reg_fullfn), 'Regional glens a calibration file does not exist.'
     else:
-        fs = 0
+        #fs = 0
+        fs = 5.7e-20
         glen_a_multiplier = 1
 
 # Mass redistribution / Glacier geometry change options
@@ -350,7 +314,7 @@ option_surfacetype_initial = 1
 #     appears to be a fairly reasonable assumption in High Mountain Asia.
 #  option 2 - use mean elevation
 include_firn = True                 # True: firn included, False: firn is modeled as snow
-include_debris = False               # True: account for debris with melt factors, False: do not account for debris
+include_debris = False
 
 # Downscaling model options
 # Reference elevation options for downscaling climate variables
