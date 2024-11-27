@@ -67,8 +67,8 @@ option_ind_calving_k = False
 option_reg_calving_k = False    # Calibrate all glaciers regionally
 if option_reg_calving_k:
     drop_ind_glaciers = False # For region 9 decide if using individual glacier data or regional data
-option_merge_calving_k = False
-option_update_mb_data = True
+option_merge_calving_k = True
+option_update_mb_data = False
 option_plot_calving_k = False    # Plots of the calibration performance
 option_scrap = False             # Scrap calculations
 
@@ -98,6 +98,10 @@ debug=True
 debug_reg_calving_fxn = True
 prms_from_reg_priors=False
 prms_from_glac_cal=True
+
+# the size of the parameter assemble and resampling assemble size
+size_assemble=1000
+size_resample=200
 
 ##%% ----- Argument Parser -----
 #def getparser():
@@ -562,7 +566,7 @@ def reg_calving_flux(main_glac_rgi, calving_k, fa_glac_data_reg=None,
                             Visualization_timeseries.plot_timeseries_List(data = length_change_rate_myr_dLdt_annual, start_year=2000, ylabel= 'length change rate (m a⁻¹)', xlabel='Year',
                                                                             title='Annual timeseries of length change rate',save_path=save_path_figure_calving,
                                                                             save_name='Annual timeseries of length change rate')
-                            Visualization_timeseries.plot_timeseries_List(data = velocity_myr_calvingfront_annual, start_date='2000-01-01', end_date='2019-12-31',
+                            Visualization_timeseries.plot_timeseries_List(data = velocity_myr_calvingfront_annual, start_year=2000,
                                                                             ylabel='Velocity at the calving front (m a⁻¹)',xlabel= 'Year',
                                                                             title='Annual timeseries of velocity at the calving front',save_path=save_path_figure_calving,
                                                                             save_name='Annual timeseries of velocity at the calving front')
@@ -978,21 +982,23 @@ def run_opt_fa(main_glac_rgi_ind, calving_k, calving_k_bndlow, calving_k_bndhigh
 
 
 
-def Visualize_parameter (model_function = None, k_bndhigh = None, k_bndlow = None, k_step = None, k_name =None,calibrate_length = False,**kwags):
+def Visualize_parameter (model_function = None, k_bndhigh = None, k_bndlow = None, k_step = None,
+                         k_name =None,calibrate_length = False,sampling_method =0, **kwags):
     # this function is used to visulize the relationship between parameter k and model_functions
     # the k is the parameter of the model_function
     # model_function is the target function
     # k_bndhigh, k_bndlow, k_step are the boundaries and step size of k
     # k_name,the name of the k parameter
     # calibrate_length, boolean, if True, the function is used to calibrate the length change, vice verse; The defaule is False, just calibrate FA
+    # sampling_method, 0 for random sampling, 1 for uniform sampling
     # **kwags are the keyword arguments for model_function
 
-
-    # do the random sampling
-    k_values = np.random.uniform(low = k_bndlow,high = k_bndhigh, size=1000)
-
-
-    #k_values = np.arange(k_bndlow, k_bndhigh+k_step, k_step)
+    if sampling_method == 0:
+        # do the random sampling
+        k_values = np.random.uniform(low = k_bndlow,high = k_bndhigh, size=size_assemble)
+    else:
+        # do the uniform sampling
+        k_values = np.linspace(k_bndlow, k_bndhigh, num=size_assemble)
 
     y_values = np.zeros_like(k_values)
 
@@ -2100,7 +2106,7 @@ if option_ind_calving_k:
                         np.savetxt(output_file_tau, tau_value_weight, delimiter=",", header="tau_k_values,weights", comments="")
                         # resampling k_value_array and the corresponding weights
                         #pdb.set_trace()
-                        k_value_arrary_resample_index = np.random.choice(len(k_value_arrary), size = 500, p = Weights_k)
+                        k_value_arrary_resample_index = np.random.choice(len(k_value_arrary), size = size_assemble, p = Weights_k)
                         k_value_arrary_resample = k_value_arrary[k_value_arrary_resample_index]
                         lengthchange_model_arrary_annual_array_resample = ((lengthchange_model_arrary_annual_array.T)[k_value_arrary_resample_index]).T
                         length_change_model_we_resample = np.column_stack((lengthchange_model_arrary_annual_array_resample, reg_length_change_rate_myr_dLdt_weighted_annual))
