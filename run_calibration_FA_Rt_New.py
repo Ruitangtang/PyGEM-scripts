@@ -101,7 +101,7 @@ prms_from_glac_cal=True
 
 # the size of the parameter assemble and resampling assemble size
 size_assemble=1000
-size_resample=200
+size_resample=1000
 
 ##%% ----- Argument Parser -----
 #def getparser():
@@ -2106,7 +2106,7 @@ if option_ind_calving_k:
                         np.savetxt(output_file_tau, tau_value_weight, delimiter=",", header="tau_k_values,weights", comments="")
                         # resampling k_value_array and the corresponding weights
                         #pdb.set_trace()
-                        k_value_arrary_resample_index = np.random.choice(len(k_value_arrary), size = size_assemble, p = Weights_k)
+                        k_value_arrary_resample_index = np.random.choice(len(k_value_arrary), size = size_resample, p = Weights_k)
                         k_value_arrary_resample = k_value_arrary[k_value_arrary_resample_index]
                         lengthchange_model_arrary_annual_array_resample = ((lengthchange_model_arrary_annual_array.T)[k_value_arrary_resample_index]).T
                         length_change_model_we_resample = np.column_stack((lengthchange_model_arrary_annual_array_resample, reg_length_change_rate_myr_dLdt_weighted_annual))
