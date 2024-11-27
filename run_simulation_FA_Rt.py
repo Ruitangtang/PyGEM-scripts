@@ -68,12 +68,14 @@ cfg.PARAMS['trapezoid_lambdas'] = 1
 
 
 # ---- Store_monthly_step ----
-store_monthly_step = True # True: store monthly step results; False: store annual results
-mb_elev_feedback = 'Monthly' # 'Monthly' or 'Annual'
+store_monthly_step = True
+mb_elev_feedback = 'Monthly'  # 'annual' or 'monthly'
 # TODO : Add the option to store monthly step results for mass balance and glacier dynamics
-Dynamic_step_Monthly = True # True: dynamic step is Monthly; False: annual step
+Dynamic_step_Monthly = True
+
 
 save_path_parameter = pygem_prms.output_filepath + '/parameter/'
+#save_path_parameter = pygem_prms.output_filepath + '/parameter/second_cali_FA/'
 
 
 # ----- FUNCTIONS -----
