@@ -11,6 +11,7 @@ import time
 # External libraries
 import pandas as pd
 import pickle
+import json
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import minimize
@@ -452,15 +453,17 @@ def main(list_packed_vars):
             
                 with open(mbdata_fn, 'rb') as f:
                     gdir.mbdata = pickle.load(f)
-                        
+                print ("========================== gdir.is_tidewater ==========================",gdir.is_tidewater)        
                 # Non-tidewater glaciers
                 if not gdir.is_tidewater:
+                    print ("========================== Non-tidewater glaciers ========================== mb_mwea")
                     # Load data
                     mb_obs_mwea = gdir.mbdata['mb_mwea']
                     mb_obs_mwea_err = gdir.mbdata['mb_mwea_err']
                 # Tidewater glaciers
                 #  use climatic mass balance since calving_k already calibrated separately
                 else:
+                    print ("========================== Tidewater glaciers ========================== mb_clim_mwea")
                     mb_obs_mwea = gdir.mbdata['mb_clim_mwea']
                     mb_obs_mwea_err = gdir.mbdata['mb_clim_mwea_err']
                     
