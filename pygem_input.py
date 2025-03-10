@@ -17,7 +17,7 @@ from pygem.utils._funcs_selectglaciers import get_same_glaciers, glac_num_fromra
 
 #%% ===== MODEL SETUP DIRECTORY =====
 #main_directory = os.getcwd()
-main_directory = '/home/ruitang/OGGM-Ruitang/Results/Test_KS_1T_24Jun/RGI_17.15808_Test03/Output/'      # file path hack if data is in different location from code
+main_directory = '/home/ruitang/OGGM-Ruitang/Results/Test_KS_1T_24Jun/RGI_17.15808_PBS_Test01/Output/'
 
 # Output directory
 output_filepath = main_directory + '/../Output/'
@@ -35,12 +35,13 @@ rgi_regionsO2 = 'all'               # 2nd order region number (RGI V6.0)
 # rgi_glac_number = glac_num_fromrange(1,10)
 
 glac_no_skip = None
-glac_no = None 
+#glac_no = None
 #glac_no = ['15.03732'] # Khumbu Glacier
 #glac_no = ['1.10689'] # Columbia Glacier
 #glac_no = ['1.03622'] # LeConte Glacier
 #glac_no = ['1.03377'] #  Dawes Glacier
-glac_no = ['17.15808'] #  San Rafael Glacier
+glac_no= ['17.15808']
+#glac_no = ['17.04876'] #  Amalia Glacier
 
 
 if glac_no is not None:
@@ -92,8 +93,9 @@ if hindcast:
 
 
 #%% ===== CALIBRATION OPTIONS =====
-# Calibration option ('emulator', 'MCMC', 'MCMC_fullsim' 'HH2015', 'HH2015mod')
-option_calibration = 'MCMC'
+# Calibration option ('emulator', 'MCMC', 'MCMC_fullsim' 'HH2015', 'HH2015mod','PBS')
+option_calibration = 'PBS'
+#option_calibration = 'MCMC'
 # Prior distribution (specify filename or set equal to None)
 priors_reg_fullfn = main_directory + '/../csvs/priors_region.csv'
 #priors_reg_fullfn = main_directory + '/../PyGEM-Test-Simple/Output/calibration/priors_region.csv'
@@ -191,13 +193,71 @@ elif option_calibration in ['MCMC', 'MCMC_fullsim']:
         tbias_bndlow = -10          # temperature bias lower bound
         tbias_bndhigh = 10          # temperature bias upper bound
         tbias_start = tbias_mu      # temperature bias initial chain value
+elif option_calibration == 'PBS':
+    # PBS options
+    # pbs_ncpus = 32                  # number of CPUs for PBS job
+    # pbs_walltime = '01:00:00'      # walltime for PBS job
+    # pbs_mem = '16gb'              # memory for PBS job
+    # pbs_queue = 'normal'
+    #           # queue for PBS job
+    Neffthrs = 0.2                  # threshold for effective sample size
+    vars_to_calibrate = ['tbias', 'kp', 'ddfsnow','tau']  # variables to calibrate
+    perturbation_strategy = ["logitnormal_mult", "logitnormal_mult", "logitnormal_mult","logitnormal_mult"]  # perturbation strategy # TODO check the distribution of parameters
+    max_iterations = 10              # maximum number of iterations
+    pbs_sample_no = 200            # number of samples for each PBS job
+    pbs_resample_no = 200
+    
+    # priors mean and standard deviation
+    pygem_median_priors = {'tbias': 0.021, 'kp': 2.17, 'ddfsnow': 0.0041,'tau' : 1.453} # same to the original prior distribution in logitnormal, in pygem like truncnormal
+    pygem_std_priors = {'tbias': 0.25, 'kp': 0.6, 'ddfsnow': 0.4,'tau' : 0.6} # need to tune, make the pdf looks similar to the original prior distribution
+    pygem_lower_bounds = {'tbias': -10, 'kp': 0, 'ddfsnow': 0,'tau' : 0}
+    pygem_upper_bounds = {'tbias': 10, 'kp': 6, 'ddfsnow': 0.02,'tau' : 4}
+    # Transformed priors median, std, lower and upper bounds
+    transformed_mean_priors = {'tbias':0.0042, 'kp': -0.56814, 'ddfsnow': -1.35533,'tau' : -0.56} # mean = glogit(pygem_median_priors,pygem_std_priors,pygem_lower_bounds,pygem_upper_bounds)
+    transformed_std_priors = {'tbias': 0.25, 'kp': 0.6, 'ddfsnow': 0.4,'tau' : 0.6} # same to pygem_std_priors
+  
 
+    
+    # mean_priors = {'tbias': 0, 'kp': 1, 'ddfsnow': 0.0041,'tau' : 1.5}
+
+    # # priors standard deviation
+    # sd_priors = {'tbias': 1, 'kp': 1.5, 'ddfsnow': 0.0015,'tau' : 1}
+    # mean_errors = {'tbias': 0, 'kp': 0, 'ddfsnow': 0.0041,'tau' : 1.5}
+
+    # # priors standard deviation
+    # sd_errors = {'tbias': 1, 'kp': 1.5, 'ddfsnow': 0.0015,'tau' : 1}
+
+    # # priors lower bounds
+
+    # lower_bounds = {'tbias': -10, 'kp': 0.5, 'ddfsnow': 0,'tau' : 0.5}
+
+    # # priors upper bounds
+    # upper_bounds = {'tbias': 10, 'kp': 1.5, 'ddfsnow': np.inf,'tau' : 3.5}
+
+
+
+
+    # Initial parameters (from HH2015)
+    tbias_init = 0
+    tbias_step = 0.5
+    kp_init = 1
+    kp_bndlow = 0.5
+    kp_bndhigh = 3
+    ddfsnow_init = 0.0041
+    # Minimization details
+    method_opt = 'SLSQP'            # SciPy optimization scheme ('SLSQP' or 'L-BFGS-B')
+    params2opt = ['tbias', 'kp']    # parameters to optimize
+    ftol_opt = 1e-3                 # tolerance for SciPy optimization scheme
+    eps_opt = 0.01                  # epsilon (adjust variables for jacobian) for SciPy optimization scheme (1e-6 works)
 
 # ----- Calibration Dataset -----
 # Hugonnet geodetic mass balance data
 hugonnet_fp = main_directory + '/../../DEMs/Hugonnet2020/'
 #hugonnet_fp = main_directory + '/../PyGEM-Test-Simple/DEMs/Hugonnet2020/'
-hugonnet_fn = 'df_pergla_global_20yr-filled-facorrected.csv'
+#hugonnet_fn = 'df_pergla_global_20yr-filled-facorrected_20002010.csv'
+hugonnet_fn = 'df_pergla_global_20yr-filled-facorrected_20102020.csv'
+#hugonnet_fn = 'df_pergla_global_20yr-filled-facorrected_20002020.csv'
+
 if '-filled' in hugonnet_fn:
     hugonnet_mb_cn = 'mb_mwea'
     hugonnet_mb_err_cn = 'mb_mwea_err'
@@ -218,10 +278,10 @@ hugonnet_area_cn = 'area_km2'
 
 # ----- Frontal Ablation Dataset -----
 
-calving_fp =  main_directory + '/../calving_data/analysis/'
+calving_fp =  main_directory + '/../calving_data/'
 
 #calving_fn = 'all-calving_cal_ind.csv'
-calving_fn = 'all-calving_cal_ind.csv'
+calving_fn = 'frontalablation_data_test.csv'
 
 
 # ----- Length change Dataset -----
@@ -249,13 +309,14 @@ option_bias_adjustment = 1
 
 # MCMC options
 if option_calibration == 'MCMC':
-    sim_iters = 50                  # number of simulations
+    sim_iters = 100                  # number of simulations
     sim_burn = 0                    # number of burn-in (if burn-in is done in MCMC sampling, then don't do here)
 else:
-    sim_iters = 50                   # number of simulations
+    sim_iters = 100                   # number of simulations
 
 # Output filepath of simulations
-output_sim_fp = output_filepath + 'simulations/'
+#output_sim_fp = output_filepath + 'simulations/'
+output_sim_fp = output_filepath + '/Simulation_AMIS_MB_FA/' # The path for AMIS simulation
 # Output statistics of simulation (options include any of the following 'mean', 'std', '2.5%', '25%', 'median', '75%', '97.5%')
 sim_stat_cns = ['mean', 'mad', '2.5%', '25%', 'median', '75%', '97.5%', 'std']
 
@@ -272,7 +333,7 @@ if option_dynamics in ['OGGM', 'MassRedistributionCurves']:
     glena_reg_fullfn = main_directory + '/../csvs/glena_region.csv'
     #print("glena_reg_fullfn is :",glena_reg_fullfn)
     #glena_reg_fullfn = main_directory + '/../PyGEM-Test-Simple/Output/calibration/glena_region.csv'
-    use_reg_glena = False
+    use_reg_glena = True
     if use_reg_glena:
         assert os.path.exists(glena_reg_fullfn), 'Regional glens a calibration file does not exist.'
     else:
