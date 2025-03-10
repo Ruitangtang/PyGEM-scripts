@@ -11,7 +11,7 @@ curdir=$(pwd)
 
 
 cd $curdir
-path_home="/home/ruitang/OGGM-Ruitang/Results/Test_KS_1T_24Jun/RGI_17.15808_Test07"
+path_home="/home/ruitang/OGGM-Ruitang/Results/Test_KS_1T_24Jun/RGI_17.15808_PBS_Test01"
 path_log1="$path_home/Step_01.log"
 path_log2="$path_home/Step_02.log"
 path_log3="$path_home/Step_03.log"
@@ -65,12 +65,13 @@ if [ $step == 1 ]; then
 
     cd $curdir
     echo "Step 1: Run the calibration"
-    sed -i "/include_calving/c\include_calving = False" pygem_input.py
+    sed -i "/include_calving/c\include_calving = True" pygem_input.py
     str_main_directory="main_directory = '$path_home/Output/'"
     sed -i "s:^main_directory.*$:$str_main_directory:g" pygem_input.py
     str_include_debris="include_debris = False"
     sed -i "s:^include_debris.*$:$str_include_debris:g" pygem_input.py
-    str_hugonnet_fn="hugonnet_fn = 'df_pergla_global_20yr-filled.csv'"
+    #str_hugonnet_fn="hugonnet_fn = 'df_pergla_global_20yr-filled.csv'"
+    str_hugonnet_fn="hugonnet_fn = 'df_pergla_global_20yr-filled-facorrected.csv'"
     sed -i "s:^hugonnet_fn.*$:$str_hugonnet_fn:g" pygem_input.py
     str_calving_fp="calving_fp =  main_directory + '/../calving_data/'"
     sed -i "s:^calving_fp.*$:$str_calving_fp:g" pygem_input.py
@@ -124,34 +125,36 @@ elif [ $step == 5 ]; then
     sed -i "s:^calving_fn.*$:$str_calving_fn:g" pygem_input.py
     str_calving_fp="calving_fp =  main_directory + '/../calving_data/analysis/'"
     sed -i "s:^calving_fp.*$:$str_calving_fp:g" pygem_input.py
-    python -u run_calibration.py 2>&1 | tee "$path_log5" > /dev/null
+    python -u run_calibration.py
+    #python -u run_calibration.py 2>&1 | tee "$path_log5" > /dev/null
 elif [ $step == 6 ]; then
     echo "Step 6: Run the calibration with mcmc method"
     str_option_calibration="option_calibration = 'MCMC'"
     sed -i "s:^option_calibration.*$:$str_option_calibration:g" pygem_input.py
+    #python -u run_calibration.py -debug=1
     python -u run_calibration.py -debug=1 2>&1 | tee "$path_log6" > /dev/null
 elif [ $step == 6-2 ]; then
     echo "Step 6-2: Run the calibration for FA (individual calibration) after MCMC calibration"
     sed -i "/include_calving/c\include_calving = True" pygem_input.py
     str_option_ind_calving_k="option_ind_calving_k = True"
-    sed -i "s:^option_ind_calving_k.*$:$str_option_ind_calving_k:g" run_calibration_FA_Rt_New_01.py
+    sed -i "s:^option_ind_calving_k.*$:$str_option_ind_calving_k:g" run_calibration_FA_Rt_New_FA2_Paralle.py
     str_option_merge_calving_k="option_merge_calving_k = False"
-    sed -i "s:^option_merge_calving_k.*$:$str_option_merge_calving_k:g" run_calibration_FA_Rt_New_01.py
+    sed -i "s:^option_merge_calving_k.*$:$str_option_merge_calving_k:g" run_calibration_FA_Rt_New_FA2_Paralle.py
     str_option_update_mb_data="option_update_mb_data = False"
-    sed -i "s:^option_update_mb_data.*$:$str_option_update_mb_data:g" run_calibration_FA_Rt_New_01.py
-    #python -u run_calibration_FA_Rt_New.py
-    python -u run_calibration_FA_Rt_New_01.py 2>&1 | tee "$path_log6_2" > /dev/null
+    sed -i "s:^option_update_mb_data.*$:$str_option_update_mb_data:g" run_calibration_FA_Rt_New_FA2_Paralle.py
+    python -u run_calibration_FA_Rt_New_FA2_Paralle.py
+    #python -u run_calibration_FA_Rt_New_FA2_Paralle.py 2>&1 | tee "$path_log6_2" > /dev/null
 elif [ $step == 6-3 ]; then
     echo "Step 6-2: Run the calibration for FA (individual calibration) after MCMC calibration"
     sed -i "/include_calving/c\include_calving = True" pygem_input.py
     str_option_ind_calving_k="option_ind_calving_k = False"
-    sed -i "s:^option_ind_calving_k.*$:$str_option_ind_calving_k:g" run_calibration_FA_Rt_New_01.py
+    sed -i "s:^option_ind_calving_k.*$:$str_option_ind_calving_k:g" run_calibration_FA_Rt_New_FA2_Paralle.py
     str_option_merge_calving_k="option_merge_calving_k = True"
-    sed -i "s:^option_merge_calving_k.*$:$str_option_merge_calving_k:g" run_calibration_FA_Rt_New_01.py
+    sed -i "s:^option_merge_calving_k.*$:$str_option_merge_calving_k:g" run_calibration_FA_Rt_New_FA2_Paralle.py
     str_option_update_mb_data="option_update_mb_data = False"
-    sed -i "s:^option_update_mb_data.*$:$str_option_update_mb_data:g" run_calibration_FA_Rt_New_01.py
-    #python -u run_calibration_FA_Rt_New.py
-    python -u run_calibration_FA_Rt_New_01.py 2>&1 | tee "$path_log6_3" > /dev/null
+    sed -i "s:^option_update_mb_data.*$:$str_option_update_mb_data:g" run_calibration_FA_Rt_New_FA2_Paralle.py
+    #python -u run_calibration_FA_Rt_New_FA2_Paralle.py
+    python -u run_calibration_FA_Rt_New_FA2_Paralle.py 2>&1 | tee "$path_log6_3" > /dev/null
 
 elif [ $step == 7 ]; then
     echo "Step 7: Run the simulation for the present day (2000-2020)"
