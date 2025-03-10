@@ -1,10 +1,13 @@
 {
     "configurations": [
+        
+        
         {
-            "name": "Python Debugger: Python File",
+            "name": "debug_calibration",
             "type": "debugpy",
             "request": "launch",
-            "program": "${file}"
+            "program": "${file}",
+            "args": ["-rgi_region01", "17", "-ref_startyear", "2000", "-ref_endyear", "2019", "-store_monthly_step", "-Visualize_Index", "-v", "-o"]
         }
     ]
 }
