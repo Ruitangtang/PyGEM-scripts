@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 import pickle
+import ast
 import math
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator,MultipleLocator
@@ -19,7 +20,15 @@ from datetime import datetime
 from matplotlib.lines import Line2D  # Import Line2D for custom legend
 import pdb
 import matplotlib.cm as cm
+import matplotlib.colors as mcolors
+from matplotlib.colors import Normalize
+from matplotlib.colorbar import ColorbarBase
+import matplotlib.lines as mlines  # Import for custom legend handling
 
+import json
+
+
+import pygem_input as pygem_prms
 # Load the data
 
 
@@ -501,7 +510,7 @@ def animate_time_series(gdir, filesuffix ='',variable='thickness_m', group='fl_0
 def plot_model_vs_observation(models_output, observation_data, dates=None, start_date = None,plot_type='point', 
                               model_legends= None, model_label ='Model Output', obs_label='Observation', 
                               title='Model vs Observation Comparison', ylabel=None, xlabel='Time/Points', 
-                              save_path=None,save_name=None,observation_error=None):
+                              save_path=None,save_name=None,observation_error=None,save_name_legend=None):
     """
     Plots the comparison between model output and observation data.
     
@@ -519,6 +528,7 @@ def plot_model_vs_observation(models_output, observation_data, dates=None, start
     - xlabel: Label for the x-axis.
     - save_path (str, optional): The file path to save the figure. If None, the figure will not be saved.
     - save_name (str, optional): The file name to save the figure. If None, the figure will not be saved.
+    - save_name_legend (str, optional): The file name to save the legend. If None, the legend will not be saved.
     - observation_error: Optional list or array of error values associated with the observation data.
  
     Returns:
@@ -579,15 +589,15 @@ def plot_model_vs_observation(models_output, observation_data, dates=None, start
         plt.xlabel(model_label)
         plt.ylabel(obs_label)
         plt.title(title)
-        # Adjust the legend: place it outside, split into multiple columns
-        #pdb.set_trace()
-        if num_models > 5:
-            plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=6, fontsize='small', title= None)
-            # Adjust layout to make room for the legend
-            plt.tight_layout()
-            plt.subplots_adjust(bottom=0.3)  # Add space at the bottom for the legend
-        else:
-            plt.legend()
+        # # Adjust the legend: place it outside, split into multiple columns
+        # #pdb.set_trace()
+        # if num_models > 5:
+        #     plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=6, fontsize='small', title= None)
+        #     # Adjust layout to make room for the legend
+        #     plt.tight_layout()
+        #     plt.subplots_adjust(bottom=0.3)  # Add space at the bottom for the legend
+        # else:
+        #     plt.legend()
 
         #plt.grid(True)
         #plt.show()
@@ -636,14 +646,14 @@ def plot_model_vs_observation(models_output, observation_data, dates=None, start
         plt.title(title)
         #Set the x-ticks and x-tick labels
         plt.xticks(dates, rotation=0)
-        # Adjust the legend: place it outside, split into multiple columns
-        if models_output.shape[0] > 5:
-            plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=6, fontsize='small', title= None)
-            # Adjust layout to make room for the legend
-            plt.tight_layout()
-            plt.subplots_adjust(bottom=0.3)  # Add space at the bottom for the legend
-        else:
-            plt.legend()
+        # # Adjust the legend: place it outside, split into multiple columns
+        # if models_output.shape[0] > 5:
+        #     plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=6, fontsize='small', title= None)
+        #     # Adjust layout to make room for the legend
+        #     plt.tight_layout()
+        #     plt.subplots_adjust(bottom=0.3)  # Add space at the bottom for the legend
+        # else:
+        #     plt.legend()
         # plt.grid(True)
         # plt.show()
 
@@ -652,6 +662,7 @@ def plot_model_vs_observation(models_output, observation_data, dates=None, start
 
     # Save the figure if save_path is provided
     if save_path and save_name:
+        save_name_legend = save_name_legend if save_name_legend else save_name + '_legend.png'
         # Ensure the directory exists
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         save_path_full = os.path.join(save_path, save_name)
@@ -661,6 +672,22 @@ def plot_model_vs_observation(models_output, observation_data, dates=None, start
 
         # Display the plot
         #plt.show()
+    # save the legend as a separate file
+    if save_path and save_name_legend:
+        # Ensure the directory exists
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        save_path_legend_full = os.path.join(save_path, save_name_legend)
+            # Retrieve handles and labels from the current plot
+        handles, labels = plt.gca().get_legend_handles_labels()
+        # Create a new figure for the legend
+        legend_fig = plt.figure(figsize=(10, 6))
+        legend_ax = legend_fig.add_subplot(111)
+        legend_ax.axis('off')  # Turn off axes for the legend-only figure
+        legend = legend_ax.legend(handles, labels, loc='center', frameon=True)
+            # Save the legend
+        legend_fig.savefig(save_path_legend_full, bbox_inches='tight')
+        print(f"Legend saved to {save_path_legend_full}")
+        plt.close(legend_fig)  # Close the legend figure
 
 
 
@@ -809,3 +836,891 @@ def plot_timeseries_stats_sub(data, start_date=2000, end_date=2100, save_name=No
     # Display the plot
     #plt.show()
 
+
+
+def plot_correlation_matrix(data, save_path=None, save_name=None, title='Correlation Matrix', cmap='coolwarm'):
+    """
+    Plots a correlation matrix heatmap for the given data.
+
+    Parameters:
+    - data (numpy array): The data to plot the correlation matrix for.
+    - save_path (str or None): The file path to save the figure. If None, the figure will not be saved.
+    - save_name (str or None): The file name to save the figure. If None, the figure will not be saved.
+    - title (str or None): The title for the figure. If None, the figure title will be 'Correlation Matrix'.
+    - cmap (str): The colormap to use for the heatmap. Default is 'coolwarm'.
+
+    Returns:
+    - None: Displays the plot and optionally saves it.
+    """
+
+    # Create a DataFrame for the data
+    data_df = pd.DataFrame(data)
+
+    # Calculate the correlation matrix
+    corr_matrix = data_df.corr()
+
+    # Set up the figure
+    plt.figure(figsize=(10, 8))
+
+    # Plot the correlation matrix as a heatmap
+    sns.heatmap(corr_matrix, annot=True, cmap=cmap)
+
+    # Set the title
+    plt.title(title)
+
+    # Save the figure if save_path is provided
+    if save_path and save_name:
+        save_path_full = os.path.join(save_path, save_name)
+        plt.savefig(save_path_full, bbox_inches='tight')
+        print(f"Figure saved to {save_path_full}")
+
+    # Display the plot
+    #plt.show()
+
+
+def plot_relationship_scatters(data, x_label=None, y_label=None, title='Relationship Scatter Plot', save_path=None, save_name=None):
+    """
+    Plots a scatter plot of the relationship between two variables.
+
+    Parameters:
+    - data (numpy array): The data to plot the scatter plot for.
+    - x_label (str or None): The label for the x-axis. If None, the x-axis label will be 'X'.
+    - y_label (str or None): The label for the y-axis. If None, the y-axis label will be 'Y'.
+    - title (str or None): The title for the figure. If None, the figure title will be 'Relationship Scatter Plot'.
+    - save_path (str or None): The file path to save the figure. If None, the figure will not be saved.
+    - save_name (str or None): The file name to save the figure. If None, the figure will not be saved.
+
+    Returns:
+    - None: Displays the plot and optionally saves it.
+    """
+
+    # Create a DataFrame for the data
+    data_df = pd.DataFrame(data, columns=['X', 'Y'])
+
+    # Set up the figure
+    plt.figure(figsize=(8, 6))
+
+    # Plot the scatter plot
+    sns.scatterplot(x='X', y='Y', data=data_df)
+
+    # Set the labels and title
+    plt.xlabel(x_label if x_label else 'X')
+    plt.ylabel(y_label if y_label else 'Y')
+    plt.title(title)
+
+    # Save the figure if save_path is provided
+    if save_path and save_name:
+        save_path_full = os.path.join(save_path, save_name)
+        plt.savefig(save_path_full, bbox_inches='tight')
+        print(f"Figure saved to {save_path_full}")
+
+    # Display the plot
+    #plt.show()
+
+
+def plot_relationship_parmeters_result_pairplot(data, parameters, result, save_path=None, save_name=None):
+    """
+    Plots the relationship between multiple parameters and the result and saves the figure to a specific path.
+
+    Parameters:
+    - data (dict or pd.DataFrame): The dataset containing parameters and the result.
+    - parameters (list): List of parameter column names to plot against the result.
+    - result (str): The result column name.
+    - save_path (str): The file path to save the plot.
+    - save_name (str): The file name to save the plot.
+
+    Returns:
+    - None: Displays the plot and optionally saves it.
+    """
+
+    # If the data is a dictionary, convert it to a DataFrame
+    if isinstance(data, dict):
+        df = pd.DataFrame(data)
+    elif isinstance(data, pd.DataFrame):
+        df = data
+    else:
+        raise ValueError("Data must be either a dictionary or a pandas DataFrame.")
+    
+    # Create a pairplot
+    sns.pairplot(df, x_vars=parameters, y_vars=result, kind="scatter")
+
+    # Set the title
+    title_name = f"Relationship between Parameters and {result}"
+
+    # Display the plot (optional)
+    #plt.show()
+    plt.suptitle(title_name, y=1.02)
+
+    if save_name is None:
+        save_name = title_name +'_pairplot.png'
+    # Save the figure if save_path and save_name are provided
+    if save_path and save_name:
+        save_path_full = os.path.join(save_path, save_name)
+        plt.savefig(save_path_full, dpi=300, bbox_inches='tight')
+        print(f"Figure saved to: {save_path_full}")
+
+
+#%% Function to plot the glacier length Timeseries through the model output
+def plot_length_TS_Annual (output_path=pygem_prms.main_directory + '/Calibration_AMIS_MB_FA_20002010_N400/',
+                           output_fn='calibration_model_Annual_output',rgiid = None, N_iteration = 'Poster',
+                           observation_path=pygem_prms.main_directory + '/../lengthchange_data/', save_path=None, save_name=None):
+    """
+    Plot the glacier length timeseries through the model output
+
+    Parameters:
+    - output_path (str): The file path to the model output data.
+    - outpuf_fn (str): The file name of the model output data.
+    - rgiid (str): The RGI ID of the glacier.
+    - N_iteration (str): The number of iteration for the model output. The default is 'Poster', for the lastest iteration.
+    - observation_path (str): The file path to the observation data.
+    - save_path (str): The file path to save the plot.
+    - save_name (str): The file name to save the plot.
+    """
+    
+    # Load the model output, the json file
+    output_filename = f"modeloutput/Annual/{output_fn}_{rgiid}_{N_iteration}.json" 
+    output_fp_annual = os.path.join(output_path, output_filename)
+
+    try:
+        with open(output_fp_annual, 'r', encoding='utf-8') as f:
+            output_data_annual = json.load(f)
+    except:
+        print(f"Error loading JSON file: {output_fp_annual}")
+        output_data_annual = None  # or an empty dict {} if needed
+
+
+
+    # ==== restruct based on the weights (read the Unique info of Model posterior parameters)
+    output_folder_post_params_unique = os.path.join(output_path, 'parameter','Poster','Unique')
+    output_filename_params_unique_Info = f'calibration_poster_Params_unique_{rgiid}_Info.json'
+    output_fp_params_unique_Info = os.path.join(output_folder_post_params_unique, output_filename_params_unique_Info) 
+    
+    with open(output_fp_params_unique_Info, 'r') as f:
+        parms_UniqInfo_dict = json.load(f)
+    unique_counts= parms_UniqInfo_dict['unique_counts']
+    #pdb.set_trace()
+    # read the model length change data
+    lengthchange_dLdt_model_array_annual = np.array(output_data_annual['lengthchange_dLdt_model_array_annual_myr'])
+    lengthchange_m_TMS_model_array_annual = np.array(output_data_annual['lengthchange_m_TMS_model_array_annual'])
+    # repeat the model output based on the unique counts
+    lengthchange_dLdt_model_array_annual_post = np.repeat(lengthchange_dLdt_model_array_annual,unique_counts,axis = 1)
+    lengthchange_m_TMS_model_array_annual_post = np.repeat(lengthchange_m_TMS_model_array_annual,unique_counts,axis = 1)
+
+
+
+    # Load the observation data #TODO at the moment, read the observation data from the csv file, should be a uniform for the regional data
+    observation_annual_fn = 'lengthchange_annual_'+pygem_prms.glac_no[0].split('.')[0]+'_'+ pygem_prms.glac_no[0].split('.')[1]+'.csv'
+    observation_annual_fp = os.path.join(observation_path, observation_annual_fn)
+    observation_data = pd.read_csv(observation_annual_fp)
+    for x in observation_data.RGIId.values:
+        if x == rgiid:
+            observation_data_annual = observation_data[observation_data.RGIId == x]['dLdt_m_per_yr']
+            observation_data_annual_unc = observation_data[observation_data.RGIId == x]['dLdt_m_per_yr_unc']
+            break
+        else:
+            observation_data_annual = None
+            observation_data_annual_unc = None
+            print(f"Error: No observation data found for RGI ID {rgiid}")
+
+    # Convert each string representation of a list into an actual Python list
+    observation_data_annual_list = observation_data_annual.apply(ast.literal_eval)
+    observation_data_annual_unc_list = observation_data_annual_unc.apply(ast.literal_eval)
+    # Convert list-like Series elements into a NumPy array
+    observation_data_annual_array = np.array(observation_data_annual_list.tolist(), dtype=float)
+    observation_data_annual_unc_array = np.array(observation_data_annual_unc_list.tolist(), dtype=float)
+    #%% ==== Plot the model output and observation data
+
+    # ===== the cumulative lengthchange of the model output and observation data #TODO: check the dimention of the data
+    delt_lengthchange_dLdt_model_array_annual_post = np.cumsum(lengthchange_dLdt_model_array_annual_post,axis=0)
+    delt_lengthchange_m_TMS_model_array_annual_post = np.cumsum(lengthchange_m_TMS_model_array_annual_post,axis=0)
+    delt_lengthchange_m_observation_annual = np.cumsum(observation_data_annual_array)
+    delt_lengthchange_m_observation_unc_annual =  np.sqrt(np.cumsum(observation_data_annual_unc_array**2))  # Propagating uncertainty
+
+
+    # ===== the length varation of the model output and observation data
+    # convert the lengthchange to length
+    length_original = 53600
+    length_dLdt_annual_m = length_original + delt_lengthchange_dLdt_model_array_annual_post
+    length_TMS_annual_m = length_original + delt_lengthchange_m_TMS_model_array_annual_post
+    # convert the observation data to length
+    length_observation_annual = length_original + delt_lengthchange_m_observation_annual
+    length_observation_unc_annual = delt_lengthchange_m_observation_unc_annual
+    length_observation_annual = length_observation_annual.flatten()
+    length_observation_unc_annual = length_observation_unc_annual.flatten()
+    delt_lengthchange_m_observation_annual = delt_lengthchange_m_observation_annual.flatten()
+    delt_lengthchange_m_observation_unc_annual = delt_lengthchange_m_observation_unc_annual.flatten()
+    #pdb.set_trace()
+    # ===== plot the cumulative lengthchanges of the model output and observation data
+    
+    # TODO the date should be dynamic, and read from the model output
+    X_Years = np.arange(2000, 2000 + length_observation_annual.shape[0])
+
+    # ==== plot the length based on dLdt with the obersevation data in subplot 1, and the length based on TMS with the obersevation data in subplot 2
+    # subplot setting
+
+
+
+    # ===== plot the cumulative length varation of the model output and observation data
+    #pdb.set_trace()
+    # Create a figure with two vertically stacked subplots
+    fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(15, 15), sharex=True)
+    # First subplot
+    axes[0,0].plot(X_Years, length_dLdt_annual_m, label='Model dLdt')
+    axes[0,0].plot(X_Years, length_observation_annual, label='Observation')
+    axes[0,0].fill_between(X_Years, length_observation_annual  - length_observation_unc_annual ,
+                         length_observation_annual  + length_observation_unc_annual , color='gray', alpha=0.5)
+    axes[0,0].set_ylabel('Length (m)')
+    #axes[0,0].legend()
+    axes[0,0].grid(False)
+    #axes[0,0].set_title('Model & Observation Comparison of glacier length (centerline) based on dLdt')
+    # Second subplot
+    axes[0,1].plot(X_Years, length_TMS_annual_m, label='Modeled flowline')
+    axes[0,1].plot(X_Years, length_observation_annual, label='Observation')
+    axes[0,1].fill_between(X_Years, length_observation_annual - length_observation_unc_annual,
+                         length_observation_annual + length_observation_unc_annual, color='gray', alpha=0.5)
+    #axes[0,1].set_xlabel('Year')
+    #axes[0,1].set_ylabel('Length (m)')
+    #axes[0,1].legend()
+    axes[0,1].grid(False)
+    #axes[0,1].set_title('Model & Observation Comparison of glacier length (centerline) based on flowline model')
+
+    # Third subplot
+    axes[1,0].plot(X_Years, delt_lengthchange_dLdt_model_array_annual_post, label='Model dLdt')
+    axes[1,0].plot(X_Years, delt_lengthchange_m_observation_annual, label='Observation')
+    axes[1,0].fill_between(X_Years, delt_lengthchange_m_observation_annual - delt_lengthchange_m_observation_unc_annual,
+                         delt_lengthchange_m_observation_annual + delt_lengthchange_m_observation_unc_annual, color='gray', alpha=0.5)
+    axes[1,0].set_ylabel('Length change (m)')
+    axes[1,0].set_xlabel('Year')
+    #axes[1,0].legend()
+    axes[1,0].grid(False)
+    #axes[1,0].set_title('Model & Observation Comparison of glacier length change (centerline) based on dLdt')
+    # Fourth subplot
+    axes[1,1].plot(X_Years, delt_lengthchange_m_TMS_model_array_annual_post, label='Modeled flowline')
+    axes[1,1].plot(X_Years, delt_lengthchange_m_observation_annual, label='Observation')
+    axes[1,1].fill_between(X_Years, delt_lengthchange_m_observation_annual - delt_lengthchange_m_observation_unc_annual,
+                         delt_lengthchange_m_observation_annual + delt_lengthchange_m_observation_unc_annual, color='gray', alpha=0.5)
+    axes[1,1].set_xlabel('Year')
+    #axes[1,1].set_ylabel('Length change (m)')
+    #axes[1,1].legend()
+    axes[1,1].grid(False)
+    #axes[1,1].set_title('Model & Observation Comparison of glacier length change (centerline) based on flowline
+
+    # Set x-axis limits and ticks for all subplots
+    for ax in axes.flat:
+        ax.set_xlim(2000, 2020)
+        ax.set_xticks(X_Years)
+
+    # Adjust layout properly
+    plt.tight_layout(rect=[0, 0.03, 1, 0.97])  # Add padding to prevent overlap
+    # Save the figure if save_path is provided
+    if save_path == None:
+        save_path = output_path + '/figures/'
+    if save_name == None:
+        save_name = 'Glacier_length_lengthchange_timeseries'
+
+
+    if save_path and save_name:
+        save_name_length= save_name + '.png'
+        save_path_full = os.path.join(save_path, save_name_length)
+        plt.savefig(save_path_full, bbox_inches='tight')
+        print(f"Figure saved to {save_path_full}")
+    # Display the plot
+    #plt.show()
+
+
+
+
+
+def plot_length_TS_Annual_New(output_path=pygem_prms.main_directory + '/Calibration_AMIS_MB_FA_20002010_N400/',
+                           output_fn='calibration_model_Annual_output',rgiid = None, N_iteration = 'Poster',
+                           observation_path=pygem_prms.main_directory + '/../lengthchange_data/', save_path=None, save_name=None):
+    """
+    Plot the cumulative glacier length timeseries from model output and observation data.
+
+    Parameters:
+    - output_path (str): Path to model output data.
+    - output_fn (str): File name of the model output data.
+    - rgiid (str): Glacier ID.
+    - N_iteration (str): Iteration number for model output (default='Poster').
+    - observation_path (str): Path to observation data.
+    - save_path (str): Path to save the plot.
+    - save_name (str): File name to save the plot.
+    """
+
+    # Load model output from JSON file
+    output_filename = f"modeloutput/Annual/{output_fn}_{rgiid}_{N_iteration}.json" 
+    output_fp_annual = os.path.join(output_path, output_filename)
+
+    try:
+        with open(output_fp_annual, 'r', encoding='utf-8') as f:
+            output_data_annual = json.load(f)
+    except:
+        print(f"Error loading JSON file: {output_fp_annual}")
+        output_data_annual = None  # or an empty dict {} if needed
+
+    # Load model length change data
+    lengthchange_dLdt_model_array_annual = np.array(output_data_annual['lengthchange_dLdt_model_array_annual_myr'])
+    lengthchange_m_TMS_model_array_annual = np.array(output_data_annual['lengthchange_m_TMS_model_array_annual'])
+
+    # Load observation data
+    # Load the observation data #TODO at the moment, read the observation data from the csv file, should be a uniform for the regional data
+    observation_annual_fn = 'lengthchange_annual_'+pygem_prms.glac_no[0].split('.')[0]+'_'+ pygem_prms.glac_no[0].split('.')[1]+'.csv'
+    observation_annual_fp = os.path.join(observation_path, observation_annual_fn)
+    observation_data = pd.read_csv(observation_annual_fp)
+    for x in observation_data.RGIId.values:
+        if x == rgiid:
+            observation_data_annual = observation_data[observation_data.RGIId == x]['dLdt_m_per_yr']
+            observation_data_annual_unc = observation_data[observation_data.RGIId == x]['dLdt_m_per_yr_unc']
+            break
+        else:
+            observation_data_annual = None
+            observation_data_annual_unc = None
+            print(f"Error: No observation data found for RGI ID {rgiid}")
+
+    # Convert observation data from string to numerical lists
+    observation_data_annual = np.array(observation_data_annual.apply(ast.literal_eval).tolist(), dtype=float)
+    observation_data_annual_unc = np.array(observation_data_annual_unc.apply(ast.literal_eval).tolist(), dtype=float)
+
+    # Compute cumulative sum for model and observation
+    delt_lengthchange_dLdt_model_array_annual = np.cumsum(lengthchange_dLdt_model_array_annual, axis=0)
+    delt_lengthchange_m_TMS_model_array_annual = np.cumsum(lengthchange_m_TMS_model_array_annual, axis=0)
+    delt_lengthchange_m_observation_annual = np.cumsum(observation_data_annual)
+    delt_lengthchange_m_observation_unc_annual = np.sqrt(np.cumsum(observation_data_annual_unc**2))
+
+    # Define years dynamically
+    X_Years = np.arange(2000, 2000 + delt_lengthchange_dLdt_model_array_annual.shape[0])
+
+    # Plot setup
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    # Model output as grey ensemble lines
+    ax.plot(X_Years, delt_lengthchange_dLdt_model_array_annual, color='grey', alpha=0.3, label='_nolegend_')
+
+    # Observation data in blue with uncertainty shading
+    ax.plot(X_Years, delt_lengthchange_m_observation_annual, color='blue', label='Observation')
+    ax.fill_between(X_Years,
+                    delt_lengthchange_m_observation_annual - delt_lengthchange_m_observation_unc_annual,
+                    delt_lengthchange_m_observation_annual + delt_lengthchange_m_observation_unc_annual,
+                    color='blue', alpha=0.3)
+
+    # Labels and legend
+    ax.set_xlabel("Years")
+    ax.set_ylabel("Cumulative Length Change (m)")
+    ax.set_title(f"Glacier Length Change for {rgiid}")
+    ax.legend()
+    ax.grid(True)
+
+    # Adjust layout
+    plt.tight_layout()
+
+    # Save figure if needed
+    if save_path:
+        os.makedirs(save_path, exist_ok=True)
+        save_file = os.path.join(save_path, f"{save_name or 'glacier_length_timeseries'}.png")
+        plt.savefig(save_file, bbox_inches='tight')
+        print(f"Figure saved to {save_file}")
+    #
+    plt.show()
+ 
+
+
+import os
+import json
+import numpy as np
+import pandas as pd
+import ast
+import matplotlib.pyplot as plt
+
+
+
+def plot_length_TS_Annual_New2(output_path=pygem_prms.main_directory + '/Calibration_AMIS_MB_FA_20002010_N400/',
+                           output_fn='calibration_model_Annual_output',rgiid = None, N_iteration = 'Poster',
+                           observation_path=pygem_prms.main_directory + '/../lengthchange_data/', save_path=None, save_name=None):
+    """
+    Plot the cumulative glacier length timeseries from model output and observation data in 4 subplots.
+
+    Parameters:
+    - output_path (str): Path to model output data.
+    - output_fn (str): File name of the model output data.
+    - rgiid (str): Glacier ID.
+    - N_iteration (str): Iteration number for model output.
+    - observation_path (str): Path to observation data.
+    - save_path (str): Path to save the plot.
+    - save_name (str): File name to save the plot.
+    """
+
+    if not rgiid:
+        print("Error: RGI ID must be provided.")
+        return
+
+    # Load model output from JSON file
+    output_filename = f"modeloutput/Annual/{output_fn}_{rgiid}_{N_iteration}.json" 
+    output_fp_annual = os.path.join(output_path, output_filename)
+
+    try:
+        with open(output_fp_annual, 'r', encoding='utf-8') as f:
+            output_data_annual = json.load(f)
+    except:
+        print(f"Error loading JSON file: {output_fp_annual}")
+        output_data_annual = None  # or an empty dict {} if needed
+
+    # Load model length change data
+    lengthchange_dLdt_model_array_annual = np.array(output_data_annual['lengthchange_dLdt_model_array_annual_myr'])
+    lengthchange_m_TMS_model_array_annual = np.array(output_data_annual['lengthchange_m_TMS_model_array_annual'])
+
+    # Load observation data
+    # Load the observation data #TODO at the moment, read the observation data from the csv file, should be a uniform for the regional data
+    observation_annual_fn = 'lengthchange_annual_'+pygem_prms.glac_no[0].split('.')[0]+'_'+ pygem_prms.glac_no[0].split('.')[1]+'.csv'
+    observation_annual_fp = os.path.join(observation_path, observation_annual_fn)
+    observation_data = pd.read_csv(observation_annual_fp)
+    for x in observation_data.RGIId.values:
+        if x == rgiid:
+            observation_data_annual = observation_data[observation_data.RGIId == x]['dLdt_m_per_yr']
+            observation_data_annual_unc = observation_data[observation_data.RGIId == x]['dLdt_m_per_yr_unc']
+            break
+        else:
+            observation_data_annual = None
+            observation_data_annual_unc = None
+            print(f"Error: No observation data found for RGI ID {rgiid}")
+
+    # Convert observation data from string to numerical lists
+    observation_data_annual = np.array(observation_data_annual.apply(ast.literal_eval).tolist(), dtype=float)
+    observation_data_annual_unc = np.array(observation_data_annual_unc.apply(ast.literal_eval).tolist(), dtype=float)
+
+    # Compute cumulative sum for model and observation
+    delt_lengthchange_dLdt_model_array_annual = np.cumsum(lengthchange_dLdt_model_array_annual, axis=0)
+    delt_lengthchange_m_TMS_model_array_annual = np.cumsum(lengthchange_m_TMS_model_array_annual, axis=0)
+    delt_lengthchange_m_observation_annual = np.cumsum(observation_data_annual)
+    delt_lengthchange_m_observation_unc_annual = np.sqrt(np.cumsum(observation_data_annual_unc**2))
+
+    # Convert length change to absolute glacier length
+    initial_length = 53600  # Initial glacier length (adjust if needed)
+    length_dLdt_annual_m = initial_length + delt_lengthchange_dLdt_model_array_annual
+    length_TMS_annual_m = initial_length + delt_lengthchange_m_TMS_model_array_annual
+    length_observation_annual = initial_length + delt_lengthchange_m_observation_annual
+
+    # Define years dynamically
+    X_Years = np.arange(2000, 2000 + delt_lengthchange_dLdt_model_array_annual.shape[0])
+
+    # Plot setup (4 subplots)
+    fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(15, 10), sharex=True)
+
+    # Function to set x-axis labels and ticks
+    for ax in axes.flat:
+        ax.set_xticks(X_Years)  # Set ticks annually
+        ax.set_xticklabels([str(year) if year % 2 == 0 else "" for year in X_Years])
+
+    # First subplot: Model (dLdt) vs Observation - Absolute Length
+    axes[0,0].plot(X_Years, length_dLdt_annual_m, color='grey', alpha=0.5)
+    axes[0,0].plot(X_Years, length_observation_annual, color='blue', label='Observed')
+    axes[0,0].fill_between(X_Years, 
+                           length_observation_annual - delt_lengthchange_m_observation_unc_annual,
+                           length_observation_annual + delt_lengthchange_m_observation_unc_annual, 
+                           color='blue', alpha=0.3)
+    axes[0,0].set_ylabel("Glacier Length (m)")
+    # custom legend
+    ensemble_legend = mlines.Line2D([], [], color='grey', alpha=0.8, label='Modeled')  # Proxy for ensemble
+    obs_legend = mlines.Line2D([], [], color='blue', label='Observed')  # Proxy for observation
+    axes[0,0].legend(handles=[ensemble_legend, obs_legend], loc='best')  # Include both in legend
+    # ensemble_legend = mlines.Line2D([], [], color='grey', alpha=0.8, label='Modeled')  # Proxy artist
+    # axes[0,0].legend(handles=[ensemble_legend], loc='best')  # Add custom legend
+    #axes[0,0].set_title("Model (dLdt) vs Observation - Length")
+
+    # Second subplot: Model (TMS) vs Observation - Absolute Length
+    axes[0,1].plot(X_Years, length_TMS_annual_m, color='grey', alpha=0.5)
+    axes[0,1].plot(X_Years, length_observation_annual, color='blue', label='Observed')
+    axes[0,1].fill_between(X_Years, 
+                           length_observation_annual - delt_lengthchange_m_observation_unc_annual,
+                           length_observation_annual + delt_lengthchange_m_observation_unc_annual, 
+                           color='blue', alpha=0.3)
+    #axes[0,1].set_title("Model (TMS) vs Observation - Length")
+
+    # Third subplot: Model (dLdt) vs Observation - Cumulative Length Change
+    axes[1,0].plot(X_Years, delt_lengthchange_dLdt_model_array_annual, color='grey', alpha=0.5)
+    axes[1,0].plot(X_Years, delt_lengthchange_m_observation_annual, color='blue', label='Observed')
+    axes[1,0].fill_between(X_Years, 
+                           delt_lengthchange_m_observation_annual - delt_lengthchange_m_observation_unc_annual,
+                           delt_lengthchange_m_observation_annual + delt_lengthchange_m_observation_unc_annual, 
+                           color='blue', alpha=0.3)
+    axes[1,0].set_xlabel("Year")
+    axes[1,0].set_ylabel("Cumulative Length Change (m)")
+    #axes[1,0].legend()
+    #axes[1,0].set_title("Model (dLdt) vs Observation - Change")
+
+    # Fourth subplot: Model (TMS) vs Observation - Cumulative Length Change
+    axes[1,1].plot(X_Years, delt_lengthchange_m_TMS_model_array_annual, color='grey', alpha=0.5)
+    axes[1,1].plot(X_Years, delt_lengthchange_m_observation_annual, color='blue', label='Observed')
+    axes[1,1].fill_between(X_Years, 
+                           delt_lengthchange_m_observation_annual - delt_lengthchange_m_observation_unc_annual,
+                           delt_lengthchange_m_observation_annual + delt_lengthchange_m_observation_unc_annual, 
+                           color='blue', alpha=0.3)
+    axes[1,1].set_xlabel("Year")
+    #axes[1,1].set_title("Model (TMS) vs Observation - Change")
+
+    # Adjust layout
+    plt.tight_layout()
+
+    # Save figure if needed
+    if save_path:
+        os.makedirs(save_path, exist_ok=True)
+        save_file = os.path.join(save_path, f"{save_name or 'glacier_length_timeseries_New2'}.png")
+        plt.savefig(save_file, bbox_inches='tight')
+        print(f"Figure saved to {save_file}")
+
+    plt.show()
+
+
+
+
+
+def plot_length_TS_Annual_New3(output_path= '/Calibration_AMIS_MB_FA_20002010_N200/',
+                           output_fn='calibration_model_Annual_output',rgiid = None, N_iteration = 'Poster',
+                           observation_path=pygem_prms.main_directory + '/../lengthchange_data/', save_path=None, save_name=None):
+    """
+    Plot the cumulative glacier length timeseries from model output and observation data in 4 subplots.
+
+    Parameters:
+    - output_path (str): Path to model output data.
+    - output_fn (str): File name of the model output data.
+    - rgiid (str): Glacier ID.
+    - N_iteration (str): Iteration number for model output.
+    - observation_path (str): Path to observation data.
+    - save_path (str): Path to save the plot.
+    - save_name (str): File name to save the plot.
+    """
+
+    if not rgiid:
+        print("Error: RGI ID must be provided.")
+        return
+
+    output_path = pygem_prms.main_directory + output_path
+    # Load model output from JSON file
+    output_filename = f"modeloutput/Annual/{output_fn}_{rgiid}_{N_iteration}.json" 
+    output_fp_annual = os.path.join(output_path, output_filename)
+
+    try:
+        with open(output_fp_annual, 'r', encoding='utf-8') as f:
+            output_data_annual = json.load(f)
+    except:
+        print(f"Error loading JSON file: {output_fp_annual}")
+        output_data_annual = None  # or an empty dict {} if needed
+
+    # Load model length change data
+    lengthchange_dLdt_model_array_annual = np.array(output_data_annual['lengthchange_dLdt_model_array_annual_myr'])
+    lengthchange_m_TMS_model_array_annual = np.array(output_data_annual['lengthchange_m_TMS_model_array_annual'])
+
+    # ==== restruct based on the weights (read the Unique info of Model posterior parameters)
+    output_folder_post_params_unique = os.path.join(output_path, 'parameter','Poster','Unique')
+    output_filename_params_unique_Info = f'calibration_poster_Params_unique_{rgiid}_Info.json'
+    output_fp_params_unique_Info = os.path.join(output_folder_post_params_unique, output_filename_params_unique_Info) 
+    
+    with open(output_fp_params_unique_Info, 'r') as f:
+        parms_UniqInfo_dict = json.load(f)
+    unique_counts= parms_UniqInfo_dict['unique_counts']
+
+    # repeat the model output based on the unique counts
+    lengthchange_dLdt_model_array_annual_post = np.repeat(lengthchange_dLdt_model_array_annual,unique_counts,axis = 1)
+    lengthchange_m_TMS_model_array_annual_post = np.repeat(lengthchange_m_TMS_model_array_annual,unique_counts,axis = 1)
+
+
+    # Load observation data
+    # Load the observation data #TODO at the moment, read the observation data from the csv file, should be a uniform for the regional data
+    observation_annual_fn = 'lengthchange_annual_'+pygem_prms.glac_no[0].split('.')[0]+'_'+ pygem_prms.glac_no[0].split('.')[1]+'.csv'
+    observation_annual_fp = os.path.join(observation_path, observation_annual_fn)
+    observation_data = pd.read_csv(observation_annual_fp)
+    for x in observation_data.RGIId.values:
+        if x == rgiid:
+            observation_data_annual = observation_data[observation_data.RGIId == x]['dLdt_m_per_yr']
+            observation_data_annual_unc = observation_data[observation_data.RGIId == x]['dLdt_m_per_yr_unc']
+            break
+        else:
+            observation_data_annual = None
+            observation_data_annual_unc = None
+            print(f"Error: No observation data found for RGI ID {rgiid}")
+
+    # Convert observation data from string to numerical lists
+    observation_data_annual = np.array(observation_data_annual.apply(ast.literal_eval).tolist(), dtype=float)
+    observation_data_annual_unc = np.array(observation_data_annual_unc.apply(ast.literal_eval).tolist(), dtype=float)
+
+    # Compute cumulative sum for model and observation
+    delt_lengthchange_dLdt_model_array_annual = np.cumsum(lengthchange_dLdt_model_array_annual_post, axis=0)
+    delt_lengthchange_m_TMS_model_array_annual = np.cumsum(lengthchange_m_TMS_model_array_annual_post, axis=0)
+    delt_lengthchange_m_observation_annual = np.cumsum(observation_data_annual)
+    delt_lengthchange_m_observation_unc_annual = np.sqrt(np.cumsum(observation_data_annual_unc**2))
+
+    # Convert length change to absolute glacier length
+    initial_length = 53600  # Initial glacier length (adjust if needed)
+    length_dLdt_annual_m = initial_length + delt_lengthchange_dLdt_model_array_annual
+    length_TMS_annual_m = initial_length + delt_lengthchange_m_TMS_model_array_annual
+    length_observation_annual = initial_length + delt_lengthchange_m_observation_annual
+
+    # add the initial value, extend the length to the initial year
+    length_dLdt_annual_m = np.vstack([np.full((1, length_dLdt_annual_m.shape[1]), initial_length), length_dLdt_annual_m])
+    length_TMS_annual_m = np.vstack([np.full((1, length_TMS_annual_m.shape[1]), initial_length), length_TMS_annual_m])
+    length_observation_annual = np.hstack([initial_length, length_observation_annual])
+
+    # add the initial delt value as 0 for the initial year
+    delt_lengthchange_dLdt_model_array_annual = np.vstack([np.zeros((1, delt_lengthchange_dLdt_model_array_annual.shape[1])), delt_lengthchange_dLdt_model_array_annual])
+    delt_lengthchange_m_TMS_model_array_annual = np.vstack([np.zeros((1, delt_lengthchange_m_TMS_model_array_annual.shape[1])), delt_lengthchange_m_TMS_model_array_annual])
+    delt_lengthchange_m_observation_annual = np.hstack([0, delt_lengthchange_m_observation_annual])
+
+    # add the initial uncertainty as same as the first year for the initial year
+    delt_lengthchange_m_observation_unc_annual = np.hstack([observation_data_annual_unc[0,0], delt_lengthchange_m_observation_unc_annual])    
+    #pdb.set_trace()
+
+    # Define years dynamically
+    X_Years = np.arange(2000, 2000 + delt_lengthchange_dLdt_model_array_annual.shape[0])
+
+    # Plot setup (4 subplots)
+    fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(15, 10), sharex=True)
+
+    # Function to set x-axis labels and ticks
+    for ax in axes.flat:
+        ax.set_xticks(X_Years)  # Set ticks annually
+        ax.set_xticklabels([str(year) if year % 2 == 0 else "" for year in X_Years])
+
+    # First subplot: Model (dLdt) vs Observation - Absolute Length
+    axes[0,0].plot(X_Years, length_dLdt_annual_m, color='grey', alpha=0.5)
+    axes[0,0].plot(X_Years, length_observation_annual, color='blue', label='Observed')
+    axes[0,0].fill_between(X_Years, 
+                           length_observation_annual - delt_lengthchange_m_observation_unc_annual,
+                           length_observation_annual + delt_lengthchange_m_observation_unc_annual, 
+                           color='blue', alpha=0.3)
+    axes[0,0].set_ylabel("Glacier Length (m)")
+    # custom legend
+    ensemble_legend = mlines.Line2D([], [], color='grey', alpha=0.8, label='Modeled')  # Proxy for ensemble
+    obs_legend = mlines.Line2D([], [], color='blue', label='Observed')  # Proxy for observation
+    axes[0,0].legend(handles=[ensemble_legend, obs_legend], loc='best')  # Include both in legend
+    # ensemble_legend = mlines.Line2D([], [], color='grey', alpha=0.8, label='Modeled')  # Proxy artist
+    # axes[0,0].legend(handles=[ensemble_legend], loc='best')  # Add custom legend
+    #axes[0,0].set_title("Model (dLdt) vs Observation - Length")
+
+    # Second subplot: Model (TMS) vs Observation - Absolute Length
+    axes[0,1].plot(X_Years, length_TMS_annual_m, color='grey', alpha=0.5)
+    axes[0,1].plot(X_Years, length_observation_annual, color='blue', label='Observed')
+    axes[0,1].fill_between(X_Years, 
+                           length_observation_annual - delt_lengthchange_m_observation_unc_annual,
+                           length_observation_annual + delt_lengthchange_m_observation_unc_annual, 
+                           color='blue', alpha=0.3)
+    #axes[0,1].set_title("Model (TMS) vs Observation - Length")
+
+    # Third subplot: Model (dLdt) vs Observation - Cumulative Length Change
+    axes[1,0].plot(X_Years, delt_lengthchange_dLdt_model_array_annual, color='grey', alpha=0.5)
+    axes[1,0].plot(X_Years, delt_lengthchange_m_observation_annual, color='blue', label='Observed')
+    axes[1,0].fill_between(X_Years, 
+                           delt_lengthchange_m_observation_annual - delt_lengthchange_m_observation_unc_annual,
+                           delt_lengthchange_m_observation_annual + delt_lengthchange_m_observation_unc_annual, 
+                           color='blue', alpha=0.3)
+    axes[1,0].set_xlabel("Year")
+    axes[1,0].set_ylabel("Cumulative Length Change (m)")
+    #axes[1,0].legend()
+    #axes[1,0].set_title("Model (dLdt) vs Observation - Change")
+
+    # Fourth subplot: Model (TMS) vs Observation - Cumulative Length Change
+    axes[1,1].plot(X_Years, delt_lengthchange_m_TMS_model_array_annual, color='grey', alpha=0.5)
+    axes[1,1].plot(X_Years, delt_lengthchange_m_observation_annual, color='blue', label='Observed')
+    axes[1,1].fill_between(X_Years, 
+                           delt_lengthchange_m_observation_annual - delt_lengthchange_m_observation_unc_annual,
+                           delt_lengthchange_m_observation_annual + delt_lengthchange_m_observation_unc_annual, 
+                           color='blue', alpha=0.3)
+    axes[1,1].set_xlabel("Year")
+    #axes[1,1].set_title("Model (TMS) vs Observation - Change")
+
+    # **Set y-axis limits to be the same for upper and lower panels**
+    # Upper panels (absolute length)
+    upper_min = min(axes[0,0].get_ylim()[0], axes[0,1].get_ylim()[0])
+    upper_max = max(axes[0,0].get_ylim()[1], axes[0,1].get_ylim()[1])
+    axes[0,0].set_ylim(upper_min, upper_max)
+    axes[0,1].set_ylim(upper_min, upper_max)
+
+    # Bottom panels (cumulative length change)
+    bottom_min = min(axes[1,0].get_ylim()[0], axes[1,1].get_ylim()[0])
+    bottom_max = max(axes[1,0].get_ylim()[1], axes[1,1].get_ylim()[1])
+    axes[1,0].set_ylim(bottom_min, bottom_max)
+    axes[1,1].set_ylim(bottom_min, bottom_max)
+    # Adjust layout
+    plt.tight_layout()
+    # Save the figure if save_path is provided
+    if save_path == None:
+        save_path = output_path + '/figures/'
+    if save_name == None:
+        save_name = 'Glacier_length_lengthchange_timeseries'
+    # Save figure if needed
+    if save_path:
+        os.makedirs(save_path, exist_ok=True)
+        save_file = os.path.join(save_path, f"{save_name or 'glacier_length_timeseries'}.png")
+        plt.savefig(save_file, bbox_inches='tight')
+        print(f"Figure saved to {save_file}")
+
+    #plt.show()
+
+
+
+def plot_length_dl_TS_Annual(output_path= '/Calibration_AMIS_MB_FA_20002010_N200/',
+                           output_fn='calibration_model_Annual_output',rgiid = None, N_iteration = 'Poster',
+                           observation_path=pygem_prms.main_directory + '/../lengthchange_data/', save_path=None, save_name=None):
+    """
+    Plot the cumulative glacier length/dl timeseries from model output and observation data in 3 subplots.
+
+    Parameters:
+    - output_path (str): Path to model output data.
+    - output_fn (str): File name of the model output data.
+    - rgiid (str): Glacier ID.
+    - N_iteration (str): Iteration number for model output.
+    - observation_path (str): Path to observation data.
+    - save_path (str): Path to save the plot.
+    - save_name (str): File name to save the plot.
+    """
+
+    if not rgiid:
+        print("Error: RGI ID must be provided.")
+        return
+
+    output_path = pygem_prms.main_directory + output_path
+    # Load model output from JSON file
+    output_filename = f"modeloutput/Annual/{output_fn}_{rgiid}_{N_iteration}.json" 
+    output_fp_annual = os.path.join(output_path, output_filename)
+
+    try:
+        with open(output_fp_annual, 'r', encoding='utf-8') as f:
+            output_data_annual = json.load(f)
+    except:
+        print(f"Error loading JSON file: {output_fp_annual}")
+        output_data_annual = None  # or an empty dict {} if needed
+
+    # Load model length change data
+    lengthchange_dLdt_model_array_annual = np.array(output_data_annual['lengthchange_dLdt_model_array_annual_myr'])
+    lengthchange_m_TMS_model_array_annual = np.array(output_data_annual['lengthchange_m_TMS_model_array_annual'])
+
+    # ==== restruct based on the weights (read the Unique info of Model posterior parameters)
+    output_folder_post_params_unique = os.path.join(output_path, 'parameter','Poster','Unique')
+    output_filename_params_unique_Info = f'calibration_poster_Params_unique_{rgiid}_Info.json'
+    output_fp_params_unique_Info = os.path.join(output_folder_post_params_unique, output_filename_params_unique_Info) 
+    
+    with open(output_fp_params_unique_Info, 'r') as f:
+        parms_UniqInfo_dict = json.load(f)
+    unique_counts= parms_UniqInfo_dict['unique_counts']
+
+    # repeat the model output based on the unique counts
+    lengthchange_dLdt_model_array_annual_post = np.repeat(lengthchange_dLdt_model_array_annual,unique_counts,axis = 1)
+    lengthchange_m_TMS_model_array_annual_post = np.repeat(lengthchange_m_TMS_model_array_annual,unique_counts,axis = 1)
+
+
+    # Load observation data
+    # Load the observation data #TODO at the moment, read the observation data from the csv file, should be a uniform for the regional data
+    observation_annual_fn = 'lengthchange_annual_'+pygem_prms.glac_no[0].split('.')[0]+'_'+ pygem_prms.glac_no[0].split('.')[1]+'.csv'
+    observation_annual_fp = os.path.join(observation_path, observation_annual_fn)
+    observation_data = pd.read_csv(observation_annual_fp)
+    for x in observation_data.RGIId.values:
+        if x == rgiid:
+            observation_data_annual = observation_data[observation_data.RGIId == x]['dLdt_m_per_yr']
+            observation_data_annual_unc = observation_data[observation_data.RGIId == x]['dLdt_m_per_yr_unc']
+            break
+        else:
+            observation_data_annual = None
+            observation_data_annual_unc = None
+            print(f"Error: No observation data found for RGI ID {rgiid}")
+
+    # Convert observation data from string to numerical lists
+    observation_data_annual = np.array(observation_data_annual.apply(ast.literal_eval).tolist(), dtype=float)
+    observation_data_annual_unc = np.array(observation_data_annual_unc.apply(ast.literal_eval).tolist(), dtype=float)
+
+    # Compute cumulative sum for model and observation
+    delt_lengthchange_dLdt_model_array_annual = np.cumsum(lengthchange_dLdt_model_array_annual_post, axis=0)
+    delt_lengthchange_m_TMS_model_array_annual = np.cumsum(lengthchange_m_TMS_model_array_annual_post, axis=0)
+    delt_lengthchange_m_observation_annual = np.cumsum(observation_data_annual)
+    delt_lengthchange_m_observation_unc_annual = np.sqrt(np.cumsum(observation_data_annual_unc**2))
+
+    # Convert length change to absolute glacier length
+    initial_length = 53600  # Initial glacier length (adjust if needed)
+    length_dLdt_annual_m = initial_length + delt_lengthchange_dLdt_model_array_annual
+    length_TMS_annual_m = initial_length + delt_lengthchange_m_TMS_model_array_annual
+    length_observation_annual = initial_length + delt_lengthchange_m_observation_annual
+
+    #pdb.set_trace()
+    # Define years dynamically
+    X_Years = np.arange(2000, 2000 + delt_lengthchange_dLdt_model_array_annual.shape[0])
+
+    # Plot setup (4 subplots)
+    fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(10, 15), sharex=True)
+
+    # Function to set x-axis labels and ticks
+    for ax in axes.flat:
+        ax.set_xticks(X_Years)  # Set ticks annually
+        ax.set_xticklabels([str(year) if year % 2 == 0 else "" for year in X_Years])
+
+    # First subplot: Model (dLdt) vs Observation - Length change
+    #pdb.set_trace()
+    axes[0].plot(X_Years, lengthchange_dLdt_model_array_annual_post, color='grey', alpha=0.5)
+    axes[0].errorbar(X_Years, observation_data_annual.squeeze(), yerr=observation_data_annual_unc.squeeze(), fmt='x',
+                       label='Observed', ecolor='#056eee', elinewidth=2, capsize=4,mec='#056eee',mfc  ='#056eee', alpha=1)
+
+    
+    axes[0].set_ylabel("Length change rate (m a⁻¹)")
+    # custom legend
+    ensemble_legend = mlines.Line2D([], [], color='grey', alpha=0.8, label='Modeled')  # Proxy for ensemble
+    obs_legend = mlines.Line2D([], [], color='#056eee', label='Observed')  # Proxy for observation
+    axes[0].legend(handles=[ensemble_legend, obs_legend], loc='best', fontsize=16)  # Include both in legend
+
+    # Second subplot: Model (dLdt) vs Observation - Cumulative Length Change
+    axes[1].plot(X_Years, delt_lengthchange_dLdt_model_array_annual, color='grey', alpha=0.5)
+    axes[1].plot(X_Years, delt_lengthchange_m_observation_annual, color='#056eee', label='Observed')
+    axes[1].fill_between(X_Years, 
+                           delt_lengthchange_m_observation_annual - delt_lengthchange_m_observation_unc_annual,
+                           delt_lengthchange_m_observation_annual + delt_lengthchange_m_observation_unc_annual, 
+                           color='#056eee', alpha=0.3)
+    axes[1].set_ylabel("Cumulative length Change (m)")
+
+
+    # Third subplot: Model (TMS) vs Observation - Cumulative Length Change
+    axes[2].plot(X_Years, delt_lengthchange_m_TMS_model_array_annual, color='grey', alpha=0.5)
+    axes[2].plot(X_Years, delt_lengthchange_m_observation_annual, color='#056eee', label='Observed')
+    axes[2].fill_between(X_Years, 
+                           delt_lengthchange_m_observation_annual - delt_lengthchange_m_observation_unc_annual,
+                           delt_lengthchange_m_observation_annual + delt_lengthchange_m_observation_unc_annual, 
+                           color='#056eee', alpha=0.3)
+    axes[2].set_ylabel("Cumulative length Change (m)")
+    axes[2].set_xlabel("Year")
+
+
+    # **Set y-axis limits to be the same for upper and lower panels**
+    # Bottom panels (cumulative length change)
+    bottom_min = min(axes[1].get_ylim()[0], axes[2].get_ylim()[0])
+    bottom_max = max(axes[1].get_ylim()[1], axes[2].get_ylim()[1])
+    axes[1].set_ylim(bottom_min, bottom_max)
+    axes[2].set_ylim(bottom_min, bottom_max)
+
+    # Set the Axis properties
+    # Set font size and font family for x-axis and y-axis labels
+    for ax in axes:
+        ax.xaxis.label.set_fontsize(16)
+        ax.yaxis.label.set_fontsize(16)
+    # Add "SERMeQ" in the bottom-left of axes[1]
+    axes[1].text(
+        0.02, 0.05, "SERMeQ",  
+        transform=axes[1].transAxes,  
+        fontsize=16,  
+        color='black'
+    )
+
+    # Add "Flowline model profile" in the bottom-left of axes[2]
+    axes[2].text(
+        0.02, 0.05, "Flowline model profile",  
+        transform=axes[2].transAxes,  
+        fontsize=16,  
+        color='black'
+    )
+
+    # Adjust layout
+    plt.tight_layout()
+    # Save the figure if save_path is provided
+    if save_path == None:
+        save_path = output_path + '/figures/'
+    if save_name == None:
+        save_name = 'Glacier_length_lengthchange_timeseries'
+    # Save figure if needed
+    if save_path:
+        os.makedirs(save_path, exist_ok=True)
+        save_file = os.path.join(save_path, save_name + '.png')
+        plt.savefig(save_file, bbox_inches='tight')
+        print(f"Figure saved to {save_file}")
