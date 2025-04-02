@@ -68,18 +68,18 @@ time_start = time.time()
 
 #%% ----- MANUAL INPUT DATA -----
 #regions = [1,3,4,5,7,9,17,19]
-regions = [17]
-
+regions = [sys.argv[1]]
+glacier = [sys.argv[2]]
 overwrite = True
 #output_fp = pygem_prms.main_directory + '/../calving_data/analysis_sermeq/'
 output_fp = pygem_prms.main_directory + '/../calving_data/analysis/'
 
 option_merge_data = False
-option_ind_calving_k = False
+option_ind_calving_k = True
 option_reg_calving_k = False    # Calibrate all glaciers regionally
 if option_reg_calving_k:
     drop_ind_glaciers = False # For region 9 decide if using individual glacier data or regional data
-option_merge_calving_k = True
+option_merge_calving_k = False
 option_update_mb_data = False
 option_plot_calving_k = False    # Plots of the calibration performance
 option_scrap = False             # Scrap calculations
@@ -857,7 +857,7 @@ def processing_tau(model_function,kwargs,k):
 
     print(f"Processing for k={k} with kwargs={kwargs}")  # Debug print to check arguments
 
-    output_df, y_values,_ = model_function(calving_k = k, do_calib = True, **kwargs)
+    output_df, y_values,_ = model_function(calving_k = k, do_DA_calib_Paralle = True, **kwargs)
             # extract the length_change from the model output df,assign the list to the object array
 
     out_dict =  {
@@ -871,7 +871,7 @@ def processing_tau(model_function,kwargs,k):
     
 
 def Visualize_parameter_paralle (model_function = None, k_bndhigh = None, k_bndlow = None, k_step = None, k_name =None,
-                         calibrate_timeseries = False,rgiid_ind = None, **kwargs):
+                         calibrate_timeseries = False,rgiid_ind = None, sampling_method = 0,**kwargs):
     # this function is used to visulize the relationship between parameter k and model_functions, copy from def Visualize_parameter, revised for
     # paralle computing 
     # the k is the parameter of the model_function
@@ -881,11 +881,22 @@ def Visualize_parameter_paralle (model_function = None, k_bndhigh = None, k_bndl
     # calibrate_timeseries, boolean, if True, the function is used to calibrate the annual timeseries of length change, vice verse; 
     # The defaule is False, just calibrate the multiple year averaged FA
     # rgiid_ind is the glacier id
+    # sampling_method, 0 for random sampling, 1 for uniform sampling
     # **kwags are the keyword arguments for model_function
 
-    # read the parameter from the first FA calibration
-    k_values_assemble = pd.read_csv(os.path.join(save_path_parameter,'../','tau_value_model_resample_assemble.csv'))
-    k_values = k_values_assemble['tau_resample'].to_numpy()
+    # # read the parameter from the first FA calibration
+    # k_values_assemble = pd.read_csv(os.path.join(save_path_parameter,'../','tau_value_model_resample_assemble.csv'))
+    # k_values = k_values_assemble['tau_resample'].to_numpy()
+        
+
+
+    if sampling_method == 0:
+        # do the random sampling
+        k_values = np.random.uniform(low = k_bndlow,high = k_bndhigh, size=size_assemble)
+    else:
+        # do the uniform sampling
+        k_values = np.linspace(k_bndlow, k_bndhigh, num=size_assemble)
+    #k_values = np.unique(k_values)
 
     y_values = np.zeros_like(k_values)
 
@@ -1842,11 +1853,12 @@ if option_ind_calving_k:
                         # visulize th parameter with model_function
                         #pdb.set_trace() 
                         k_value_arrary, reg_calving_gta_mod_array,lengthchange_model_arrary,calving_thickness_model_array,calving_rate_model_array,velocity_at_calvingfront_model_array = Visualize_parameter_paralle (model_function = reg_calving_flux, k_bndhigh = calving_k_bndhigh,
-                                                                                        k_bndlow = calving_k_bndlow, k_step = calving_k_step, k_name ='yield strength',
+                                                                                        k_bndlow = calving_k_bndlow, k_step = calving_k_step, k_name ='yield strength',rgiid_ind = rgiid_ind,
                                                                                         main_glac_rgi = main_glac_rgi_ind, fa_glac_data_reg=fa_glac_data_ind,
                                                                                         frontal_ablation_Gta_cn=frontal_ablation_Gta_cn, 
                                                                                         prms_from_reg_priors=prms_from_reg_priors, prms_from_glac_cal=prms_from_glac_cal,
-                                                                                        ignore_nan=False, debug=debug_reg_calving_fxn,calibrate_length=True,store_monthly_step=store_monthly_step)
+                                                                                        ignore_nan=False, debug=debug_reg_calving_fxn,
+                                                                                        calibrate_timeseries =True,store_monthly_step=store_monthly_step)
                         #pdb.set_trace() 
                         if store_monthly_step:
                             # Flatten the nested lists
