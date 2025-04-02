@@ -1,0 +1,2338 @@
+"""Calibrate the four parameters (kp,tbias, ddfsnow, tau) by the pbs methods """
+# Default climate data is ERA-Interim; specify CMIP5 by specifying a filename to the argument:
+#    (Command line) python run_simulation_list_multiprocess.py -gcm_list_fn=C:\...\gcm_rcpXX_filenames.txt
+#      - Default is running ERA-Interim in parallel with five processors.
+#    (Spyder) %run run_simulation_list_multiprocess.py C:\...\gcm_rcpXX_filenames.txt -option_parallels=0
+#      - Spyder cannot run parallels, so always set -option_parallels=0 when testing in Spyder.
+# Spyder cannot run parallels, so always set -option_parallels=0 when testing in Spyder.
+
+# Revised by Ruitang Yang, supported by Kristoffer on 30 Dec 2024
+
+# Built-in libraries
+import argparse
+import collections
+import copy
+import inspect
+import multiprocessing
+import os
+import sys
+import time
+import cftime
+import traceback
+import pdb
+import shutil
+import h5py
+import json
+from multiprocessing import Pool, cpu_count
+# External libraries
+import pandas as pd
+import pickle
+import matplotlib.pyplot as plt
+import numpy as np
+from scipy.stats import median_abs_deviation, truncnorm, gamma, uniform, norm,lognorm
+import xarray as xr
+from functools import partial
+from scipy import special
+import ast  # To safely evaluate string representations of lists and dictionaries
+import datetime
+
+
+
+try:
+    import pygem
+except:
+    sys.path.append(os.getcwd() + '/../PyGEM/')
+
+# Local libraries
+import pygem
+import pygem.gcmbiasadj as gcmbiasadj
+import pygem_input as pygem_prms
+import pygem.pygem_modelsetup as modelsetup
+from pygem.massbalance import PyGEMMassBalance
+from pygem.glacierdynamics import MassRedistributionCurveModel
+from pygem.oggm_compat import single_flowline_glacier_directory
+from pygem.oggm_compat import single_flowline_glacier_directory_with_calving
+from pygem.shop import debris, mbdata, icethickness 
+from pygem import class_climate
+import Visualization_timeseries as Visualization_timeseries
+
+
+
+import oggm
+oggm_version = float(oggm.__version__[0:3])
+from oggm import cfg
+from oggm import graphics
+from oggm import tasks
+from oggm import utils
+from oggm import workflow
+if oggm_version > 1.301:
+    from oggm.core.massbalance import apparent_mb_from_any_mb # Newer Version of OGGM
+else:
+    from oggm.core.climate import apparent_mb_from_any_mb # Older Version of OGGM
+from oggm.core.flowline import FluxBasedModel, SemiImplicitModel
+from oggm.core.calving_Jan_Ruitang import CalvingFluxBasedModelJanRt
+from oggm.core.inversion_RT_New import find_inversion_calving_from_any_mb
+#from oggm.core.inversion import find_inversion_calving_from_any_mb
+
+cfg.PARAMS['hydro_month_nh']=1
+cfg.PARAMS['hydro_month_sh']=1
+cfg.PARAMS['trapezoid_lambdas'] = 1
+
+
+#%% ----- MANUAL INPUT DATA -----
+#regions = [1,3,4,5,7,9,17,19]
+regions = [17]
+overwrite = True
+
+# ---- Store_monthly_step ----
+#store_monthly_step = True
+mb_elev_feedback = 'Monthly'  # 'annual' or 'monthly'
+# TODO : Add the option to store monthly step results for mass balance and glacier dynamics
+Dynamic_step_Monthly = True
+
+#%% ----- plot save path -----
+save_path_figure = pygem_prms.output_filepath + '/figures/'
+# Check if the directory exists, and if not, create it
+if not os.path.exists(save_path_figure):
+    os.makedirs(save_path_figure)
+
+output_fp = pygem_prms.main_directory + '/../calving_data/analysis/'
+save_path_parameter = pygem_prms.output_filepath + '/parameter/'
+#save_path_parameter = pygem_prms.output_filepath + '/parameter/second_cali_FA/'
+
+#%% ----- The boundary condition for length change myr -----
+max_length_change_myr =1000
+min_length_change_myr = -5000
+#%% ----- CONVERSION FUNCTIONS -----
+def mwea_to_gta(mwea, area_m2):
+    return mwea * pygem_prms.density_water * area_m2 / 1e12
+def gta_to_mwea(gta, area_m2):
+    return gta * 1e12 / pygem_prms.density_water / area_m2
+
+# ----- FUNCTIONS -----
+def getparser():
+    """
+    Use argparse to add arguments from the command line
+
+    Parameters
+    ----------
+    gcm_list_fn (optional) : str
+        text file that contains the climate data to be used in the model simulation
+    gcm_name (optional) : str
+        gcm name
+    scenario (optional) : str
+        representative concentration pathway or shared socioeconomic pathway (ex. 'rcp26', 'ssp585')
+    realization (optional) : str
+        single realization from large ensemble (ex. '1011.001', '1301.020')
+        see CESM2 Large Ensemble Community Project by NCAR for more information
+    realization_list (optional) : str
+        text file that contains the realizations to be used in the model simulation
+    num_simultaneous_processes (optional) : int
+        number of cores to use in parallels
+    option_parallels (optional) : int
+        switch to use parallels or not
+    rgi_glac_number_fn (optional) : str
+        filename of .pkl file containing a list of glacier numbers that used to run batches on the supercomputer
+    batch_number (optional): int
+        batch number used to differentiate output on supercomputer
+    option_ordered : int
+        option to keep glaciers ordered or to grab every n value for the batch
+        (the latter helps make sure run times on each core are similar as it removes any timing differences caused by
+         regional variations)
+    debug (optional) : int
+        Switch for turning debug printing on or off (default = 0 (off))
+    debug_spc (optional) : int
+        Switch for turning debug printing of spc on or off (default = 0 (off))
+
+    Returns
+    -------
+    Object containing arguments and their respective values.
+    """
+    parser = argparse.ArgumentParser(description="run simulations from gcm list in parallel")
+    # add arguments
+    parser.add_argument('-rgi_region01', type=int, default=None,
+                        help='Randoph Glacier Inventory region')
+    parser.add_argument('-rgi_glac_number', type=str, default=None,
+                        help='Randoph Glacier Inventory region')
+    parser.add_argument('-rgi_glac_number_fn', action='store', type=str, default=None,
+                        help='Filename containing list of rgi_glac_number, helpful for running batches on spc')
+    parser.add_argument('-gcm_list_fn', action='store', type=str, default=pygem_prms.ref_gcm_name,
+                        help='text file full of commands to run')
+    parser.add_argument('-gcm_name', action='store', type=str, default=None,
+                        help='GCM name used for model run')
+    parser.add_argument('-scenario', action='store', type=str, default=None,
+                        help='rcp or ssp scenario used for model run (ex. rcp26 or ssp585)')
+    parser.add_argument('-realization', action='store', type=str, default=None,
+                        help='realization from large ensemble used for model run (ex. 1011.001 or 1301.020)')
+    parser.add_argument('-realization_list', action='store', type=str, default=None,
+                        help='text file full of realizations to run')
+    parser.add_argument('-gcm_bc_startyear', action='store', type=int, default=pygem_prms.gcm_bc_startyear,
+                        help='start year for bias correction')
+    parser.add_argument('-gcm_startyear', action='store', type=int, default=pygem_prms.gcm_startyear,
+                        help='start year for the model run')
+    parser.add_argument('-gcm_endyear', action='store', type=int, default=pygem_prms.gcm_endyear,
+                        help='start year for the model run')
+    parser.add_argument('-num_simultaneous_processes', action='store', type=int, default=4,
+                        help='number of simultaneous processes (cores) to use')
+    parser.add_argument('-batch_number', action='store', type=int, default=None,
+                        help='Batch number used to differentiate output on supercomputer')
+    # flags
+    parser.add_argument('-option_ordered', action='store_true',
+                        help='Flag to keep glacier lists ordered (default is off)')
+    parser.add_argument('-option_parallels', action='store_true',
+                        help='Flag to use or not use parallels (default is off)')
+    parser.add_argument('-debug', action='store_true',
+                        help='Flag for debugging (default is off')
+    parser.add_argument('-debug_spc', action='store_true',
+                        help='Flag for debugging (default is off')
+    parser.add_argument('-v', '--verbose', action='store_true',
+                        help='Flag for verbose')
+    parser.add_argument('-o', '--overwrite', action='store_true',
+                        help='Flag to overwrite existing calibrated frontal ablation datasets')  
+    parser.add_argument('-store_monthly_step', action='store_true',
+                        help='Flag to store the monthly step results')
+    parser.add_argument('-Visualize_Index', action='store_true',
+                        help='Flag to visualize the index number of the samples')
+    parser.add_argument('-ref_gcm_name', action='store', type=str, default=pygem_prms.ref_gcm_name,
+                    help='reference gcm name')
+    parser.add_argument('-ref_startyear', action='store', type=int, default=pygem_prms.ref_startyear,
+                        help='reference period starting year for calibration (typically 2000)')
+    parser.add_argument('-ref_endyear', action='store', type=int, default=pygem_prms.ref_endyear,
+                        help='reference period ending year for calibration (typically 2019)')  
+    
+    return parser
+
+
+
+def convert_to_serializable(obj):
+    """
+    Recursively convert non-serializable objects to JSON-compatible formats.
+    """
+    if isinstance(obj, np.ndarray):  
+        return obj.tolist()  # Convert NumPy array to list
+    elif isinstance(obj, np.generic):  
+        return obj.item()  # Convert NumPy scalar to int/float
+    elif isinstance(obj, (date, datetime, np.datetime64)):  
+        return str(obj)  # Convert date/datetime64 to string
+    elif isinstance(obj, dict):  
+        return {k: convert_to_serializable(v) for k, v in obj.items()}
+    elif isinstance(obj, list):  
+        return [convert_to_serializable(i) for i in obj]
+    elif isinstance(obj, set):  
+        return list(obj)
+    elif isinstance(obj, tuple):  
+        return list(obj)
+    elif isinstance(obj, (int, float, str)):  
+        return obj
+    else:
+        return str(obj)  # Convert unknown objects to strings
+
+
+# Function to sample each parameter based on its prior distribution
+def sample_prior(N, Visualize = False):
+    """
+    Samples from the prior distributions of tbias, kp, ddfsnow, and tau, and the index number.
+    Ensures the size of samples for each parameter is strictly equal to N.
+    Args:
+        N (int): Number of samples to generate for each parameter.
+        Visualize (bool): Option to visualize the prior distributions,default is False.
+    Returns:
+        dict: A dictionary containing exactly N sampled values for each parameter.
+    """
+    # Initialize a dictionary to store samples
+    samples = {}
+
+    # --- tbias: Truncated Normal Distribution ---
+    tbias_mu = 0         # Mean
+    tbias_sigma = 1      # Standard deviation
+    tbias_bndlow = -10   # Lower bound
+    tbias_bndhigh = 10   # Upper bound
+    tbias_a, tbias_b = (tbias_bndlow - tbias_mu) / tbias_sigma, (tbias_bndhigh - tbias_mu) / tbias_sigma
+
+    def sample_tbias():
+        return truncnorm.rvs(tbias_a, tbias_b, loc=tbias_mu, scale=tbias_sigma, size=N)
+
+    samples["tbias"] = sample_tbias()
+
+    # --- kp: Gamma or Uniform Distribution ---
+    kp_disttype = 'gamma'  # Distribution type: 'gamma', 'lognormal', 'uniform'
+    kp_gamma_alpha = 9
+    kp_gamma_beta = 4
+    #TODO The value of kp under the distribution 'lognormal'  is wrong, need to be revised, if we need to use the lognormal distribution
+    kp_lognorm_mu = 0
+    kp_lognorm_sigma = 4
+    kp_bndlow = 0.5
+    kp_bndhigh = 3
+
+    def sample_kp():
+        kp_samples = np.array([])  # Initialize an empty array to collect samples
+
+        while len(kp_samples) < N:
+            # Sample based on the selected distribution type
+            if kp_disttype == "gamma":
+                kp_samples_new = gamma.rvs(a=kp_gamma_alpha, scale=1/kp_gamma_beta, size=N)
+            elif kp_disttype == "uniform":
+                kp_samples_new = uniform.rvs(loc=kp_bndlow, scale=(kp_bndhigh - kp_bndlow), size=N)
+            elif kp_disttype == "lognormal":
+                scale = np.exp(kp_lognorm_mu)
+                kp_samples_new = lognorm.rvs(s=kp_lognorm_sigma, scale=scale, size=N)
+            else:
+                raise ValueError("Invalid kp distribution type. Choose 'gamma', 'lognormal', or 'uniform'.")
+
+            # Apply bounds (keep only valid samples within [kp_bndlow, kp_bndhigh])
+            kp_samples_new = kp_samples_new[(kp_samples_new >= kp_bndlow) & (kp_samples_new <= kp_bndhigh)]
+
+            # Add valid samples to the array
+            kp_samples = np.concatenate((kp_samples, kp_samples_new))
+
+        # Trim to exactly N samples if there are extra
+        return kp_samples[:N]
+
+    kp_samples = sample_kp()
+    samples["kp"] = kp_samples
+
+    # --- ddfsnow: Truncated Normal Distribution ---
+    ddfsnow_mu = 0.0041
+    ddfsnow_sigma = 0.0015
+    ddfsnow_bndlow = 0
+    ddfsnow_bndhigh = np.inf
+    ddfsnow_a, ddfsnow_b = (ddfsnow_bndlow - ddfsnow_mu) / ddfsnow_sigma, (ddfsnow_bndhigh - ddfsnow_mu) / ddfsnow_sigma
+
+    def sample_ddfsnow():
+        return truncnorm.rvs(ddfsnow_a, ddfsnow_b, loc=ddfsnow_mu, scale=ddfsnow_sigma, size=N)
+
+    samples["ddfsnow"] = sample_ddfsnow()
+
+    # --- tau: Gamma Distribution with Bounds ---
+    tau_disttype = 'gamma'  # Distribution type: 'gamma', 'lognormal', 'uniform'
+    tau_lognorm_mu = 0.3528
+    tau_lognorm_sigma = 0.3247
+    # Upper bound is set to 3.5 based on the observed values of tau in the dataset. Adjust as needed.
+    tau_mu = 1.5
+    tau_sigma = 0.5
+    tau_bndhigh = 3.5
+
+    # Calculate Gamma shape and rate
+    tau_beta = tau_mu / (tau_sigma**2)  # Rate
+    tau_alpha = tau_mu * tau_beta       # Shape
+
+    def sample_tau():
+        tau_samples = np.array([])
+        while len(tau_samples) < N:
+            # Generate samples using the selected distribution
+            if tau_disttype == "gamma":
+                new_samples = gamma.rvs(a=tau_alpha, scale=1/tau_beta, size=N)
+            elif tau_disttype == "uniform":
+                new_samples = uniform.rvs(loc=0, scale=tau_bndhigh, size=N)
+            elif tau_disttype == "lognormal":
+                scale = np.exp(tau_lognorm_mu)
+                new_samples = lognorm.rvs(s=tau_lognorm_sigma, scale=scale, size=N)
+            else:
+                raise ValueError("Invalid tau distribution type. Choose 'gamma', 'lognormal', or 'uniform'.")
+
+            # Apply bounds
+            new_samples = new_samples[new_samples <= tau_bndhigh]
+
+            # Append valid samples to the list
+            tau_samples = np.concatenate((tau_samples, new_samples))
+
+        # Trim to exactly N samples if oversampled
+        return tau_samples[:N]
+
+    tau_samples = sample_tau()
+    samples["tau"] = tau_samples  # Ensure size is exactly N
+    prior_samples = samples
+    prior_samples['index'] = np.arange(N)
+    # Visualize the prior distributions
+    if Visualize:
+        # Print the first 5 samples for each parameter and visualize histograms
+        fig, axs = plt.subplots(2, 2, figsize=(12, 8))  # 2x2 grid for subplots
+        fig.suptitle("Histograms of Sampled Parameters", fontsize=16)
+
+        for i, (param, values) in enumerate(samples.items()):
+            # Print the first 5 samples, and the size of the samples
+            print(f"{param} samples: {values[:5]}")
+            print(f"{param} samples'size: {values.size}")
+
+            # Plot histogram in the corresponding subplot
+            ax = axs[i // 2, i % 2]  # Determine position in the 2x2 grid
+            ax.hist(values, bins=30, color="skyblue", edgecolor="black", alpha=0.7)
+            ax.set_title(f"Histogram of {param}", fontsize=12)
+            ax.set_xlabel(param)
+            ax.set_ylabel("Frequency")
+        # Adjust layout
+        plt.tight_layout(rect=[0, 0, 1, 0.95])  # Leave space for the main title
+        plt.show()
+
+    return prior_samples
+
+def samples2xrDataset(samples):
+    """
+    Convert sample dictionary to Xarray Dataset
+    Args:
+        samples (dict): Dictionary containing samples.
+    Returns:
+        ds: Xarray Dataset.
+    """
+    vars=dict()
+    dims=['sample_index']
+    smpl=np.arange(samples['index'].size)
+    coords={'sample_index':smpl}
+    for key in samples.keys():
+        if (key != 'index'):
+            vars[key]=(['sample_index'],samples[key])
+            var=xr.DataArray(data=samples[key],dims=dims,coords=coords,name=key,attrs={'units':'-', 'long_name':key,})
+            vars[key]=var
+    ds = xr.Dataset(data_vars=vars,coords=coords,attrs={'creation_date':str(datetime.datetime.now()),'author':'Ruitang Yang'})
+    ##pdb.set_trace()
+    return ds
+
+def netcdf2samples(fname):
+    """
+    Read netcdf file and get sample data
+    Args:
+        path (str): full path to netcdf file
+    Returns:
+        samples (dict): Dictionary containing samples.
+    """
+    ds = xr.open_dataset(fname)
+    samples = {}
+    for key in ds.data_vars.keys():
+        if key != 'sample_index':
+            samples[key] = ds[key].values
+    samples['index'] = ds['sample_index'].values
+    return samples
+
+def pbs(obs, pred, R):
+    """
+    PBS: Implmentation of the Particle Batch Smoother
+    Inputs:
+        obs: Observation vector (m x 1 array)
+        pred: Predicted observation ensemble matrix (m x N array)
+        r_cov: Observation error covariance 'matrix' (m x 1 array, or scalar)
+    Outputs:
+        w: Posterior weights (N x 1 array)
+    Dimensions:
+        ens_mem is the number of ensemble members and m is the number
+        of observations.
+
+    Here we have implemented the particle batch smoother, which is
+    a batch-smoother version of the particle filter (i.e. a particle filter
+    without resampling), described in Margulis et al.
+    (2015, doi: 10.1175/JHM-D-14-0177.1). As such, this routine can also be
+    used for particle filtering with sequential data assimilation. This scheme
+    is obtained by using a particle (mixture of Dirac delta functions)
+    representation of the prior and applying this directly to Bayes theorem. In
+    other words, it is just an application of importance sampling with the
+    prior as the proposal density (importance distribution). It is also the
+    same as the Generalized Likelihood Uncertainty Estimation (GLUE) technique
+    (with a formal Gaussian likelihood)which is widely used in hydrology.
+
+    This particular scheme assumes that the observation errors are additive
+    Gaussian white noise (uncorrelated in time and space). The "logsumexp"
+    trick is used to deal with potential numerical issues with floating point
+    operations that occur when dealing with ratios of likelihoods that vary by
+    many orders of magnitude.
+
+    Based on a previous version from  K. Aalstad (14.12.2020), revised by Ruitang
+    """
+    # TODO: Implement an option for correlated observation errors if R is
+    #      specified as a matrix (this would slow down this function).
+    # TODO: Consier other likelihoods and observation models.
+    # TODO: Look into iterative versions of importance sampling.
+
+    # Check if R is a list, convert it to a numpy array if so
+    R = np.array(R) if isinstance(R, list) else R
+    pred = np.array(pred) if isinstance(pred, list) else pred
+    # Dimensions.
+    n_obs = np.size(obs)  # Number of obs
+    ens_mem = np.shape(pred)[-1]
+
+    # Checks on the observation error covariance matrix.
+    if np.size(R) == 1:
+        R = R * np.ones(n_obs)
+    elif np.size(R) == n_obs:
+        pass
+    else:
+        raise Exception('r_cov must be a scalar, m x 1 vector.')
+
+    # Residual and log-likelihood
+    if n_obs == 1:
+        residual = obs - pred
+        llh = -0.5 * ((residual**2) * (1/R))
+    else:
+        #pdb.set_trace()
+        residual = np.array(obs) - np.array(pred)
+        llh = -0.5 * (1/R.flatten()) @ (residual**2)
+
+    # Log of normalizing constant
+    # A properly scaled version of this could be output for model comparison.
+    log_z = special.logsumexp(llh)  # from scipy.special import logsumexp
+
+    # Weights
+    logw = llh - log_z  # Log of posterior weights
+    weights = np.exp(logw)  # Posterior weights
+    
+    if np.shape(weights)[-1] == ens_mem and np.round(np.sum(weights), 10) == 1:
+        pass
+    else:
+        raise Exception('Something wrong with the PBS')
+
+    weights = np.squeeze(weights)  # Remove axes of length one
+
+    Neff = 1/np.sum(weights**2)
+    Neff = np.round(Neff)
+
+    return weights, Neff
+
+
+
+def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
+                     prms_from_reg_priors=False, prms_from_glac_cal=False, ignore_nan=True, debug=True,
+                     invert_standard=False,
+                     calc_mb_geo_correction=False, reset_gdir=True,store_monthly_step =False, Visualize_Index = True,
+                     do_DA_calib_Paralle = False):
+    """
+    Compute the calving flux for a group of glaciers
+    
+    Parameters
+    ----------
+    main_glac_rgi : pd.DataFrame
+        rgi summary statistics of each glacier
+    modelprms_MB_FA : dict
+        model parameters for both mass balance and calving(kp, tbias, ddfsnow, ddfice,snow threshold,precgrad,tau)
+    invert_standard : Boolean, default is False
+    prms_from_reg_priors : Boolean
+        use model parameters from regional priors
+    prms_from_glac_cal : Boolean
+        use model parameters from initial calibration
+    store_monthly_step: Boolean
+        store the monthly step of the glacier profile,
+        Here is for setting whether we do monthly/annual calibration for glacier length change rate.
+        The default is false, which means we do the multi-years averaged calibration for glacier front ablation.
+    Visualize_Index: Boolean
+        True : Visualize the timeseries of glacier profile, length change, length change rate, accumulated calving flux and calving
+        False : no visualization
+    do_DA_calib_Paralle: Boolean
+        True: do the data assimilation calibration in a paralle computing way
+        False: do the data assimilation calibration in a sequential computing way
+    
+
+    Returns
+    -------
+    output_df : pd.DataFrame
+        Dataframe containing information pertaining to each glacier's calving flux
+    """    
+    # ===== TIME PERIOD =====
+    dates_table = modelsetup.datesmodelrun(
+            startyear=pygem_prms.ref_startyear, endyear=pygem_prms.ref_endyear, spinupyears=pygem_prms.ref_spinupyears,
+            option_wateryear=pygem_prms.ref_wateryear)
+    # print('dates_table is :',dates_table)
+    # ===== LOAD CLIMATE DATA =====
+    # Climate class
+    assert pygem_prms.ref_gcm_name in ['ERA5', 'ERA-Interim'], (
+            'Error: Calibration not set up for ' + pygem_prms.ref_gcm_name)
+    gcm = class_climate.GCM(name=pygem_prms.ref_gcm_name)
+    # Air temperature [degC]
+    gcm_temp, gcm_dates = gcm.importGCMvarnearestneighbor_xarray(gcm.temp_fn, gcm.temp_vn, main_glac_rgi, dates_table)
+    if pygem_prms.option_ablation == 2 and pygem_prms.ref_gcm_name in ['ERA5']:
+        gcm_tempstd, gcm_dates = gcm.importGCMvarnearestneighbor_xarray(gcm.tempstd_fn, gcm.tempstd_vn,
+                                                                        main_glac_rgi, dates_table)
+    else:
+        gcm_tempstd = np.zeros(gcm_temp.shape)
+    # Precipitation [m]
+    gcm_prec, gcm_dates = gcm.importGCMvarnearestneighbor_xarray(gcm.prec_fn, gcm.prec_vn, main_glac_rgi, dates_table)
+    # Elevation [m asl]
+    gcm_elev = gcm.importGCMfxnearestneighbor_xarray(gcm.elev_fn, gcm.elev_vn, main_glac_rgi)
+    # Lapse rate [degC m-1]
+    gcm_lr, gcm_dates = gcm.importGCMvarnearestneighbor_xarray(gcm.lr_fn, gcm.lr_vn, main_glac_rgi, dates_table)
+
+    # ===== CALIBRATE ALL THE GLACIERS AT ONCE =====
+    #pdb.set_trace()
+    # check the type of the modelprms_MB_FA
+    print("Type of modelprms_MB_FA:", type(modelprms_MB_FA))
+    print("Contents of modelprms_MB_FA:", repr(modelprms_MB_FA))  # Show raw format
+    print("=================================================")
+    #modelprms_MB_FA = ast.literal_eval(modelprms_MB_FA)  # Converts string to dictionary
+
+    print(type(modelprms_MB_FA))  # Should be a dictionary
+    print(modelprms_MB_FA)  # Print to see the content
+    #pdb.set_trace()
+
+    calving_k = modelprms_MB_FA['tau'] # calving parameter, in k_calving called calving_k, in SermQ called tau, but using the same name calving_k
+    index_pariticles = modelprms_MB_FA['index']
+    output_cns = ['RGIId', 'calving_k', 'calving_thick', 'calving_flux_Gta_inv', 'calving_flux_Gta', 'no_errors', 'oggm_dynamics','length_change_m','length_change_rate_myr_dLdt','velocity_at_calvingfront_myr','thickness_at_calvingfront_m','width_at_calvingfront_m','volume_bsl_m3','volume_bwl_m3']
+    output_df = pd.DataFrame(np.zeros((main_glac_rgi.shape[0],len(output_cns))), columns=output_cns)
+    output_df['RGIId'] = main_glac_rgi.RGIId
+    output_df['calving_k'] = calving_k
+    output_df['calving_thick'] = np.nan
+    output_df['calving_flux_Gta'] = np.nan
+    output_df['oggm_dynamics'] = 0
+    output_df['mb_mwea_fa_asl_lost'] = 0 
+    output_df['length_change_rate_myr_dLdt'] = [None] * output_df.shape[0]  # Initialize with None
+    output_df['length_change_m'] = [None] * output_df.shape[0]  # Initialize with None
+    output_df['velocity_at_calvingfront_myr'] = [None] * output_df.shape[0]  # Initialize with None
+    output_df['thickness_at_calvingfront_m'] = [None] * output_df.shape[0]  # Initialize with None
+    output_df['width_at_calvingfront_m'] = [None] * output_df.shape[0]  # Initialize with None
+    output_df['volume_bsl_m3'] = [None] * output_df.shape[0]  # Initialize with None
+    output_df['volume_bwl_m3'] = [None] * output_df.shape[0]  # Initialize with None
+    # ===== RUN REGRESSION CALIBRATION ===== 
+    # print('============================= run reg_calving_flux =============================')
+    # print('********** main glacier rgi ********** is :',main_glac_rgi)
+    for nglac in np.arange(main_glac_rgi.shape[0]):
+        # print("*********************** The",nglac,"glacier ***********************")  
+        # print('\n',main_glac_rgi.loc[main_glac_rgi.index.values[nglac],'RGIId'])
+#        if main_glac_rgi.loc[nglac,'RGIId'] in ['RGI60-09.00855']:
+        
+        # Select subsets of data
+        glacier_rgi_table = main_glac_rgi.loc[main_glac_rgi.index.values[nglac], :]
+        glacier_str = '{0:0.5f}'.format(glacier_rgi_table['RGIId_float'])
+        if do_DA_calib_Paralle:
+            k_str=glacier_str+"_"+f"{index_pariticles:.0f}"
+        else:
+            k_str = ''
+        try:
+            gdir = single_flowline_glacier_directory_with_calving(glacier_str, 
+                                                                logging_level='DEBUG',
+                                                                reset=reset_gdir,k_calving_str=k_str)
+        except:
+            print("**********Something is wrong with single_flowline_glacier_directory_with_calving in Reg_calving_flux**********")
+            print(traceback.format_exc())
+
+        #print("contents of gdir are",os.listdir(gdir.dir))
+        
+        gdir.is_tidewater = True
+        cfg.PARAMS['use_kcalving_for_inversion'] = True
+        cfg.PARAMS['use_kcalving_for_run'] = True
+
+        try:
+            fls = gdir.read_pickle('inversion_flowlines')
+            glacier_area = fls[0].widths_m * fls[0].dx_meter
+            debris.debris_binned(gdir, fl_str='inversion_flowlines', ignore_debris=True)
+        except:
+            fls = None
+            print(traceback.format_exc())
+              
+        # Add climate data to glacier directory
+        gdir.historical_climate = {'elev': gcm_elev[nglac],
+                                   'temp': gcm_temp[nglac,:],
+                                   'tempstd': gcm_tempstd[nglac,:],
+                                   'prec': gcm_prec[nglac,:],
+                                   'lr': gcm_lr[nglac,:]}
+        gdir.dates_table = dates_table
+        #TODO, the calibration data could be loaded just once, and then used for different parameter sets
+        # ----- load the calibration data (climatic mass balance)
+        mbdata_fn = gdir.get_filepath('mb_obs')   
+        with open(mbdata_fn, 'rb') as f:
+            gdir.mbdata = pickle.load(f)      
+        # Non-tidewater glaciers
+        if not gdir.is_tidewater:
+            # Load data
+            mb_obs_mwea = gdir.mbdata['mb_mwea']
+            mb_obs_mwea_err = gdir.mbdata['mb_mwea_err']
+        # Tidewater glaciers
+        #  use climatic mass balance since calving_k already calibrated separately
+        else:
+            assert 'mb_clim_mwea' in gdir.mbdata.keys(), 'include_frontalablation is set as true, but fontal ablation has yet to be calibrated.'
+            mb_obs_mwea = gdir.mbdata['mb_clim_mwea']
+            mb_obs_mwea_err = gdir.mbdata['mb_clim_mwea_err']
+        
+        # ----- Invert ice thickness and run simulation ------
+        if (fls is not None) and (glacier_area.sum() > 0):
+            
+            # ----- Model parameters -----
+            # Use most likely parameters from initial calibration to force the mass balance gradient for the inversion (the initial value?）
+            kp_value = modelprms_MB_FA['kp']
+            #print("the initial kp_value from the emulator is:",kp_value)
+            tbias_value = modelprms_MB_FA['tbias']
+            #print("the initial tbias value from the emulator is:",tbias_value)
+            ddfsnow_value = modelprms_MB_FA['ddfsnow']
+            ddfice_value = ddfsnow_value/pygem_prms.ddfsnow_iceratio
+                
+            # Otherwise use input parameters
+            if kp_value is None:
+                kp_value = pygem_prms.kp
+            if tbias_value is None:
+                tbias_value = pygem_prms.tbias
+            
+            # Set model parameters
+            modelprms = {'kp': kp_value,
+                         'tbias': tbias_value,
+                         'ddfsnow': ddfsnow_value,
+                         'ddfice': ddfice_value,
+                         'tsnow_threshold':  pygem_prms.tsnow_threshold ,
+                         'precgrad': pygem_prms.precgrad}              
+                
+            # Calving and dynamic parameters
+            cfg.PARAMS['calving_k'] = calving_k
+            cfg.PARAMS['inversion_calving_k'] = cfg.PARAMS['calving_k']
+            
+            if pygem_prms.use_reg_glena:
+                glena_df = pd.read_csv(pygem_prms.glena_reg_fullfn)
+                glena_idx = np.where(glena_df.O1Region == glacier_rgi_table.O1Region)[0][0]
+                glen_a_multiplier = glena_df.loc[glena_idx,'glens_a_multiplier']
+                fs = glena_df.loc[glena_idx,'fs']
+            else:
+                fs = pygem_prms.fs
+                glen_a_multiplier = pygem_prms.glen_a_multiplier
+
+            # set the fs = None here and read it in the inversion_RT_New.py
+            fs = None    
+            
+            # CFL number (may use different values for calving to prevent errors)
+            if not glacier_rgi_table['TermType'] in [1,5] or not pygem_prms.include_calving:
+                cfg.PARAMS['cfl_number'] = pygem_prms.cfl_number
+            else:
+                cfg.PARAMS['cfl_number'] = pygem_prms.cfl_number_calving
+            
+            # ----- Mass balance model for ice thickness inversion using OGGM -----
+            mbmod_inv = PyGEMMassBalance(gdir, modelprms, glacier_rgi_table,
+                                         hindcast=pygem_prms.hindcast,
+                                         debug=pygem_prms.debug_mb,
+                                         debug_refreeze=pygem_prms.debug_refreeze,
+                                         fls=fls, option_areaconstant=True,
+                                         inversion_filter=False)
+            #print("mbmod_inv is:",mbmod_inv)
+            h, w = gdir.get_inversion_flowline_hw()
+            #print("the surface elevation (m a.b.s.l) is:",h)
+            #print("the width (m) is:",w)
+#            if debug:
+#                mb_t0 = (mbmod_inv.get_annual_mb(h, year=0, fl_id=0, fls=fls) * cfg.SEC_IN_YEAR * 
+#                         pygem_prms.density_ice / pygem_prms.density_water) 
+#                plt.plot(mb_t0, h, '.')
+#                plt.ylabel('Elevation')
+#                plt.xlabel('Mass balance (mwea)')
+#                plt.show()
+            
+            # ----- CALVING -----
+            # Number of years (for OGGM's run_until_and_store)
+            if pygem_prms.timestep == 'monthly':
+                nyears = int(dates_table.shape[0]/12)
+            else:
+                assert True==False, 'Adjust nyears for non-monthly timestep'
+            #print("nyears is (int(dates_table.shape[0]/12)) :",nyears)
+            mb_years=np.arange(nyears)
+            #print("mb_years is:",mb_years)
+
+            # Perform inversion
+            # - find_inversion_calving_from_any_mb will do the inversion with calving, but if it fails
+            #   then it will do the inversion assuming land-terminating
+            if invert_standard:
+                #print("start do the apparent mb from any mb:")
+                #print("invert_standard is True")
+                apparent_mb_from_any_mb(gdir, mb_model=mbmod_inv, mb_years=np.arange(nyears))
+                #print("apparent mb from any mb is done")
+                tasks.prepare_for_inversion(gdir)
+                tasks.mass_conservation_inversion(gdir, glen_a=cfg.PARAMS['glen_a']*glen_a_multiplier, fs=fs)
+            else:
+                try:
+                    # print("invert_standard is False & The find_inversion_calving_from_any_mb start")
+                    # print("⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅")
+                    out_calving = find_inversion_calving_from_any_mb(gdir, mb_model= mbmod_inv, mb_years=mb_years,
+                                                                    glen_a=cfg.PARAMS['glen_a']*glen_a_multiplier, fs=fs,calving_law_inv = None,
+                                                                    modelprms = modelprms, glacier_rgi_table = glacier_rgi_table,
+                                                                    hindcast=pygem_prms.hindcast,debug=pygem_prms.debug_mb,
+                                                                    debug_refreeze=pygem_prms.debug_refreeze,option_areaconstant=True,
+                                                                    inversion_filter=False)
+                    # print("The find_inversion_calving_from_any_mb end")
+                    # print("the out claving is:",out_calving)
+                except:
+                    print("Something wrong with the find_inversion_calving_from_any_mb")
+                    print(traceback.format_exc())
+
+                    
+                
+                
+                #print("the calving_flux is",out_calving['calving_flux'])
+                
+            # ------ MODEL WITH EVOLVING AREA ------
+            tasks.init_present_time_glacier(gdir) # adds bins below
+            debris.debris_binned(gdir, fl_str='model_flowlines')  # add debris enhancement factors to flowlines
+            nfls = gdir.read_pickle('model_flowlines')
+            # Mass balance model
+            mbmod = PyGEMMassBalance(gdir, modelprms, glacier_rgi_table,
+                                     hindcast=pygem_prms.hindcast,
+                                     debug=pygem_prms.debug_mb,
+                                     debug_refreeze=pygem_prms.debug_refreeze,
+                                     fls=nfls, option_areaconstant=False)
+            # Water Level
+            # Check that water level is within given bounds
+            cls = gdir.read_pickle('inversion_output')[-1]
+            th = cls['hgt'][-1]
+            thick0 = cls['thick'][-1]
+            rho = cfg.PARAMS['ice_density']
+            rho_o = cfg.PARAMS['ocean_density'] # Ocean density, must be >= ice density
+            water_level = out_calving ['calving_water_level']
+            #water_level = -thick0/4 if thick0 > 8*th else 0
+            # if gdir.is_tidewater:
+            #     if water_level is None:
+            #         water_level = -thick0/4 if thick0 > 8*th else 0
+            #     else:
+            #         water_level = water_level
+            # if th < (1-rho/rho_o)*thick0:
+            #     print ("Warning: The terminus of this glacier is floating")
+            #     water_level = th - (1-rho/rho_o)*thick0
+            # elif th > 0.3*thick0:
+            #     water_level = th - 0.3*thick0
+            # else:
+            #     water_level = 0
+            # vmin, vmax = cfg.PARAMS['free_board_marine_terminating']
+            # water_level = utils.clip_scalar(0, th - vmax, th - vmin)
+
+            # print('at the moment water level is :',water_level)
+            # print("------------------ after the thickness inversion with calving, run the dynamics ------------------")
+            #%%
+            ev_model = CalvingFluxBasedModelJanRt(nfls, y0=0, mb_model=mbmod,
+                                      glen_a=cfg.PARAMS['glen_a']*glen_a_multiplier, fs=fs,
+                                      is_tidewater=gdir.is_tidewater,
+                                      water_level=water_level
+                                      )
+            
+            try:
+                # print("***********************do the dynamic running with calving***********************")
+                # print("nyears is :",nyears)
+                try:
+                    # add the condition for different situation,1. do_fl_diag = True 2. do_fl_diag = False
+                    do_fl_diag = cfg.PARAMS['store_fl_diagnostics']
+                    if do_fl_diag:
+                        fl_diag_path = gdir.get_filepath('fl_diagnostics',delete=True)
+                        diag, fl_diag_dss= ev_model.run_until_and_store(nyears,store_monthly_step= True,fl_diag_path=fl_diag_path)
+                        # print('diag is :',diag)
+                    else:
+                        diag = ev_model.run_until_and_store(nyears,store_monthly_step= True)
+                        print('diag is :',diag)
+                except:
+                    print("something is wrong with the run_until_and_store")
+                    print(traceback.format_exc())
+                # print("the volume_3 in the diag is :",diag.volume_m3)
+                ev_model.mb_model.glac_wide_volume_annual[-1] = diag.volume_m3[-1]
+                ev_model.mb_model.glac_wide_area_annual[-1] = diag.area_m2[-1]
+                
+                # Record frontal ablation for tidewater glaciers and update total mass balance
+                if gdir.is_tidewater:
+                    try:
+                        # Glacier-wide frontal ablation (m3 w.e.)
+                        # - note: diag.calving_m3 is cumulative calving
+    #                    if debug:
+    #                        print('\n\ndiag.calving_m3:', diag.calving_m3.values)
+    #                        print('calving_m3_since_y0:', ev_model.calving_m3_since_y0)
+                        save_path_figure_calving = os.path.join(save_path_figure, f"{str(calving_k)}_{index_pariticles:.0f}")
+
+                        if Visualize_Index:
+                            if not os.path.exists(save_path_figure_calving):
+                                os.makedirs(save_path_figure_calving)
+                        #print("the calving in the diag is :",diag.calving_m3)
+                        # plot the timeseries of calving_m3
+                        print("****************Figure************************")
+                        print("Visualize_Index is:",Visualize_Index)
+                        #pdb.set_trace()
+                        # if Visualize_Index :
+                        #     print("****************Figure************************")
+                        #     Visualization_timeseries.plot_timeseries(calving_m3=diag.calving_m3,save_name='Timeseries of accumulated calving flux (m³)',
+                        #                                             save_path= save_path_figure_calving)
+                        # TODO: Actually calving_m3_monthly here is not annual, it's the timeseries of the model step, monthly/annual, to revise the name later
+                        calving_m3_monthly = (diag.calving_m3.values[1:] - diag.calving_m3.values[0:-1]) 
+    #                                         pygem_prms.density_ice / pygem_prms.density_water)
+                        # plot the timeseries of calving_m3_monthly
+                        # if Visualize_Index :
+                        #     Visualization_timeseries.plot_timeseries_Numpy(data = calving_m3_monthly, start_date='2000-01-01', end_date='2019-12-31',
+                        #                                                 save_name='Timeseries of calving',save_path=save_path_figure_calving, Y_label='calving flux (m³ a⁻¹)', F_title='Time Series')
+                        #print("calving_m3_monthly is:",calving_m3_monthly)
+                        # print("the frontalablation is updated totally :",calving_m3_monthly.shape[0])
+                        # print(calving_m3_monthly.shape[0],len(ev_model.mb_model.glac_wide_frontalablation))
+                        for n in np.arange(calving_m3_monthly.shape[0]):
+                            ev_model.mb_model.glac_wide_frontalablation[n] = calving_m3_monthly[n]*pygem_prms.density_ice / pygem_prms.density_water
+
+                        # Glacier-wide climatic and total mass balance (m3 w.e.)
+
+                        ev_model.mb_model.glac_wide_massbaltotal = (
+                                ev_model.mb_model.glac_wide_massbaltotal  - ev_model.mb_model.glac_wide_frontalablation)
+                        
+    #                    if debug:
+    #                        print('avg calving_m3:', calving_m3_monthly.sum() / nyears)
+    #                        print('avg frontal ablation [Gta]:', 
+    #                              np.round(ev_model.mb_model.glac_wide_frontalablation.sum() / 1e9 / nyears,4))
+    #                        print('avg frontal ablation [Gta]:', 
+    #                              np.round(ev_model.calving_m3_since_y0 * pygem_prms.density_ice / 1e12 / nyears,4))
+                            
+                        # ====== Output of calving ======
+                        out_calving_forward = {}
+                        # area_m2
+                        area_m2_monthly = diag.area_m2.values[0:-1]
+                        if np.any(area_m2_monthly == 0):
+                            raise ValueError("Error: Glacier area (area_m2_monthly) contains zero values, which would result in division by zero.")
+                        # mass balance climatic timeseries (m w.e./yr)
+                        out_calving_forward['massbal_clim_mwea_timeseries'] = ev_model.mb_model.glac_wide_massbalclim/area_m2_monthly*12
+                        # mass balance total timeseries (m w.e./yr)
+                        out_calving_forward['massbal_total_mwea_timeseries'] = ev_model.mb_model.glac_wide_massbaltotal/area_m2_monthly*12
+                        # mass balance climatic, period-average (m w.e./yr)
+                        out_calving_forward['massbal_clim_mwea'] = (ev_model.mb_model.glac_wide_massbalclim/ area_m2_monthly).sum()/nyears
+                        # mass balance total, period-average (m w.e./yr)
+                        out_calving_forward['massbal_total_mwea'] = (ev_model.mb_model.glac_wide_massbaltotal/ area_m2_monthly).sum()/nyears
+                        # frontal ablation , period-average (m w.e./yr)
+                        out_calving_forward['frontal_ablation_mwea'] = (ev_model.mb_model.glac_wide_frontalablation/ area_m2_monthly).sum()/nyears
+                        # frontal ablation , timeseries (m w.e./yr)
+                        out_calving_forward['frontal_ablation_mwea_timeseries'] = ev_model.mb_model.glac_wide_frontalablation/area_m2_monthly*12
+
+                        # calving flux (km3 ice/yr)
+                        out_calving_forward['calving_flux'] = calving_m3_monthly.sum() / nyears / 1e9
+                        # calving flux (Gt/yr)
+                        #calving_flux_Gta = out_calving_forward['calving_flux'] * pygem_prms.density_ice / pygem_prms.density_water
+                        calving_flux_Gta = out_calving_forward['calving_flux'] *1e9* pygem_prms.density_ice / 1e12
+                        out_calving_forward['calving_flux_Gta_timeseries'] = calving_m3_monthly*pygem_prms.density_ice/1e12              
+                        # calving front thickness at start of simulation
+                        #TODO check the last_idx should be the same to the calving law
+                        thick = nfls[0].thick
+                        last_idx = np.nonzero(thick)[0][-1]
+                        out_calving_forward['calving_front_thick'] = thick[last_idx]
+
+
+                        # Output of length change rate
+                        out_calving_forward['length_change_m'] = diag.length_m.values[1:] - diag.length_m.values[0:-1]
+                        ## Generate the monthly/annual lenge_change_m and plot timeseries
+                        if store_monthly_step:
+                            length_change_m_monthly = (diag.length_m.values[1:] - diag.length_m.values[0:-1])
+                            length_change_m_annual = np.nansum(length_change_m_monthly.reshape(-1, 12), axis=1)
+                            # Visualization_timeseries.plot_timeseries_Numpy(data = length_change_m_monthly, start_date='2000-01-01', end_date='2019-12-31',
+                            #                                                save_name='Timeseries of length change',save_path=save_path_figure_calving,
+                            #                                                Y_label='length change (m)', F_title='Time Series')
+                            if Visualize_Index:
+                                Visualization_timeseries.plot_timeseries_List(data = length_change_m_annual, start_year=2000, ylabel= 'length change (m a⁻¹)', xlabel='Year',
+                                                                            title='Annual timeseries of length change',save_path=save_path_figure_calving,
+                                                                            save_name='Annual timeseries of length change')
+                        else:
+                            length_change_m_annual= (diag.length_m.values[1:] - diag.length_m.values[0:-1])
+                            if Visualize_Index:
+                                Visualization_timeseries.plot_timeseries_List(data = length_change_m_annual, start_year=2000, ylabel= 'length change (m a⁻¹)', xlabel='Year',
+                                                                            title='Annual timeseries of length change',save_path=save_path_figure_calving,
+                                                                            save_name='Annual timeseries of length change')
+                        
+                        ## Generate the monthly/annual lenge_change_rate_myr_dLdt, velocity at the calving front #TODO At the moment, the monthly/annual length change rate and velicity are repeated in the function calib_ind_PBS_MB_FA_RT, which could be optimized later
+                        if store_monthly_step:
+                            length_change_rate_myr_dLdt_monthly = diag.length_change_rate_myr.values[1:]
+                            length_change_rate_myr_dLdt_annual = np.nanmean(length_change_rate_myr_dLdt_monthly.reshape(-1, 12), axis=1)
+                            velocity_myr_calvingfront_monthly = diag.velocity_at_calving_front_myr.values[1:]
+                            velocity_myr_calvingfront_annual = np.nanmean(velocity_myr_calvingfront_monthly.reshape(-1, 12), axis=1)
+                            # Visualization_timeseries.plot_timeseries_Numpy(data = length_change_rate_myr_dLdt_monthly, start_date='2000-01-01', end_date='2019-12-31',
+                            #                                                 save_name='Monthly timeseries of length change rate',save_path=save_path_figure_calving,
+                            #                                                 Y_label='length change rate (m a⁻¹)', F_title='Timeseries of length change rate (Sermeq)')
+
+                        else:
+                            length_change_rate_myr_dLdt_annual = diag.length_change_rate_myr.values[1:]
+                            velocity_myr_calvingfront_annual = diag.velocity_at_calving_front_myr.values[1:]
+
+                        if Visualize_Index:
+                            Visualization_timeseries.plot_timeseries_List(data = length_change_rate_myr_dLdt_annual, start_year=2000, ylabel= 'length change rate (m a⁻¹)', xlabel='Year',
+                                                                            title='Annual timeseries of length change rate',save_path=save_path_figure_calving,
+                                                                            save_name='Annual timeseries of length change rate')
+                            # Visualization_timeseries.plot_timeseries_List(data = velocity_myr_calvingfront_annual, start_year=2000,
+                            #                                                 ylabel='Velocity at the calving front (m a⁻¹)',xlabel= 'Year',
+                            #                                                 title='Annual timeseries of velocity at the calving front',save_path=save_path_figure_calving,
+                            #                                                 save_name='Annual timeseries of velocity at the calving front')
+                        
+                        #TODO Check the index, [:-1]should be the start of each time step, and [1:] should be the end of each time step
+                        out_calving_forward['length_change_rate_myr_dLdt'] = diag.length_change_rate_myr.values[1:]
+                        out_calving_forward['velocity_at_calvingfront_myr'] = diag.velocity_at_calving_front_myr.values[1:]
+                        out_calving_forward['thickness_at_calvingfront_m'] = diag.thickness_at_calving_front_m.values[1:]
+                        print("********************************************************")
+                        print("Available variables in diag:", list(diag.variables))
+                        out_calving_forward['width_at_calvingfront_m'] = diag.width_at_calving_front_m.values[1:]
+                        out_calving_forward['volume_bsl_m3'] = diag.volume_bsl_m3.values[1:]
+                        out_calving_forward['volume_bwl_m3'] = diag.volume_bwl_m3.values[1:]
+
+                        # Plot the timeseries of glacier profile
+                        # Visualization_timeseries.plot_timeseries_profile(gdir=gdir, filesuffix ='', save_path=save_path_figure_calving,save_name ='Glacier profile',
+                        #                                                 xlabel='Distance along the flowline (m)')
+                        
+                        #%% Plot the snapshot of each January about the glacier profile
+                        # generate selected time list
+                        # Define the start and end dates
+                        # Visualization_timeseries.plot_time_series_snapshots(gdir=gdir,filesuffix ='', sel_times=None,n_year =1,variable='thickness_m', group='fl_0', 
+                        #         ylabel='Elevation (m a.s.l.)', xlabel='Distance along the flowline (m)', title='Time Series Snapshots', 
+                        #         save_path=save_path_figure_calving,save_name='Timeseries snapshot of selected year')
+                        
+                        #%% Plot the animate gif of each month about the glacier profile
+                        # if Visualize_Index:
+                        #     Visualization_timeseries.animate_time_series(gdir=gdir, filesuffix ='', variable='thickness_m', group='fl_0',interval=400, ylabel='Elevation (m a.s.l.)', 
+                        #                                                 xlabel='Distance along the flowline (m)', title='Elevation Changes Animate', save_path=save_path_figure_calving,
+                        #                                                 save_name='Animate timeseries of monthly glacier profile')
+                        
+                        
+                        # Record in dataframe
+                        # Using apply to set complex data
+                        def update_row(row, index, calving_flux_Gta, calving_thick, length_change_m, 
+                                       length_change_rate_myr_dLdt,calving_flux_Gta_timeseries,velocity_at_calvingfront_myr,
+                                       thickness_at_calvingfront_m,width_at_calvingfront_m,massbal_clim_mwea,massbal_total_mwea,
+                                       massbal_clim_mwea_timeseries,massbal_total_mwea_timeseries,volume_bsl_m3,volume_bwl_m3,
+                                       frontal_ablation_mwea,frontal_ablation_mwea_timeseries):
+                            if index == row.name:
+                                row['calving_flux_Gta'] = calving_flux_Gta
+                                row['calving_thick'] = calving_thick
+                                row['no_errors'] = 1
+                                row['oggm_dynamics'] = 1
+                                row['length_change_m'] = length_change_m
+                                row['length_change_rate_myr_dLdt'] = length_change_rate_myr_dLdt
+                                row['calving_flux_Gta_timeseries'] = calving_flux_Gta_timeseries
+                                row['velocity_at_calvingfront_myr'] = velocity_at_calvingfront_myr
+                                row['thickness_at_calvingfront_m'] = thickness_at_calvingfront_m
+                                row['width_at_calvingfront_m'] = width_at_calvingfront_m
+                                row['massbal_clim_mwea'] = massbal_clim_mwea
+                                row['massbal_total_mwea'] = massbal_total_mwea
+                                row['massbal_clim_mwea_timeseries'] = massbal_clim_mwea_timeseries
+                                row['massbal_total_mwea_timeseries'] = massbal_total_mwea_timeseries
+                                row['volume_bsl_m3'] = volume_bsl_m3
+                                row['volume_bwl_m3'] = volume_bwl_m3
+                                row['frontal_ablation_mwea'] = frontal_ablation_mwea
+                                row['frontal_ablation_mwea_timeseries'] = frontal_ablation_mwea_timeseries
+                            return row
+                        
+
+                        # Apply the update function to each row
+                        output_df = output_df.apply(update_row, axis=1, 
+                                                    index=nglac, 
+                                                    calving_flux_Gta=calving_flux_Gta,
+                                                    calving_thick=out_calving_forward['calving_front_thick'],
+                                                    length_change_m=out_calving_forward['length_change_m'].tolist(),  # Convert to list
+                                                    length_change_rate_myr_dLdt=out_calving_forward['length_change_rate_myr_dLdt'].tolist(),
+                                                    calving_flux_Gta_timeseries=out_calving_forward['calving_flux_Gta_timeseries'].tolist(),
+                                                    velocity_at_calvingfront_myr=out_calving_forward['velocity_at_calvingfront_myr'].tolist(),
+                                                    thickness_at_calvingfront_m = out_calving_forward['thickness_at_calvingfront_m'].tolist(),
+                                                    width_at_calvingfront_m = out_calving_forward['width_at_calvingfront_m'].tolist(),  
+                                                    massbal_clim_mwea = out_calving_forward['massbal_clim_mwea'].tolist(),
+                                                    massbal_total_mwea = out_calving_forward['massbal_total_mwea'].tolist(),
+                                                    massbal_clim_mwea_timeseries = out_calving_forward['massbal_clim_mwea_timeseries'].tolist(),
+                                                    massbal_total_mwea_timeseries = out_calving_forward['massbal_total_mwea_timeseries'].tolist(),
+                                                    volume_bsl_m3 = out_calving_forward['volume_bsl_m3'].tolist(),
+                                                    volume_bwl_m3 = out_calving_forward['volume_bwl_m3'].tolist(),
+                                                    frontal_ablation_mwea = out_calving_forward['frontal_ablation_mwea'].tolist(),
+                                                    frontal_ablation_mwea_timeseries = out_calving_forward['frontal_ablation_mwea_timeseries'].tolist()
+                                                    )
+                        
+                        
+                        # output_df.loc[nglac,'calving_flux_Gta'] = calving_flux_Gta
+                        # output_df.loc[nglac,'calving_thick'] = out_calving_forward['calving_front_thick']
+                        # output_df.loc[nglac,'no_errors'] = 1
+                        # output_df.loc[nglac,'oggm_dynamics'] = 1
+                        # print("nglac:", nglac)
+                        # print("length_change_m is :",out_calving_forward['length_change_m'])
+                        # print("length_change_m length:", len(out_calving_forward['length_change_m']))
+                        # output_df.loc[nglac,'length_change_m'] = out_calving_forward['length_change_m']
+                        # output_df.loc[nglac,'length_change_rate_myr_dLdt'] = out_calving_forward['length_change_rate_myr_dLdt']
+                        
+                        if debug:               
+                            print('OGGM dynamics + SERMeQ, tau:', np.round(calving_k,4), 'glen_a:', np.round(glen_a_multiplier,2))                 
+                            # print('    calving front thickness [m]:', np.round(out_calving_forward['calving_front_thick'],1))
+                            # print('    calving flux model multiple-average [Gt/yr]:', np.round(calving_flux_Gta,5))
+                            # print('    length change [m] timeseries:', np.round(out_calving_forward['length_change_m'],2))
+                            # print('    length change rate [m/yr]:', np.round(out_calving_forward['length_change_rate_myr_dLdt'],2))
+                            # print('    calving flux time series [Gt]:', np.round(out_calving_forward['calving_flux_Gta_timeseries'],5))
+                            # print('    velocity at calving front [m/yr]:', np.round(out_calving_forward['velocity_at_calvingfront_myr'],2))
+                            # print('    thickness at calving front [m]:', np.round(out_calving_forward['thickness_at_calvingfront_m'],2))
+                            # print('    width at calving front [m]:', np.round(out_calving_forward['width_at_calvingfront_m'],2))
+                            # print('massbalance_climatic model [m w.e. per year]:', np.round(out_calving_forward['massbal_clim_mwea'],5))
+                            # print ('massbalance_total model [m w.e. per year]:', np.round(out_calving_forward['massbal_total_mwea'],5))
+                            # print('massbalance_climatic model timeseries [m w.e. per year]:', np.round(out_calving_forward['massbal_clim_mwea_timeseries'],5))
+                            # print('massbalance_total model timeseries [m w.e. per year]:', np.round(out_calving_forward['massbal_total_mwea_timeseries'],5))
+                            # print('volume_bsl [m^3]:', np.round(out_calving_forward['volume_bsl_m3'],2))
+                            # print('volume_bwl [m^3]:', np.round(out_calving_forward['volume_bwl_m3'],2))
+                            # print('frontal ablation model [m w.e. per year]:', np.round(out_calving_forward['frontal_ablation_mwea'],5))
+                            # print('frontal ablation model timeseries [m w.e. per year]:', np.round(out_calving_forward['frontal_ablation_mwea_timeseries'],5))
+                    except:
+                        print(traceback.format_exc())
+                
+            except:
+                if gdir.is_tidewater:
+                    if debug:
+                        print('OGGM dynamics failed, using mass redistribution curves')
+                        print(traceback.format_exc())
+                                                    # Mass redistribution curves glacier dynamics model
+# #                     ev_model = MassRedistributionCurveModel(
+# #                                     nfls, mb_model=mbmod, y0=0,
+# #                                     glen_a=cfg.PARAMS['glen_a']*glen_a_multiplier, fs=fs,
+# #                                     is_tidewater=gdir.is_tidewater,
+# #                                     water_level=water_level
+# #                                     )
+# #                     _, diag = ev_model.run_until_and_store(nyears)
+# #                     ev_model.mb_model.glac_wide_volume_annual = diag.volume_m3.values
+# #                     ev_model.mb_model.glac_wide_area_annual = diag.area_m2.values
+    
+# #                     # Record frontal ablation for tidewater glaciers and update total mass balance
+# #                     # Update glacier-wide frontal ablation (m3 w.e.)
+# #                     ev_model.mb_model.glac_wide_frontalablation = ev_model.mb_model.glac_bin_frontalablation.sum(0)
+# #                     # Update glacier-wide total mass balance (m3 w.e.)
+# #                     ev_model.mb_model.glac_wide_massbaltotal = (
+# #                             ev_model.mb_model.glac_wide_massbaltotal - ev_model.mb_model.glac_wide_frontalablation)
+
+# #                     calving_flux_km3a = (ev_model.mb_model.glac_wide_frontalablation.sum() * pygem_prms.density_water / 
+# #                                          pygem_prms.density_ice / nyears / 1e9)
+
+# # #                    if debug:
+# # #                        print('avg frontal ablation [Gta]:', 
+# # #                              np.round(ev_model.mb_model.glac_wide_frontalablation.sum() / 1e9 / nyears,4))
+# # #                        print('avg frontal ablation [Gta]:', 
+# # #                              np.round(ev_model.calving_m3_since_y0 * pygem_prms.density_ice / 1e12 / nyears,4))
+                    
+# #                     # Output of calving
+# #                     out_calving_forward = {}
+# #                     # calving flux (km3 ice/yr)
+# #                     out_calving_forward['calving_flux'] = calving_flux_km3a
+# #                     # calving flux (Gt/yr)
+# #                     calving_flux_Gta = out_calving_forward['calving_flux'] * pygem_prms.density_ice / pygem_prms.density_water
+# #                     # calving front thickness at start of simulation
+# #                     thick = nfls[0].thick
+# #                     last_idx = np.nonzero(thick)[0][-1]
+# #                     out_calving_forward['calving_front_thick'] = thick[last_idx]
+                    
+# #                     # Record in dataframe
+# #                     output_df.loc[nglac,'calving_flux_Gta'] = calving_flux_Gta
+# #                     output_df.loc[nglac,'calving_thick'] = out_calving_forward['calving_front_thick']
+# #                     output_df.loc[nglac,'no_errors'] = 1
+                    
+# #                     if debug:          
+# #                         print('Mass Redistribution curve, calving_k:', np.round(calving_k,1), 'glen_a:', np.round(glen_a_multiplier,2))                       
+# #                         print('    calving front thickness [m]:', np.round(out_calving_forward['calving_front_thick'],0))
+# #                         print('    calving flux model [Gt/yr]:', np.round(calving_flux_Gta,5))
+
+
+            if calc_mb_geo_correction:
+                # Mass balance correction from mass loss above sea level due to calving retreat 
+                #  (i.e., what the geodetic signal should see)
+                last_yr_idx = np.where(mbmod.glac_wide_area_annual > 0)[0][-1]
+                if last_yr_idx == mbmod.glac_bin_area_annual.shape[1]-1:
+                    last_yr_idx = -2
+                bin_last_idx = np.where(mbmod.glac_bin_area_annual[:,last_yr_idx] > 0)[0][-1]
+                bin_area_lost = mbmod.glac_bin_area_annual[bin_last_idx:,0] - mbmod.glac_bin_area_annual[bin_last_idx:,-2]
+                height_asl = mbmod.heights - water_level
+                height_asl[mbmod.heights<0] = 0
+                mb_mwea_fa_asl_geo_correction = ((bin_area_lost * height_asl[bin_last_idx:]).sum() / 
+                                        mbmod.glac_wide_area_annual[0] *
+                                        pygem_prms.density_ice / pygem_prms.density_water / nyears)
+                mb_mwea_fa_asl_geo_correction_max = 0.3*gta_to_mwea(calving_flux_Gta, glacier_rgi_table['Area']*1e6)
+                if mb_mwea_fa_asl_geo_correction > mb_mwea_fa_asl_geo_correction_max:
+                    mb_mwea_fa_asl_geo_correction = mb_mwea_fa_asl_geo_correction_max
+                    
+                # Below sea-level correction due to calving that geodetic mass balance doesn't see
+#                print('test:', mbmod.glac_bin_icethickness_annual.shape, height_asl.shape, bin_area_lost.shape)
+#                height_bsl = mbmod.glac_bin_icethickness_annual - height_asl
+                
+                # Area for retreat
+                if debug:
+#                    print('\n----- area calcs -----')
+#                    print(mbmod.glac_bin_area_annual[bin_last_idx:,0])
+#                    print(mbmod.glac_bin_icethickness_annual[bin_last_idx:,0])
+#                    print(mbmod.glac_bin_area_annual[bin_last_idx:,-2])
+#                    print(mbmod.glac_bin_icethickness_annual[bin_last_idx:,-2])
+#                    print(mbmod.heights.shape, mbmod.heights[bin_last_idx:])
+                    print('  mb_mwea_fa_asl_geo_correction:', np.round(mb_mwea_fa_asl_geo_correction,2))
+#                    print('  mb_mwea_fa_asl_geo_correction:', mb_mwea_fa_asl_geo_correction)
+#                    print(glacier_rgi_table, glacier_rgi_table['Area'])
+                    
+                    
+                output_df.loc[nglac,'mb_mwea_fa_asl_lost'] = mb_mwea_fa_asl_geo_correction
+
+            if out_calving_forward is None:
+                output_df.loc[nglac,['calving_k', 'calving_thick', 'calving_flux_Gta', 'no_errors','length_change_m',
+                                     'length_change_rate_myr_dLdt','calving_flux_Gta_timeseries','velocity_at_calvingfront_myr',
+                                     'thickness_at_calvingfront_m','width_at_calvingfront_m','massbal_clim_mwea','massbal_total_mwea',
+                                     'massbal_clim_mwea_timeseries','massbal_total_mwea_timeseries','volume_bsl_m3','volume_bwl_m3',
+                                     'frontal_ablation_mwea','frontal_ablation_mwea_timeseries']] = (
+                        np.nan, np.nan, np.nan, 0,np.nan,np.nan,np.nan,np.nan,np.nan,np.nan,np.nan,np.nan)
+                
+    # Remove glaciers that failed to run
+    if fa_glac_data_reg is None:
+        reg_calving_gta_obs_good = None
+        output_df_good = output_df.dropna(axis=0, subset=['calving_flux_Gta'])
+        reg_calving_gta_mod_good = output_df_good.calving_flux_Gta.sum()
+    elif ignore_nan:
+        output_df_good = output_df.dropna(axis=0, subset=['calving_flux_Gta'])
+        reg_calving_gta_mod_good = output_df_good.calving_flux_Gta.sum()
+        rgiids_data = list(fa_glac_data_reg.RGIId.values)
+        rgiids_mod = list(output_df_good.RGIId.values)
+        fa_data_idx = [rgiids_data.index(x) for x in rgiids_mod]
+        reg_calving_gta_obs_good = fa_glac_data_reg.loc[fa_data_idx,'fa_gta_obs'].sum()
+    else:
+        reg_calving_gta_mod_good = output_df.calving_flux_Gta.sum()
+        reg_calving_gta_obs_good = fa_glac_data_reg['fa_gta_obs'].sum()
+            
+    return output_df, reg_calving_gta_mod_good, reg_calving_gta_obs_good,dates_table,mb_obs_mwea,mb_obs_mwea_err
+
+
+# the function for paralle running
+def processing_parameters(model_function,kwargs,modelprms_MB_FA):
+
+    print(f"Processing for k={modelprms_MB_FA} with kwargs={kwargs}")  # Debug print to check arguments
+
+    print("******************************")
+    print("modelprms_MB_FA is :",modelprms_MB_FA)
+    print("The type of modelprms_MB_FA is :",type(modelprms_MB_FA))
+
+    output_df, reg_calving_gta_mod_good,_ , dates_table,mb_obs_mwea,mb_obs_mwea_err= model_function(modelprms_MB_FA = modelprms_MB_FA, do_DA_calib_Paralle = True, **kwargs)
+            
+    # Convert dates_table (DataFrame) to a structured NumPy array
+    dates_table_np = dates_table.to_records(index=False)
+    # Create the output dictionary
+    out_dict =  {
+                'modelprms_MB_FA_value' : modelprms_MB_FA,
+                'calving_gta_average_regionalsum': reg_calving_gta_mod_good,
+                'length_change_m_timeseries': output_df['length_change_m'].tolist(),
+                'length_change_rate_myr_dLdt': output_df['length_change_rate_myr_dLdt'].tolist(),
+                'calving_thick': output_df['calving_thick'].tolist(),
+                'calving_flux_Gta_average': output_df['calving_flux_Gta'].tolist(),
+                'calving_flux_Gta_timeseries':output_df['calving_flux_Gta_timeseries'].tolist(),
+                'massbal_clim_mwea': output_df['massbal_clim_mwea'].tolist(),
+                'massbal_total_mwea': output_df['massbal_total_mwea'].tolist(),
+                'massbal_clim_mwea_timeseries': output_df['massbal_clim_mwea_timeseries'].tolist(),
+                'massbal_total_mwea_timeseries': output_df['massbal_total_mwea_timeseries'].tolist(),
+                'velocity_at_calvingfront_myr': output_df['velocity_at_calvingfront_myr'].tolist(),
+                'thickness_at_calvingfront_m': output_df['thickness_at_calvingfront_m'].tolist(),
+                'width_at_calvingfront_m': output_df['width_at_calvingfront_m'].tolist(),
+                'volume_bsl_m3': output_df['volume_bsl_m3'].tolist(),
+                'volume_bwl_m3': output_df['volume_bwl_m3'].tolist(),
+                'frontal_ablation_mwea': output_df['frontal_ablation_mwea'].tolist(),
+                'frontal_ablation_mwea_timeseries': output_df['frontal_ablation_mwea_timeseries'].tolist(),
+                'dates_table': dates_table_np,  # Add structured NumPy array of dates_table,
+                'mb_obs_mwea': mb_obs_mwea,
+                'mb_obs_mwea_err': mb_obs_mwea_err
+                }
+    return out_dict
+    
+
+def Visualize_parameter_paralle (model_function = None, calibrate_timeseries = False,rgiid_ind = None, Visual_index = False, Debug_index =False, **kwargs):
+    # this function is used to visulize the relationship between parameter k and model_functions, copy from def Visualize_parameter, revised for
+    # paralle computing 
+    # the modelprms_MB_FA is the parameter of the model_function (Tbias,kb,ddfsnow,tau,Index)
+    # model_function is the target function
+    # k_name,the name of the k parameter
+    # calibrate_timeseries, boolean, if True, the function is used to calibrate the annual timeseries of length change, vice verse; 
+    # The defaule is False, just calibrate the multiple year averaged FA
+    # rgiid_ind is the glacier id
+    # Visual_index is the boolean, if True, the function will visualize the relationship between parameters and output of the glacier
+    # Debug_index is the boolean, if True, the function will print the debug information
+    # **kwags are the keyword arguments for model_function
+
+    # the prior modelprms_MB_FA is the parameter of the model_function (Tbias,kb,ddfsnow,tau,Index) 
+    Sample_N = pygem_prms.pbs_sample_no
+    prior_samples = sample_prior(Sample_N)
+    prior_samples_list = [{key: prior_samples[key][i] for key in prior_samples} for i in range(len(prior_samples['tbias']))
+]
+
+    reg_calving_gta_mod_good = np.zeros(Sample_N)
+
+
+    # parallel compute the model output
+    proc_count = cpu_count()
+    print(f"There are {proc_count} processors are available")
+    proc_count_RT = max(1, proc_count - proc_count//2)  # Ensure at least one process
+    print(f"Using {proc_count} processors")
+
+    if calibrate_timeseries:
+        try:
+        # Use Pool with partial for additional arguments
+            process_func = partial(processing_parameters, model_function,kwargs)
+            with Pool(proc_count_RT) as pool:
+                print("Starting parallel processing...")  # Debugging message
+                output = pool.map(process_func, prior_samples_list)
+
+            # Ensure output is not empty
+            if not output:
+                raise ValueError("Processing function returned an empty output. Check 'process_func' or 'prior_samples'.")
+            # Extract the results
+            # Extract results using dictionary comprehension
+            keys = [
+                'modelprms_MB_FA_value','calving_gta_average_regionalsum', 'length_change_m_timeseries','length_change_rate_myr_dLdt',
+                'calving_thick', 'calving_flux_Gta_average','calving_flux_Gta_timeseries', 'massbal_clim_mwea',
+                'massbal_total_mwea', 'massbal_clim_mwea_timeseries', 'massbal_total_mwea_timeseries',
+                'velocity_at_calvingfront_myr','thickness_at_calvingfront_m','width_at_calvingfront_m','volume_bsl_m3','volume_bwl_m3',
+                'frontal_ablation_mwea', 'frontal_ablation_mwea_timeseries', 'mb_obs_mwea','mb_obs_mwea_err'
+            ] # TODO ADD THE 'dates_table' to the keys, 'modelprms_MB_FA_value'
+            # Convert extracted values to NumPy arrays
+            output_data = {key: np.array([out_dict[key] for out_dict in output]) for key in keys}
+           
+            # Convert modelprms_MB_FA_value separately
+            modelprms_data = output_data['modelprms_MB_FA_value']
+            modelprms_data_serializable = [
+                {key: (value.item() if isinstance(value, (np.generic, np.ndarray)) else value) for key, value in item.items()}
+                for item in modelprms_data
+            ]
+
+            # Handle structured arrays like 'dates_table'
+            # if 'dates_table' in output_data:
+            #     dates_table_serializable = [
+            #         {name: row[name].item() if isinstance(row[name], np.generic) else row[name] for name in output_data['dates_table'].dtype.names}
+            #         for row in output_data['dates_table']
+            #     ]
+            #     output_data['dates_table'] = dates_table_serializable
+
+            # Convert other NumPy arrays and handle NumPy-specific types
+            output_data_serializable = {
+                key: (
+                    value.tolist() if isinstance(value, np.ndarray) else 
+                    [{k: (v.item() if isinstance(v, (np.generic, np.ndarray)) else v) for k, v in row.items()} for row in value] 
+                    if isinstance(value, list) and isinstance(value[0], dict) else 
+                    (value.item() if isinstance(value, np.generic) else value)
+                )
+                for key, value in output_data.items() if key != 'modelprms_MB_FA_value'
+            }
+
+            #output_data_serializable = {key: value.tolist() for key, value in output_data.items()}
+
+            modelprms_MB_FA = output_data['modelprms_MB_FA_value']
+            reg_calving_gta_mod_good = output_data['calving_gta_average_regionalsum']
+            lengthchange_m_TMS = output_data['length_change_m_timeseries']
+            lengthchange_rate_dLdt = output_data['length_change_rate_myr_dLdt']
+            calving_thickness_model = output_data['calving_thick']
+            calving_flux_Gta_average = output_data['calving_flux_Gta_average']
+            calving_flux_Gta_TMS = output_data['calving_flux_Gta_timeseries']
+            massbal_clim = output_data['massbal_clim_mwea']
+            massbal_total = output_data['massbal_total_mwea']
+            massbal_clim_timeseries = output_data['massbal_clim_mwea_timeseries']
+            massbal_total_timeseries = output_data['massbal_total_mwea_timeseries']
+            velocity_at_calvingfront = output_data['velocity_at_calvingfront_myr']
+            thickness_at_calvingfront = output_data['thickness_at_calvingfront_m']
+            width_at_calvingfront = output_data['width_at_calvingfront_m']
+            volume_bsl = output_data['volume_bsl_m3']
+            volume_bwl = output_data['volume_bwl_m3']
+            frontal_ablation = output_data['frontal_ablation_mwea']
+            frontal_ablation_timeseries = output_data['frontal_ablation_mwea_timeseries']
+        except Exception as e:
+            print(f"An error occurred during parallel processing: {e}")
+            print(traceback.format_exc())
+    else:
+        reg_calving_gta_mod_good = []
+        for i, modelprms_mb_fa in enumerate(modelprms_MB_FA):
+            _, reg_calving_gta_mod_good[i],_ = model_function(modelprms_MB_FA = modelprms_mb_fa, **kwargs)
+    
+    # Visualize the relationship and save the figure
+    if Visual_index:
+        data_visulization = {
+            'Tbias': prior_samples['tbias'],
+            'kp': prior_samples['kp'],
+            'ddfsnow': prior_samples['ddfsnow'],
+            'tau': prior_samples['tau'],
+            'calving_gta_average': reg_calving_gta_mod_good,
+            'frontal_ablation_mwea': frontal_ablation,
+            'dLdt': lengthchange_rate_dLdt,
+            'massbal_clim': massbal_clim
+        }
+        
+        # Call the plot function
+        Visualization_timeseries.plot_and_save_relationship(data =data_visulization, parameters = ['Tbias','kp','ddfsnow','tau'], result = 'calving_gta_average', save_path =output_fp)
+        Visualization_timeseries.plot_and_save_relationship(data =data_visulization, parameters = ['Tbias','kp','ddfsnow','tau'], result = 'frontal_ablation_mwea', save_path =output_fp)
+        Visualization_timeseries.plot_and_save_relationship(data =data_visulization, parameters = ['Tbias','kp','ddfsnow','tau'], result = 'massbal_clim', save_path =output_fp)
+
+    # Debug output
+    if Debug_index:
+        print("Parameter_values:", prior_samples)
+        print("reg_calving_gta_mod_good:", reg_calving_gta_mod_good)
+        print("lengthchange_rate_dLdt:", lengthchange_rate_dLdt)
+        print("the type of lengthchange_rate_dLdt is :",type(lengthchange_rate_dLdt))
+        print("the calving flux Gt is :",calving_flux_Gta_TMS)
+        print("the velocity at the calvingfront myr is :",velocity_at_calvingfront)
+        print(lengthchange_rate_dLdt.apply(type))
+
+    # remove the output gdir directory of the current glacier with the specific tau
+    rgiid_ind_float = f"{float(rgiid_ind.split('-')[1]):0.5f}"
+    index_particles = prior_samples['index']
+    for k in index_particles:
+        #os.rmdir(pygem_prms.oggm_gdir_fp + str(k))
+        shutil.rmtree(pygem_prms.oggm_gdir_fp + rgiid_ind_float+'_'+f"{k:.0f}" )  # Use rmtree to remove non-empty directories
+    #plt.show()
+    if calibrate_timeseries:
+        # save the output as hpf5 file
+        # Define output file path
+        output_folder = output_fp  # Assuming `pygem_prms.output_fp` exists
+        output_filename = f'calibration_prior_output_{rgiid_ind}.json'
+        output_filename_params = f'calibration_prior_output_Params_{rgiid_ind}.json'
+        output_fp_prior = os.path.join(output_folder, output_filename)
+        output_fp_params = os.path.join(output_folder, output_filename_params)
+        # # Save to HDF5
+        try:
+            # Save modelprms_MB_FA_value to JSON
+            #pdb.set_trace()
+            with open(output_fp_params, "w") as f:
+                json.dump(modelprms_data_serializable, f, indent=4)
+
+            
+            with open(output_fp_prior, "w") as f:
+                json.dump(output_data_serializable, f, indent=4)
+                # json.dump(
+                #     { 
+                #         #"prior_samples": convert_to_serializable(prior_samples), 
+                #         "output_data": convert_to_serializable(output_data)
+                #     }, 
+                #     f, indent=4
+                # )
+        except:
+            print(f"Error saving output to {output_fp_prior}")
+            print(traceback.format_exc())
+        
+        # ds_samples = samples2xrDataset(prior_samples)
+        # ##pdb.set_trace()
+        # ds_samples.to_netcdf(path=f"{output_fp}/prior_samples_{rgiid_ind}.nc",format="NETCDF4",mode="w")
+        # prior_samples_serializable = [
+        #                                 {key: (value.item() if isinstance(value, (np.generic, np.ndarray)) else value) for key, value in item.items()}
+        #                                 for item in prior_samples
+        #                             ]
+        #pdb.set_trace()
+        prior_samples_serializable = {key: value.tolist() for key, value in prior_samples.items()}
+
+        with open(f"{output_fp}/prior_samples_{rgiid_ind}.json", "w") as f:
+            json.dump(prior_samples_serializable , f, indent=4)
+  
+        #tst_samples = netcdf2samples(fname=f"{output_fp}/prior_samples_{rgiid_ind}.nc")
+
+        return prior_samples, output_data
+    else:
+        return prior_samples, reg_calving_gta_mod_good
+    
+  
+
+
+
+def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='',
+                        frontalablation_annual_fp = '', frontalablation_annual_fn = '',
+                        output_fp='', hugonnet_fp='',hugonnet_fn='',lengthchange_annual_fp='',
+                        lengthchange_annual_fn='',verbose=False,overwrite = False,Visualize_Index = True,debug = True,
+                        store_monthly_step = True):
+    """
+    Calibration of the mass balance and frontal ablation model
+    Parameters
+    ----------
+    regions : list
+        list of regions to be calibrated
+    args : argparse.Namespace
+        arguments provided by the command line
+    frontalablation_fp : str, optional
+        file path to the frontal ablation data, by default ''
+    frontalablation_fn : str, optional
+        file name of the frontal ablation data, by default ''
+    output_fp : str, optional
+        output file path, by default ''
+    hugonnet2021_fp : str, optional
+        file path to the Hugonnet et al. 2021 data, by default ''
+    hugonnet2021_fn : str, optional
+        file name of the Hugonnet et al. 2021 data, by default ''
+    lengthchange_annual_fp : str, optional
+        file path to the annual length change data, by default ''
+    lengthchange_annual_fn : str, optional
+        file name of the annual length change data, by default ''
+    verbose : bool, optional
+        whether to print out the information, by default False
+    overwrite : bool, optional
+        whether to overwrite the existing files, by default False
+    Visualize_Index : bool, optional
+        whether to visualize the particles and weighted results, by default False
+    store_monthly_step : bool, optional
+        whether to store the monthly step data, by default True
+
+    Returns
+    -------
+    None
+    """
+    # ===== Load mass balance and frontal ablation data, and length change data =====
+    #Load calving glacier data (20 years averaged data,i.e. one value for the 20-year period) ===== 
+    fa_glac_data = pd.read_csv(frontalablation_fp + frontalablation_fn)
+    # Load the annual frontal ablation data #TODO At the moment, we don't have the annual frontal ablation data, so we use the 20-year averaged data
+    csv_path_FA_annual = frontalablation_annual_fp + frontalablation_annual_fn
+    if os.path.exists(csv_path_FA_annual):
+        frontalablation_annual_data = pd.read_csv(csv_path_FA_annual)
+        frontalablation_annual_data['O1Region'] = [int(x.split('-')[1].split('.')[0]) for x in frontalablation_annual_data.RGIId.values]
+    else:
+        frontalablation_annual_data = None
+        print(f"File not found: {csv_path_FA_annual}. Skipping this step.")
+    #TODO Check the dataset, which should be the climatic mass balance, not the total mass balance
+    mb_data = pd.read_csv(hugonnet_fp + hugonnet_fn)
+    fa_glac_data['O1Region'] = [int(x.split('-')[1].split('.')[0]) for x in fa_glac_data.RGIId.values]
+    #Load lenght change data ===== 
+    #TODO Set the condition for calibtation variables, calibrate FA or dLdt or both, and the condition for monthly or annual calibration
+    lengthchange_annual_data = pd.read_csv(lengthchange_annual_fp + lengthchange_annual_fn)
+    lengthchange_annual_data['O1Region'] = [int(x.split('-')[1].split('.')[0]) for x in lengthchange_annual_data.RGIId.values]
+
+    #%% ===== Regional calibration =====
+    for reg in [regions]:
+        # skip over any regions we don't have data for
+        if reg not in fa_glac_data['O1Region'].values.tolist():
+            continue
+        output_fn = str(reg) + '-calving_cal_ind.csv'
+
+        # === Regional data ===
+        fa_glac_data_reg = fa_glac_data.loc[fa_glac_data['O1Region'] == reg, :].copy()
+        fa_glac_data_reg.reset_index(inplace=True, drop=True)
+
+        lengthchange_annual_data_reg = lengthchange_annual_data.loc[lengthchange_annual_data['O1Region'] == reg, :].copy()
+        lengthchange_annual_data_reg.reset_index(inplace=True, drop=True)
+
+        fa_glac_data_reg['glacno'] = np.nan
+
+        for nglac, rgiid in enumerate(fa_glac_data_reg.RGIId):
+            # Avoid regional data and observations from multiple RGIIds (len==14)
+            if not fa_glac_data_reg.loc[nglac,'RGIId'] == 'all' and len(fa_glac_data_reg.loc[nglac,'RGIId']) == 14:
+                fa_glac_data_reg.loc[nglac,'glacno'] = (str(int(rgiid.split('-')[1].split('.')[0])) + '.' + 
+                                                        rgiid.split('-')[1].split('.')[1])
+                
+        for nglac, rgiid in enumerate(lengthchange_annual_data_reg.RGIId):
+            # Avoid regional data and observations from multiple RGIIds (len==14)
+            if not lengthchange_annual_data_reg.loc[nglac,'RGIId'] == 'all' and len(lengthchange_annual_data_reg.loc[nglac,'RGIId']) == 14:
+                lengthchange_annual_data_reg.loc[nglac,'glacno'] = (str(int(rgiid.split('-')[1].split('.')[0])) + '.' + 
+                                                        rgiid.split('-')[1].split('.')[1])
+        if frontalablation_annual_data is not None:
+            fa_annual_data_reg = frontalablation_annual_data.loc[frontalablation_annual_data['O1Region'] == reg, :].copy()
+            fa_annual_data_reg.reset_index(inplace=True, drop=True)       
+            for nglac, rgiid in enumerate(fa_annual_data_reg.RGIId):
+                # Avoid regional data and observations from multiple RGIIds (len==14)
+                if not fa_annual_data_reg.loc[nglac,'RGIId'] == 'all' and len(fa_annual_data_reg.loc[nglac,'RGIId']) == 14:
+                    fa_annual_data_reg.loc[nglac,'glacno'] = (str(int(rgiid.split('-')[1].split('.')[0])) + '.' + 
+                                                            rgiid.split('-')[1].split('.')[1])
+            fa_annual_data_reg = fa_annual_data_reg.dropna(axis=0, subset=['glacno'])
+            fa_annual_data_reg.reset_index(inplace=True, drop=True)
+            glacno_reg_wdata_FA_annual = sorted(list(fa_annual_data_reg.glacno.values)) # annuall timeseries data
+        else:
+            fa_annual_data_reg = None
+            glacno_reg_wdata_FA_annual = None
+        # ===== Drop observations that aren't of individual glaciers, remove thoese with nan glacno
+        fa_glac_data_reg = fa_glac_data_reg.dropna(axis=0, subset=['glacno'])
+        fa_glac_data_reg.reset_index(inplace=True, drop=True)
+        lengthchange_annual_data_reg = lengthchange_annual_data_reg.dropna(axis=0, subset=['glacno'])
+        lengthchange_annual_data_reg.reset_index(inplace=True, drop=True)
+        if verbose:
+            print('fa_glac_data_reg 1st:',fa_glac_data_reg)
+            print('lengthchange_annual_data_reg 1st:',lengthchange_annual_data_reg)
+            print('fa_annual_data_reg 1st:',fa_annual_data_reg)
+
+        # ===== regional observations
+        reg_calving_gta_obs = fa_glac_data_reg['fa_gta_obs'].sum()
+        # Glacier numbers for model runs
+        #TODO Set the condition for calibtation variables, calibrate FA or dLdt or both;Maybe add the regional mass balance total, climatic mass balance here we assume all glaciers has the MB data
+        glacno_reg_wdata_FA = sorted(list(fa_glac_data_reg.glacno.values)) # 20 years averaged data
+        glacno_reg_wdata_dLdt_annual = sorted(list(lengthchange_annual_data_reg.glacno.values)) # annuall timeseries data       
+        glacno_reg_wdata = sorted(list(set(glacno_reg_wdata_FA).intersection(set(glacno_reg_wdata_dLdt_annual))))
+        # glacno_reg_wdata = sorted(list(set(glacno_reg_wdata_FA_annual).intersection(set(glacno_reg_wdata_dLdt_annual))))
+
+        # ===== LOAD GLACIERS =====
+        main_glac_rgi_all = modelsetup.selectglaciersrgitable(glac_no = glacno_reg_wdata) # TODO check the input of function selectglaciersrgitable
+        # Select Tidewater glaciers
+        termtype_list = [1,5]
+        main_glac_rgi = main_glac_rgi_all.loc[main_glac_rgi_all['TermType'].isin(termtype_list)]
+        main_glac_rgi.reset_index(inplace=True, drop=True)
+
+        # ----- QUALITY CONTROL USING MB_CLIM COMPARED TO REGIONAL MASS BALANCE -----
+        mb_data['O1Region'] = [int(x.split('-')[1].split('.')[0]) for x in mb_data.RGIId.values]
+        mb_data_reg = mb_data.loc[mb_data['O1Region'] == reg, :]
+        mb_data_reg.reset_index(inplace=True)
+
+        mb_clim_reg_avg = np.mean(mb_data_reg.mb_mwea)
+        mb_clim_reg_std = np.std(mb_data_reg.mb_mwea)
+        mb_clim_reg_3std_max = mb_clim_reg_avg + 3*mb_clim_reg_std
+        mb_clim_reg_max = np.max(mb_data_reg.mb_mwea)
+        mb_clim_reg_3std_min = mb_clim_reg_avg - 3*mb_clim_reg_std
+        if verbose:
+            print('mb_clim_reg_avg:', np.round(mb_clim_reg_avg,2), '+/-', np.round(mb_clim_reg_std,2))
+            print('mb_clim_3std (neg):', np.round(mb_clim_reg_3std_min,2))
+            print('mb_clim_3std (pos):', np.round(mb_clim_reg_3std_max,2))
+            print('mb_clim_min:', np.round(mb_data_reg.mb_mwea.min(),2))
+            print('mb_clim_max:', np.round(mb_clim_reg_max,2))
+
+        # ===== Calibrate individuals =====
+        if not os.path.exists(output_fp + output_fn) or overwrite:
+
+            output_cns = ['RGIId', 'calving_k', 'calving_k_nmad', 'calving_thick', 'calving_flux_Gta', 'fa_gta_obs', 'fa_gta_obs_unc', 'fa_gta_max', 
+                            'no_errors', 'oggm_dynamics', 
+                            'mb_clim_gta', 'mb_total_gta', 'mb_clim_mwea', 'mb_total_mwea','length_change_ma_obs',
+                            'length_change_ma_obs_unc']
+            
+            output_df_all = pd.DataFrame(np.zeros((main_glac_rgi.shape[0],len(output_cns))), columns=output_cns)
+            output_df_all['RGIId'] = main_glac_rgi.RGIId
+            output_df_all['calving_k_nmad'] = 0
+
+            #%%
+            # Load observations 
+            fa_obs_dict = dict(zip(fa_glac_data_reg.RGIId, fa_glac_data_reg['fa_gta_obs']))
+            fa_obs_unc_dict = dict(zip(fa_glac_data_reg.RGIId, fa_glac_data_reg['fa_gta_obs_unc']))
+            lengthchange_obs_dict = dict(zip(lengthchange_annual_data_reg.RGIId, lengthchange_annual_data_reg['dLdt_m_per_yr']))
+            lengthchange_obs_unc_dict = dict(zip(lengthchange_annual_data_reg.RGIId, lengthchange_annual_data_reg['dLdt_m_per_yr_unc']))
+            # Set the output of the model, about the observations 
+            output_df_all['fa_gta_obs'] = output_df_all['RGIId'].map(fa_obs_dict)
+            output_df_all['fa_gta_obs_unc'] = output_df_all['RGIId'].map(fa_obs_unc_dict)
+            output_df_all['length_change_ma_obs'] = output_df_all['RGIId'].map(lengthchange_obs_dict)
+            output_df_all['length_change_ma_obs_unc'] = output_df_all['RGIId'].map(lengthchange_obs_unc_dict)
+
+            if frontalablation_annual_data is not None:
+                fa_obs_annual_dict = dict(zip(fa_annual_data_reg.RGIId, fa_annual_data_reg['fa_Gta_annual']))
+                fa_obs_unc_annual_dict = dict(zip(fa_annual_data_reg.RGIId, fa_annual_data_reg['fa_Gta_unc_annual']))
+                output_df_all['fa_gta_obs_annual'] = output_df_all['RGIId'].map(fa_obs_annual_dict)
+                output_df_all['fa_gta_obs_unc_annual'] = output_df_all['RGIId'].map(fa_obs_unc_annual_dict)
+            
+            #fa_glacname_dict = dict(zip(fa_glac_data_reg.RGIId, fa_glac_data_reg.glacier_name))
+            #output_df_all['name'] = output_df_all['RGIId'].map(fa_glacname_dict)
+            rgi_area_dict = dict(zip(main_glac_rgi.RGIId, main_glac_rgi.Area))
+            output_df_all['area_km2'] = output_df_all['RGIId'].map(rgi_area_dict)
+            # TODO add the observation of mass balance (Climatic mass balance)
+
+
+
+            # ----- LOAD DATA ON MB_CLIM CORRECTED FOR FRONTAL ABLATION -----
+            # use this to assess reasonableness of results and see if calving_k values affected
+            fa_rgiids_list = list(fa_glac_data_reg.RGIId)
+            output_df_all['mb_total_gta_obs'] = np.nan
+            output_df_all['mb_clim_gta_obs'] = np.nan
+            output_df_all['mb_total_mwea_obs'] = np.nan
+            output_df_all['mb_clim_mwea_obs'] = np.nan
+#            output_df_all['thick_measured_yn'] = np.nan
+            for nglac, rgiid in enumerate(list(output_df_all.RGIId)):
+                fa_idx = fa_rgiids_list.index(rgiid)
+                output_df_all.loc[nglac, 'mb_total_gta_obs'] = fa_glac_data_reg.loc[fa_idx, 'Romain_gta_mbtot']
+                output_df_all.loc[nglac, 'mb_clim_gta_obs'] = fa_glac_data_reg.loc[fa_idx, 'Romain_gta_mbclim']
+                output_df_all.loc[nglac, 'mb_total_mwea_obs'] = fa_glac_data_reg.loc[fa_idx, 'Romain_mwea_mbtot']
+                output_df_all.loc[nglac, 'mb_clim_mwea_obs'] = fa_glac_data_reg.loc[fa_idx, 'Romain_mwea_mbclim']
+#                output_df_all.loc[nglac, 'thick_measured_yn'] = fa_glac_data_reg.loc[fa_idx, 'thick_measured_yn']
+            # ----- CORRECT TOO POSITIVE CLIMATIC MASS BALANCES -----
+            output_df_all['mb_clim_gta'] = output_df_all['mb_clim_gta_obs']
+            output_df_all['mb_total_gta'] = output_df_all['mb_total_gta_obs']
+            output_df_all['mb_clim_mwea'] = output_df_all['mb_clim_mwea_obs']
+            output_df_all['mb_total_mwea'] = output_df_all['mb_total_mwea_obs']
+            output_df_all['fa_gta_max'] = output_df_all['fa_gta_obs']
+            
+            output_df_badmbclim = output_df_all.loc[output_df_all.mb_clim_mwea_obs > mb_clim_reg_3std_max]
+            # Correct by using mean + 3std as maximum climatic mass balance
+            if output_df_badmbclim.shape[0] > 0:
+                #print("*************there are bad climate balance, which is lager than the region mean+3std")
+                rgiids_toopos = list(output_df_badmbclim.RGIId)
+
+                for nglac, rgiid in enumerate(list(output_df_all.RGIId)):
+                    if rgiid in rgiids_toopos:
+                        # Specify maximum frontal ablation based on maximum climatic mass balance
+                        mb_clim_mwea = mb_clim_reg_3std_max
+                        area_m2 = output_df_all.loc[nglac,'area_km2'] * 1e6
+                        mb_clim_gta = mwea_to_gta(mb_clim_mwea, area_m2)
+
+                        mb_total_gta = output_df_all.loc[nglac,'mb_total_gta_obs']
+               
+                        fa_gta_max = mb_clim_gta - mb_total_gta
+                  
+                        output_df_all.loc[nglac,'fa_gta_max'] = fa_gta_max
+                        output_df_all.loc[nglac,'mb_clim_mwea'] = mb_clim_mwea
+                        output_df_all.loc[nglac,'mb_clim_gta'] = mb_clim_gta
+
+            failed_glacs = []
+            #TODO It weights Parameters BASED ON INDIVIDUAL GLACIER MASS BALANCE + dLdt + FRONTAL ABLATION DATA, but at the moment,it's Monte Carlo -----
+            for nglac in np.arange(main_glac_rgi.shape[0]):
+                glacier_str = '{0:0.5f}'.format(main_glac_rgi.loc[nglac,'RGIId_float'])
+                #if main_glac_rgi.loc[nglac,'RGIId'] in ['RGI60-03.00108']:
+                    
+                # Select individual glacier
+                main_glac_rgi_ind = main_glac_rgi.loc[[nglac],:]
+                main_glac_rgi_ind.reset_index(inplace=True, drop=True)
+                rgiid_ind = main_glac_rgi_ind.loc[0,'RGIId']
+
+                fa_glac_data_ind = fa_glac_data_reg.loc[fa_glac_data_reg.RGIId == rgiid_ind, :]
+                fa_glac_data_ind.reset_index(inplace=True, drop=True)
+                fa_gta_obs_ind = fa_glac_data_ind.loc[0,'fa_gta_obs']
+                fa_gta_obs_unc_ind = fa_glac_data_ind.loc[0,'fa_gta_obs_unc']
+                lengthchange_annual_data_ind = lengthchange_annual_data_reg.loc[lengthchange_annual_data_reg.RGIId == rgiid_ind, :]
+                lengthchange_annual_data_ind.reset_index(inplace=True,drop=True)
+                lengthchange_dLdt_obs_ind = ast.literal_eval(lengthchange_annual_data_ind.loc[0,'dLdt_m_per_yr'])
+                lengthchnage_dLdt_unc_obs_ind = ast.literal_eval(lengthchange_annual_data_ind.loc[0,'dLdt_m_per_yr_unc'])
+                if frontalablation_annual_data is not None:
+                    fa_annual_data_ind = fa_annual_data_reg.loc[fa_annual_data_reg.RGIId == rgiid_ind, :]
+                    fa_annual_data_ind.reset_index(inplace=True, drop=True)
+                    fa_annual_data_obs_ind = ast.literal_eval(fa_annual_data_ind.loc[0,'fa_Gta_annual'])
+                    fa_annual_data_obs_unc_ind = ast.literal_eval(fa_annual_data_ind.loc[0,'fa_Gta_unc_annual'])
+                else:
+                    fa_annual_data_obs_ind = np.nan
+                    fa_annual_data_obs_unc_ind = np.nan
+                #TODO add the mass balance information for ind
+
+                # Quantify the fa by the fa_gta_max, if the fa_gta_obs is larger than the fa_gta_max, then set the fa_gta_obs as fa_gta_max
+                fa_gta_max = output_df_all.loc[nglac,'fa_gta_max']
+                fa_gta_obs_unc = output_df_all.loc[nglac,'fa_gta_obs_unc']
+                print('The glacier is:',rgiid_ind,'the max FA gta is:',fa_gta_max)
+                if fa_glac_data_ind.loc[0,'fa_gta_obs'] > fa_gta_max:
+                    reg_calving_gta_obs = fa_gta_max
+                    fa_glac_data_ind.loc[0,'fa_gta_obs'] = fa_gta_max
+
+               
+                # ===== generate the particles =====
+
+
+                param_prior_array,output_prior =  Visualize_parameter_paralle (model_function = reg_calving_flux,rgiid_ind = rgiid_ind,
+                                                                                main_glac_rgi = main_glac_rgi_ind, fa_glac_data_reg=fa_glac_data_ind,ignore_nan=False,
+                                                                                debug=debug,calibrate_timeseries =True,store_monthly_step=store_monthly_step)
+                # Extract the results
+                # Extract results using dictionary comprehension (#TODOat the moment, we using lengthchnage_dLdt_model_array, and massbalclim_model_array to do the calibration, more choice could be added in the future)
+                lengthchange_m_TMS_model_array = output_prior['length_change_m_timeseries'] # lengthchange based on the difference of the length of the centerline flowline
+                lengthchange_dLdt_model_array = output_prior['length_change_rate_myr_dLdt'] # lengthchange based on the calving law (SERMeQ)
+                calving_flux_Gta_TMS_model_array = output_prior['calving_flux_Gta_timeseries']
+                calving_flux_Gta_average_model_array = output_prior['calving_flux_Gta_average']
+                massbalclim_model_array = output_prior['massbal_clim_mwea']
+                massbaltotal_model_array = output_prior['massbal_total_mwea']
+                massbalclim_TMS_model_array = output_prior['massbal_clim_mwea_timeseries']
+                massbaltotal_TMS_model_array = output_prior['massbal_total_mwea_timeseries']
+                FA_mwea_average_model_array = output_prior['frontal_ablation_mwea']
+                FA_mwea_TMS_model_array = output_prior['frontal_ablation_mwea_timeseries']
+                velocity_at_calvingfront_model_array = output_prior['velocity_at_calvingfront_myr']
+                thickness_at_calvingfront_model_array = output_prior['thickness_at_calvingfront_m']
+                width_at_calvingfront_model_array = output_prior['width_at_calvingfront_m']
+                volume_bsl_model_array = output_prior['volume_bsl_m3']
+                volume_bwl_model_array = output_prior['volume_bwl_m3']
+                calving_thickness_model_array = output_prior['calving_thick']
+                mb_obs_mwea = output_prior['mb_obs_mwea'][0] #TODO chekck the mass balance data should be the climatic mass balance
+                mb_obs_mwea_err = output_prior['mb_obs_mwea_err'][0] # [0], the observation are the same for all the particles
+                #pdb.set_trace() 
+                if store_monthly_step:
+                    # Flatten the nested lists
+                    lengthchange_m_TMS_model_array_flattened = [sublist[0] for sublist in lengthchange_m_TMS_model_array]
+                    lengthchange_m_TMS_model_array_monthly =  lengthchange_m_TMS_model_array_flattened
+                    lengthchange_m_TMS_model_array_annual = [[np.mean(sublist[i:i + 12]) for i in range(0, len(sublist), 12)] for sublist in lengthchange_m_TMS_model_array_monthly]
+                    
+                    lengthchange_dLdt_model_array_flattened = [sublist[0] for sublist in lengthchange_dLdt_model_array]
+                    lengthchange_dLdt_model_array_monthly =  lengthchange_dLdt_model_array_flattened
+                    lengthchange_dLdt_model_array_annual = [[np.mean(sublist[i:i + 12]) for i in range(0, len(sublist), 12)] for sublist in lengthchange_dLdt_model_array_monthly]
+                    
+                    calving_flux_Gta_TMS_model_array_flattened = [sublist[0] for sublist in calving_flux_Gta_TMS_model_array]
+                    calving_flux_Gta_TMS_model_array_monthly =  calving_flux_Gta_TMS_model_array_flattened
+                    calving_flux_Gta_TMS_model_array_annual = [[np.sum(sublist[i:i + 12]) for i in range(0, len(sublist), 12)] for sublist in calving_flux_Gta_TMS_model_array_monthly]
+                    
+                    massbalclim_TMS_model_array_flattened = [sublist[0] for sublist in massbalclim_TMS_model_array]
+                    massbalclim_TMS_model_array_monthly =  massbalclim_TMS_model_array_flattened
+                    massbalclim_TMS_model_array_annual = [[np.mean(sublist[i:i + 12]) for i in range(0, len(sublist), 12)] for sublist in massbalclim_TMS_model_array_monthly]
+                    
+                    massbaltotal_TMS_model_array_flattened = [sublist[0] for sublist in massbaltotal_TMS_model_array]
+                    massbaltotal_TMS_model_array_monthly =  massbaltotal_TMS_model_array_flattened
+                    massbaltotal_TMS_model_array_annual = [[np.mean(sublist[i:i + 12]) for i in range(0, len(sublist), 12)] for sublist in massbaltotal_TMS_model_array_monthly]
+
+                    FA_mwea_TMS_model_array_flattened = [sublist[0] for sublist in FA_mwea_TMS_model_array]
+                    FA_mwea_TMS_model_array_monthly =  FA_mwea_TMS_model_array_flattened
+                    FA_mwea_TMS_model_array_annual = [[np.mean(sublist[i:i + 12]) for i in range(0, len(sublist), 12)] for sublist in FA_mwea_TMS_model_array_monthly]
+                    #pdb.set_trace()
+                    velocity_at_calvingfront_model_array_flattened = [sublist[0] for sublist in velocity_at_calvingfront_model_array]
+                    velocity_at_calvingfront_model_array_monthly =  velocity_at_calvingfront_model_array_flattened
+                    velocity_at_calvingfront_model_array_annual = [[np.mean(sublist[i:i + 12]) for i in range(0, len(sublist), 12)] for sublist in velocity_at_calvingfront_model_array_monthly]
+
+                    thickness_at_calvingfront_model_array_flattened = [sublist[0] for sublist in thickness_at_calvingfront_model_array]
+                    thickness_at_calvingfront_model_array_monthly =  thickness_at_calvingfront_model_array_flattened
+                    thickness_at_calvingfront_model_array_annual = [[np.mean(sublist[i:i + 12]) for i in range(0, len(sublist), 12)] for sublist in thickness_at_calvingfront_model_array_monthly]
+
+                    width_at_calvingfront_model_array_flattened = [sublist[0] for sublist in width_at_calvingfront_model_array]
+                    width_at_calvingfront_model_array_monthly =  width_at_calvingfront_model_array_flattened
+                    width_at_calvingfront_model_array_annual = [[np.mean(sublist[i:i + 12]) for i in range(0, len(sublist), 12)] for sublist in width_at_calvingfront_model_array_monthly]
+
+                    volume_bsl_model_array_flattened = [sublist[0] for sublist in volume_bsl_model_array]
+                    volume_bsl_model_array_monthly =  volume_bsl_model_array_flattened
+                    volume_bsl_model_array_annual = [[np.mean(sublist[i:i + 12]) for i in range(0, len(sublist), 12)] for sublist in volume_bsl_model_array_monthly]
+
+                    volume_bwl_model_array_flattened = [sublist[0] for sublist in volume_bwl_model_array]
+                    volume_bwl_model_array_monthly =  volume_bwl_model_array_flattened
+                    volume_bwl_model_array_annual = [[np.mean(sublist[i:i + 12]) for i in range(0, len(sublist), 12)] for sublist in volume_bwl_model_array_monthly]
+
+
+                    #pdb.set_trace()
+
+                    # calving_thickness_model_array_flattend = [sublist[0] for sublist in calving_thickness_model_array]
+                    # calving_thickness_model_array_monthly =  calving_thickness_model_array_flattend
+                    # calving_thickness_model_array_annual = [[np.mean(sublist[i:i + 12]) for i in range(0, len(sublist), 12)] for sublist in calving_thickness_model_array_monthly]
+                else:
+                    lengthchange_m_TMS_model_array_annual = lengthchange_m_TMS_model_array
+                    lengthchange_dLdt_model_array_annual = lengthchange_dLdt_model_array
+                    calving_flux_Gta_TMS_model_array_annual = calving_flux_Gta_TMS_model_array
+                    massbalclim_TMS_model_array_annual = massbalclim_TMS_model_array
+                    massbaltotal_TMS_model_array_annual = massbaltotal_TMS_model_array
+                    FA_mwea_TMS_model_array_annual = FA_mwea_TMS_model_array
+                    velocity_at_calvingfront_model_array_annual = velocity_at_calvingfront_model_array
+                    thickness_at_calvingfront_model_array_annual = thickness_at_calvingfront_model_array
+                    width_at_calvingfront_model_array_annual = width_at_calvingfront_model_array
+                    volume_bsl_model_array_annual = volume_bsl_model_array
+                    volume_bwl_model_array_annual = volume_bwl_model_array
+
+                #%% Run the particle batch smoother
+                
+                # ===== Prepare the input for particle batch smoother as the m*1/m*N array ===== 
+
+                # ===== Observations =====
+                # ----onvert to NumPy array and ensure proper shape of the observations #TODO At the moment, the calibration is based on the length change (TMS), the mass balance (multiple year average), and more choice can be added in the future
+                lengthchange_dLdt_obs_ind_array = np.array(lengthchange_dLdt_obs_ind).reshape(len(lengthchange_dLdt_obs_ind),1)
+                mb_obs_mwea_ind_array = np.asarray(mb_obs_mwea).reshape(-1, 1)
+                fa_gta_obs_ind_array = np.asarray(fa_gta_obs_ind).reshape(-1, 1)
+                
+                # ----square of uncertainty of observations
+                lengthchnage_dLdt_unc_obs_ind_2_array = np.square(np.asarray(lengthchnage_dLdt_unc_obs_ind)).reshape(-1, 1)
+                mb_obs_mwea_err_2_array = np.square(np.asarray(mb_obs_mwea_err)).reshape(-1, 1)
+                fa_gta_obs_unc_2_array = np.square(np.asarray(fa_gta_obs_unc)).reshape(-1, 1)
+                if frontalablation_annual_data is not None:
+                    fa_annual_data_obs_ind_array = np.array(fa_annual_data_obs_ind).reshape(len(fa_annual_data_obs_ind),1)
+                    fa_annual_data_obs_unc_2_array = np.square(np.asarray(fa_annual_data_obs_unc_ind)).reshape(-1, 1)
+                #TODO At the momment, the calibration based on the length change, the mass balance, and the frontal ablation is not considered, and 
+                # for the length change, the first 10 years + the 10-year averages as the calibration data, and the last 10 years as the validation data,
+                # but for the future, it should has more flexiale choices, and the timeseries of mass balance and the frontal ablation should be considered as well.
+                # 10-years annual length change and the 10-year average climatic mass balance
+                lengthchange_dLdt_annual_CMB_obs_ind_array = np.concatenate((lengthchange_dLdt_obs_ind_array,mb_obs_mwea_ind_array),axis = 0)
+                lengthchange_dLdt_annual_CMB_obs_ind_2_array = np.concatenate((lengthchnage_dLdt_unc_obs_ind_2_array,mb_obs_mwea_err_2_array),axis = 0)
+
+                # ===== Model =====
+                # ----Convert and transpose lengthchange_m_TMS_model_array_annual if necessary
+                lengthchange_m_TMS_model_array_annual = np.asarray(lengthchange_m_TMS_model_array_annual)
+                if lengthchange_m_TMS_model_array_annual.ndim == 2:
+                    lengthchange_m_TMS_model_array_annual = lengthchange_m_TMS_model_array_annual.T
+
+                # ----Convert and transpose lengthchange_dLdt_model_array_annual if necessary                
+                # Ensure lengthchange_dLdt_model_array_annual is properly shaped before transposing
+                lengthchange_dLdt_model_array_annual = np.asarray(lengthchange_dLdt_model_array_annual)
+                if lengthchange_dLdt_model_array_annual.ndim == 2:
+                    lengthchange_dLdt_model_array_annual = lengthchange_dLdt_model_array_annual.T
+
+                # ----Convert and transpose calving_flux_Gta_TMS_model_array_annual if necessary
+                calving_flux_Gta_TMS_model_array_annual = np.asarray(calving_flux_Gta_TMS_model_array_annual)
+                if calving_flux_Gta_TMS_model_array_annual.ndim == 2:
+                    calving_flux_Gta_TMS_model_array_annual = calving_flux_Gta_TMS_model_array_annual.T
+
+                # #---- Convert and transpose massbalclim_TMS_model_array_annual if necessary
+                # massbalclim_TMS_model_array_annual = np.asarray(massbalclim_TMS_model_array_annual)
+                # if massbalclim_TMS_model_array_annual.ndim == 2:
+                #     massbalclim_TMS_model_array_annual = massbalclim_TMS_model_array_annual.T
+                
+                # # ----Convert and transpose massbaltotal_TMS_model_array_annual if necessary
+                # massbaltotal_TMS_model_array_annual = np.asarray(massbaltotal_TMS_model_array_annual)
+                # if massbaltotal_TMS_model_array_annual.ndim == 2:
+                #     massbaltotal_TMS_model_array_annual = massbaltotal_TMS_model_array_annual.T
+
+                #---- Convert and transpose FA_mwea_TMS_model_array_annual if necessary
+                FA_mwea_TMS_model_array_annual = np.asarray(FA_mwea_TMS_model_array_annual)
+                if FA_mwea_TMS_model_array_annual.ndim == 2:
+                    FA_mwea_TMS_model_array_annual = FA_mwea_TMS_model_array_annual.T
+
+                #---- Convert and transpose velocity_at_calvingfront_model_array_annual if necessary
+                velocity_at_calvingfront_model_array_annual = np.asarray(velocity_at_calvingfront_model_array_annual)
+                if velocity_at_calvingfront_model_array_annual.ndim == 2:
+                    velocity_at_calvingfront_model_array_annual = velocity_at_calvingfront_model_array_annual.T
+
+                #---- Convert and transpose thickness_at_calvingfront_model_array_annual if necessary
+                thickness_at_calvingfront_model_array_annual = np.asarray(thickness_at_calvingfront_model_array_annual)
+                if thickness_at_calvingfront_model_array_annual.ndim == 2:
+                    thickness_at_calvingfront_model_array_annual = thickness_at_calvingfront_model_array_annual.T
+
+                #---- Convert and transpose width_at_calvingfront_model_array_annual if necessary
+                width_at_calvingfront_model_array_annual = np.asarray(width_at_calvingfront_model_array_annual)
+                if width_at_calvingfront_model_array_annual.ndim == 2:
+                    width_at_calvingfront_model_array_annual = width_at_calvingfront_model_array_annual.T
+
+                #---- Convert and transpose volume_bsl_model_array_annual if necessary
+                volume_bsl_model_array_annual = np.asarray(volume_bsl_model_array_annual)
+                if volume_bsl_model_array_annual.ndim == 2:
+                    volume_bsl_model_array_annual = volume_bsl_model_array_annual.T
+
+                #---- Convert and transpose volume_bwl_model_array_annual if necessary
+                volume_bwl_model_array_annual = np.asarray(volume_bwl_model_array_annual)
+                if volume_bwl_model_array_annual.ndim == 2:
+                    volume_bwl_model_array_annual = volume_bwl_model_array_annual.T
+
+  
+                #---- maskout the inf or -inf value based on the length change
+                finite_mask = np.all(np.isfinite(lengthchange_dLdt_model_array_annual) &
+                                        (lengthchange_dLdt_model_array_annual <= max_length_change_myr) &
+                                        (lengthchange_dLdt_model_array_annual >= min_length_change_myr), axis=0)  # True for columns without inf/-inf, and within the max and min of the suspected length change
+                print("****************************************************")
+                print("type of finite_mask is",type(finite_mask))
+                print("finite_mask is :", finite_mask)
+                print("type of param_prior_array is :",type(param_prior_array))
+                print("param_prior_array is :",param_prior_array)
+                print("****************************************************")
+                
+                param_prior_array = {key: np.array(value)[finite_mask] for key, value in param_prior_array.items()}
+                #pdb.set_trace()
+                #param_prior_array = param_prior_array[finite_mask]
+                lengthchange_dLdt_model_array_annual = lengthchange_dLdt_model_array_annual[:, finite_mask]
+                lengthchange_m_TMS_model_array_annual = lengthchange_m_TMS_model_array_annual[:, finite_mask]
+                calving_flux_Gta_TMS_model_array_annual = calving_flux_Gta_TMS_model_array_annual[:, finite_mask]
+                # massbalclim_TMS_model_array_annual = massbalclim_TMS_model_array_annual[:, finite_mask]
+                # massbaltotal_TMS_model_array_annual = massbaltotal_TMS_model_array_annual[:, finite_mask]
+                FA_mwea_TMS_model_array_annual = FA_mwea_TMS_model_array_annual[:, finite_mask]
+                velocity_at_calvingfront_model_array_annual = velocity_at_calvingfront_model_array_annual[:, finite_mask]
+                thickness_at_calvingfront_model_array_annual = thickness_at_calvingfront_model_array_annual[:, finite_mask]
+                width_at_calvingfront_model_array_annual = width_at_calvingfront_model_array_annual[:, finite_mask]
+                volume_bsl_model_array_annual = volume_bsl_model_array_annual[:, finite_mask]
+                volume_bwl_model_array_annual = volume_bwl_model_array_annual[:, finite_mask]
+
+                
+                calving_flux_Gta_average_model_array = calving_flux_Gta_average_model_array[finite_mask]
+                calving_thickness_model_array = calving_thickness_model_array[finite_mask]
+                massbalclim_model_array = massbalclim_model_array[finite_mask]
+                massbaltotal_model_array = massbaltotal_model_array[finite_mask]
+                FA_mwea_average_model_array = FA_mwea_average_model_array[finite_mask]
+                
+
+
+                # generate the model array as input for pbs
+                #pdb.set_trace()
+                lengthchange_dLdt_MB_model_array_annual_array = np.concatenate((lengthchange_dLdt_model_array_annual,massbalclim_model_array.T),axis = 0)
+                # === run the pbs ===
+                #TODO At the moment, the calibration is based on the length change (TMS), the mass balance (multiple year average), and more choice can be added in the future
+                # for the length change, the first 10 years + the 10-year averages as the calibration data, and the last 10 years as the validation data,
+                # but for the future, it should has more flexiale choices, and the timeseries of mass balance and the frontal ablation should be considered as well.
+                # 10-years annual length change and the 10-year average climatic mass balance
+                #pdb.set_trace()
+                lengthchange_dLdt_obs_ind_array_1_10 = lengthchange_dLdt_obs_ind_array[:10, :]
+                lengthchange_dLdt_obs_ind_array_11_20 = lengthchange_dLdt_obs_ind_array[10:20,:]
+                lengthchange_dLdt_annual_CMB_obs_ind_array_1_10 = np.concatenate((lengthchange_dLdt_obs_ind_array_1_10,mb_obs_mwea_ind_array),axis = 0)
+                lengthchnage_dLdt_unc_obs_ind_2_array_1_10 = lengthchnage_dLdt_unc_obs_ind_2_array[:10, :]
+                lengthchange_dLdt_obs_ind_array_11_20 = lengthchange_dLdt_obs_ind_array[10:20,:]
+                lengthchange_dLdt_annual_CMB_obs_ind_2_array_1_10 = np.concatenate((lengthchnage_dLdt_unc_obs_ind_2_array_1_10,mb_obs_mwea_err_2_array),axis = 0)
+                lengthchange_dLdt_model_array_annual_1_10 = lengthchange_dLdt_model_array_annual[:10,:]
+                lengthchange_dLdt_model_array_annual_11_20 = lengthchange_dLdt_model_array_annual[10:20,:]
+                lengthchange_dLdt_MB_model_array_annual_array_1_10 = np.concatenate((lengthchange_dLdt_model_array_annual_1_10,massbalclim_model_array.T),axis = 0)
+                Weights_k,Neff_k = pbs(lengthchange_dLdt_annual_CMB_obs_ind_array_1_10,lengthchange_dLdt_MB_model_array_annual_array_1_10,lengthchange_dLdt_annual_CMB_obs_ind_2_array_1_10)
+
+
+
+                #Weights_k,Neff_k = pbs(lengthchange_dLdt_annual_CMB_obs_ind_array,lengthchange_dLdt_MB_model_array_annual_array,lengthchange_dLdt_annual_CMB_obs_ind_2_array)
+
+                # Dictionary to store dataset names and corresponding data arrays
+                dataset_dict_weights = {'param_prior_array_Tbias_kp_ddfsnow_tau': param_prior_array,
+                                        'lengthchange_dLdt_model_array_annual_myr': lengthchange_dLdt_model_array_annual,
+                                        'lengthchange_m_TMS_model_array_annual': lengthchange_m_TMS_model_array_annual,
+                                        'calving_flux_Gta_TMS_model_array_annual': calving_flux_Gta_TMS_model_array_annual,
+                                        # 'massbalclim_TMS_model_array_annual_mwea': massbalclim_TMS_model_array_annual,
+                                        # 'massbaltotal_TMS_model_array_annual_mwea': massbaltotal_TMS_model_array_annual,
+                                        'FA_mwea_TMS_model_array_annual': FA_mwea_TMS_model_array_annual,
+                                        'velocity_at_calvingfront_model_array_annual_myr': velocity_at_calvingfront_model_array_annual,
+                                        'thickness_at_calvingfront_model_array_annual_m': thickness_at_calvingfront_model_array_annual,
+                                        'width_at_calvingfront_model_array_annual_m': width_at_calvingfront_model_array_annual,
+                                        'volume_bsl_model_array_annual_m3': volume_bsl_model_array_annual,
+                                        'volume_bwl_model_array_annual_m3': volume_bwl_model_array_annual,
+                                        'calving_flux_Gta_average_model_array': calving_flux_Gta_average_model_array,
+                                        'calving_thickness_model_array_m': calving_thickness_model_array,
+                                        'massbalclim_model_array_mwea': massbalclim_model_array,
+                                        'massbaltotal_model_array_mwea': massbaltotal_model_array,
+                                        'FA_mwea_average_model_array': FA_mwea_average_model_array,
+                                        'Weights_k': Weights_k,
+                                        'Neff_k': Neff_k}
+                # save the weighted information in a hdf5 file
+                output_folder_weights = output_fp  # Assuming `pygem_prms.output_fp` exists
+                output_filename_weights = f'calibration_weights_output_{rgiid_ind}.json' # dataset with weights and removed outliers compared to the prior samples/values
+                output_fp_weights = os.path.join(output_folder_weights, output_filename_weights)
+                # Save to JSON
+                with open(output_fp_weights, 'w') as f:
+                    json.dump(dataset_dict_weights, f, indent=4, default=convert_to_serializable)
+
+                if Neff_k > 1:
+                    # compute the weighted average
+                    try:
+                        param_weighted_av = np.average(param_prior_array,weights = Weights_k) #TODO check the shape of the param_prior_array and Weights_k
+                        param_weighted_std = np.sqrt(np.average((param_prior_array - param_weighted_av)**2,weights = Weights_k))
+                        # period average
+                        calving_flux_Gta_average_model_weighted = np.average(calving_flux_Gta_average_model_array,weights = Weights_k )
+                        calving_thickness_model_weighted = np.average(calving_thickness_model_array,weights = Weights_k)
+                        massbalclim_model_weighted = np.average(massbalclim_model_array,weights = Weights_k)
+                        massbaltotal_model_weighted = np.average(massbaltotal_model_array,weights = Weights_k)
+                        FA_mwea_average_model_weighted = np.average(FA_mwea_average_model_array,weights = Weights_k)
+
+                        lengthchange_dLdt_model_annual_weighted = np.average(lengthchange_dLdt_model_array_annual,axis =1, weights = Weights_k)
+                        lengthchange_m_TMS_model_annual_weighted = np.average(lengthchange_m_TMS_model_array_annual,axis =1, weights = Weights_k)
+                        calving_flux_Gta_TMS_model_annual_weighted = np.average(calving_flux_Gta_TMS_model_array_annual,axis =1, weights = Weights_k)
+                        # massbalclim_TMS_model_annual_weighted = np.average(massbalclim_TMS_model_array_annual,axis =1, weights = Weights_k)
+                        # massbaltotal_TMS_model_annual_weighted = np.average(massbaltotal_TMS_model_array_annual,axis =1, weights = Weights_k)
+                        FA_mwea_TMS_model_annual_weighted = np.average(FA_mwea_TMS_model_array_annual,axis =1, weights = Weights_k)
+                        velocity_at_calvingfront_model_array_annual_weighted = np.average(velocity_at_calvingfront_model_array_annual,axis =1, weights = Weights_k)
+                        thickness_at_calvingfront_model_array_annual_weighted = np.average(thickness_at_calvingfront_model_array_annual,axis =1, weights = Weights_k)
+                        width_at_calvingfront_model_array_annual_weighted = np.average(width_at_calvingfront_model_array_annual,axis =1, weights = Weights_k)
+                        volume_bsl_model_array_annual_weighted = np.average(volume_bsl_model_array_annual,axis =1, weights = Weights_k)
+                        volume_bwl_model_array_annual_weighted = np.average(volume_bwl_model_array_annual,axis =1, weights = Weights_k)
+
+
+
+                        if verbose:
+                            print("param_weighted_av:",param_weighted_av, "param_weighted_std :", param_weighted_std,"Neff_k is:",Neff_k,"Weights_k_array is :",Weights_k,
+                                "calving_flux_Gta_average_model_weighted is :",calving_flux_Gta_average_model_weighted)
+                        
+                        output_df_all.loc[nglac, 'calving_flux_Gta_average_model_weighted'] = calving_flux_Gta_average_model_weighted
+                        output_df_all.loc[nglac, 'calving_thickness_model_weighted_m'] = calving_thickness_model_weighted
+                        output_df_all.loc[nglac,'massbalclim_model_weighted_mwea'] = massbalclim_model_weighted
+                        output_df_all.loc[nglac,'massbaltotal_model_weighted_mwea'] = massbaltotal_model_weighted
+                        output_df_all.loc[nglac,'FA_mwea_average_model_weighted'] = FA_mwea_average_model_weighted
+                        output_df_all.loc[nglac,'no_errors'] = 1
+                        output_df_all.loc[nglac,'oggm_dynamics'] =1
+                        output_df_all.loc[nglac,'param_weighted_av_Tbias_kp_ddfsnow_tau'] = param_weighted_av
+                        output_df_all.loc[nglac,'param_weighted_std'] = param_weighted_std
+                        output_df_all.loc[nglac,'Neff_k'] = Neff_k
+                        
+
+                        # --- save the weighted information in a hdf5 file
+                        output_folder_weights = output_fp  # Assuming `pygem_prms.output_fp` exists
+                        output_filename_weighted = f'calibration_weighted_output_{rgiid_ind}.json' # dataset with weighted output
+                        output_fp_weighted = os.path.join(output_folder_weights, output_filename_weighted)
+                        # Dictionary to store dataset names and corresponding data arrays
+                        dataset_dict_weighted = {'param_weighted_av_Tbias_kp_ddfsnow_tau': param_weighted_av,
+                                                'param_weighted_std': param_weighted_std,
+                                                'Neff_k': Neff_k,
+                                                'Weights_k': Weights_k,
+                                                'calving_flux_Gta_average_model_weighted': calving_flux_Gta_average_model_weighted,
+                                                'calving_thickness_model_weighted_m': calving_thickness_model_weighted,
+                                                'massbalclim_model_weighted_mwea': massbalclim_model_weighted,
+                                                'massbaltotal_model_weighted_mwea': massbaltotal_model_weighted,
+                                                'FA_mwea_average_model_weighted': FA_mwea_average_model_weighted,
+                                                'lengthchange_dLdt_model_annual_weighted_myr': lengthchange_dLdt_model_annual_weighted,
+                                                'lengthchange_m_TMS_model_annual_weighted': lengthchange_m_TMS_model_annual_weighted,
+                                                'calving_flux_Gta_TMS_model_annual_weighted': calving_flux_Gta_TMS_model_annual_weighted,
+                                                # 'massbalclim_TMS_model_annual_weighted_mwea': massbalclim_TMS_model_annual_weighted,
+                                                # 'massbaltotal_TMS_model_annual_weighted_mwea': massbaltotal_TMS_model_annual_weighted,
+                                                'FA_mwea_TMS_model_annual_weighted': FA_mwea_TMS_model_annual_weighted,
+                                                'velocity_at_calvingfront_model_array_annual_weighted_myr': velocity_at_calvingfront_model_array_annual_weighted,
+                                                'thickness_at_calvingfront_model_array_annual_weighted_m': thickness_at_calvingfront_model_array_annual_weighted,
+                                                'width_at_calvingfront_model_array_annual_weighted_m': width_at_calvingfront_model_array_annual_weighted,
+                                                'volume_bsl_model_array_annual_weighted_m3': volume_bsl_model_array_annual_weighted,
+                                                'volume_bwl_model_array_annual_weighted_m3': volume_bwl_model_array_annual_weighted}
+                        # Save to HDF5
+                        with open(output_fp_weighted, 'w') as f:
+                            json.dump(dataset_dict_weighted, f, indent=4, default=convert_to_serializable)
+
+                        
+                        # --- Visuliaze the weighted information and particles
+                        if Visualize_Index:
+                            # priod avearge fa/calving_flux Gta
+                            Visualization_timeseries.plot_model_vs_observation((np.append(calving_flux_Gta_average_model_array,calving_flux_Gta_average_model_weighted )).tolist(),fa_gta_obs_ind_array,plot_type='point',
+                                                    model_label='Modeled frontal ablation (Gt a⁻¹)',obs_label='Observed frontal ablation (Gt a⁻¹)',
+                                                    model_legends= list(map(lambda x: f"{x:.2f}", np.append(param_prior_array, param_weighted_av))),start_date = 2000,
+                                                    title='Calving flux comparison model vs observation',observation_error=fa_gta_obs_unc_ind,
+                                                    save_path=save_path_figure,save_name='Calving flux(20-year average) comparison model vs observation (weighted)')
+                            # length change rate dLdt vs observation
+                            Visualization_timeseries.plot_model_vs_observation([lengthchange_dLdt_model_array_annual,lengthchange_dLdt_model_annual_weighted],
+                                                                            lengthchange_dLdt_obs_ind,plot_type='timeseries',
+                                                                            model_legends=list(map(lambda x: f"{x:.2f}", np.append(param_prior_array, param_weighted_av))),
+                                                                            title ='length change rate (dLdt)comparison model vs observation',xlabel='Year',
+                                                                            ylabel = 'length change rate (m a⁻¹)',observation_error=lengthchnage_dLdt_unc_obs_ind,start_date = 2000,
+                                                                            save_path=save_path_figure,save_name='length change rate (dLdt) comparison model vs observation')
+                            # length change m (the difference of the length of the elevation-band flowlines)vs observation
+                            Visualization_timeseries.plot_model_vs_observation([lengthchange_m_TMS_model_array_annual,lengthchange_m_TMS_model_annual_weighted],
+                                                                            lengthchange_dLdt_obs_ind,plot_type='timeseries',
+                                                                            model_legends=list(map(lambda x: f"{x:.2f}", np.append(param_prior_array, param_weighted_av))),
+                                                                            title ='length change comparison model vs observation',xlabel='Year',
+                                                                            ylabel = 'length change (m)',observation_error=lengthchnage_dLdt_unc_obs_ind,start_date = 2000,
+                                                                            save_path=save_path_figure,save_name='length change comparison model vs observation (low_high_weighted)')
+                            # massbalclim mwea vs observation
+                            Visualization_timeseries.plot_model_vs_observation([massbalclim_model_array,massbalclim_model_weighted],
+                                                                            mb_obs_mwea,plot_type='timeseries',
+                                                                            model_legends=list(map(lambda x: f"{x:.2f}", np.append(param_prior_array, param_weighted_av))),
+                                                                            title ='mass balance climatology comparison model vs observation',xlabel='Year',
+                                                                            ylabel ='mass balance climatology (mwea)',observation_error = mb_obs_mwea_err,start_date = 2000,
+                                                                            save_path=save_path_figure,save_name='mass balance climatology comparison model vs observation')
+                            
+                            # TODO add more choices if more observations are considered
+                            # frontal ablation mwea vs observation
+                            # massbaltotal mwea vs observation
+                            # Velocity at the calving front vs observation
+
+                            #%% Resample the  paticles
+                            size_resample = pygem_prms.pbs_resample_no
+                            param_prior_array_resample_index = np.random.choice(len(param_prior_array), size = size_resample, p = Weights_k)
+                            param_prior_array_resample = param_prior_array[param_prior_array_resample_index]
+                            calving_flux_Gta_average_model_array_resample = calving_flux_Gta_average_model_array[param_prior_array_resample_index]
+                            massbalclim_model_array_resample = massbalclim_model_array[param_prior_array_resample_index]
+                            massbaltotal_model_array_resample = massbaltotal_model_array.T[param_prior_array_resample_index]
+                            FA_mwea_average_model_array_resample = FA_mwea_average_model_array.T[param_prior_array_resample_index]
+                            calving_thickness_model_array_resample = calving_thickness_model_array[param_prior_array_resample_index]
+
+                            lengthchange_dLdt_model_array_annual_resample = ((lengthchange_dLdt_model_array_annual.T)[param_prior_array_resample_index]).T
+                            lengthchange_m_TMS_model_array_annual_resample = ((lengthchange_m_TMS_model_array_annual.T)[param_prior_array_resample_index]).T
+                            calving_flux_Gta_TMS_model_array_annual_resample = ((calving_flux_Gta_TMS_model_array_annual.T)[param_prior_array_resample_index]).T                            
+                            FA_mwea_TMS_model_array_resample = ((FA_mwea_TMS_model_array.T)[param_prior_array_resample_index]).T
+                            velocity_at_calvingfront_model_array_annual_resample = ((velocity_at_calvingfront_model_array_annual.T)[param_prior_array_resample_index]).T
+                            thickness_at_calvingfront_model_array_annual_resample = ((thickness_at_calvingfront_model_array.T)[param_prior_array_resample_index]).T
+                            width_at_calvingfront_model_array_annual_resample = ((width_at_calvingfront_model_array.T)[param_prior_array_resample_index]).T
+                            volume_bsl_model_array_annual_resample = ((volume_bsl_model_array_annual.T)[param_prior_array_resample_index]).T
+                            volume_bwl_model_array_annual_resample = ((volume_bwl_model_array_annual.T)[param_prior_array_resample_index]).T
+                            # massbalclim_TMS_model_array_annual_resample = ((massbalclim_TMS_model_array_annual.T)[param_prior_array_resample_index]).T
+                            # massbaltotal_TMS_model_array_annual_resample = ((massbaltotal_TMS_model_array_annual.T)[param_prior_array_resample_index]).T
+
+                            # --- save the resampled information in a hdf5 file #TODO Should add the date information in the future
+                            output_folder_resample = output_fp  # Assuming `pygem_prms.output_fp` exists
+                            output_fp_resample = os.path.join(output_folder_resample, f"resampled_{rgiid_ind}.json")
+                            # Dictionary to store dataset names and corresponding data arrays
+                            output_data_dict_resample = {
+                                'param_prior_array': param_prior_array_resample,
+                                'calving_flux_Gta_average_model_array': calving_flux_Gta_average_model_array_resample,
+                               'massbalclim_model_array': massbalclim_model_array_resample,
+                               'massbaltotal_model_array': massbaltotal_model_array_resample,
+                                'FA_mwea_average_model_array': FA_mwea_average_model_array_resample,
+                                'calving_thickness_model_array': calving_thickness_model_array_resample,
+                                'lengthchange_dLdt_model_array_annual': lengthchange_dLdt_model_array_annual_resample,
+                                'lengthchange_m_TMS_model_array_annual': lengthchange_m_TMS_model_array_annual_resample,
+                                'calving_flux_Gta_TMS_model_array_annual': calving_flux_Gta_TMS_model_array_annual_resample,
+                                'FA_mwea_TMS_model_array_annual': FA_mwea_TMS_model_array_resample,
+                                'velocity_at_calvingfront_model_array_annual': velocity_at_calvingfront_model_array_annual_resample,
+                                'thickness_at_calvingfront_model_array_annual': thickness_at_calvingfront_model_array_annual_resample,
+                                'width_at_calvingfront_model_array_annual': width_at_calvingfront_model_array_annual_resample,
+                                'volume_bsl_model_array_annual': volume_bsl_model_array_annual_resample,
+                                'volume_bwl_model_array_annual': volume_bwl_model_array_annual_resample,
+                                # 'massbalclim_TMS_model_array_annual': massbalclim_TMS_model_array_annual_resample,
+                                # 'massbaltotal_TMS_model_array_annual': massbaltotal_TMS_model_array_annual_resample,
+                            }
+                            # Save to HDF5
+                            with open(output_fp_resample, 'w') as f:
+                                json.dump(output_data_dict_resample, f, indent=4, default=convert_to_serializable)
+
+                            # Visualize
+                            if Visualize_Index:
+                                # priod avearge fa/calving_flux Gta
+                                Visualization_timeseries.plot_model_vs_observation((np.append(calving_flux_Gta_average_model_array_resample,calving_flux_Gta_average_model_weighted )).tolist(),fa_gta_obs_ind_array,plot_type='point',
+                                                        model_label='Modeled frontal ablation (Gt a⁻¹)',obs_label='Observed frontal ablation (Gt a⁻¹)',
+                                                        model_legends= list(map(lambda x: f"{x:.2f}", np.append(param_prior_array_resample, param_weighted_av))),start_date = 2000,
+                                                        title='Calving flux comparison model vs observation',observation_error=fa_gta_obs_unc_ind,
+                                                        save_path=save_path_figure,save_name='Calving flux(20-year average) comparison model vs observation (resampled)')
+                                # length change rate dLdt vs observation
+                                Visualization_timeseries.plot_model_vs_observation([lengthchange_dLdt_model_array_annual_resample,lengthchange_dLdt_model_annual_weighted],
+                                                                                lengthchange_dLdt_obs_ind,plot_type='timeseries',
+                                                                                model_legends=list(map(lambda x: f"{x:.2f}", np.append(param_prior_array_resample, param_weighted_av))),
+                                                                                title ='length change rate (dLdt)comparison model vs observation',xlabel='Year',
+                                                                                ylabel = 'length change rate (m a⁻¹)',observation_error=lengthchnage_dLdt_unc_obs_ind,start_date = 2000,
+                                                                                save_path=save_path_figure,save_name='length change rate (dLdt) comparison model vs observation (resampled)')
+                                # length change m (the difference of the length of the elevation-band flowlines)vs observation
+                                Visualization_timeseries.plot_model_vs_observation([lengthchange_m_TMS_model_array_annual_resample,lengthchange_m_TMS_model_annual_weighted],
+                                                                                lengthchange_dLdt_obs_ind,plot_type='timeseries',
+                                                                                model_legends=list(map(lambda x: f"{x:.2f}", np.append(param_prior_array_resample, param_weighted_av))),
+                                                                                title ='length change comparison model vs observation',xlabel='Year',
+                                                                                ylabel = 'length change (m)',observation_error=lengthchnage_dLdt_unc_obs_ind,start_date = 2000,
+                                                                                save_path=save_path_figure,save_name='length change comparison model vs observation (low_high_weighted) (resampled)')
+                                # massbalclim mwea vs observation
+                                Visualization_timeseries.plot_model_vs_observation([massbalclim_model_array_resample,massbalclim_model_weighted],
+                                                                                mb_obs_mwea,plot_type='timeseries',
+                                                                                model_legends=list(map(lambda x: f"{x:.2f}", np.append(param_prior_array_resample, param_weighted_av))),
+                                                                                title ='mass balance climatology comparison model vs observation',xlabel='Year',
+                                                                                ylabel ='mass balance climatology (mwea)',observation_error = mb_obs_mwea_err,start_date = 2000,
+                                                                                save_path=save_path_figure,save_name='mass balance climatology comparison model vs observation (resampled)')
+                                # massbaltotal mwea vs observation
+                                # frontal ablation mwea vs observation
+                                # Velocity at the calving front vs observation
+                                # Thickness at the calving front vs observation
+                                # Width at the calving front vs observation
+                                # Volume of the basal sliding zone vs observation
+                                # Volume of the basal wetland zone vs observation
+                                # massbalclim TMS mwea vs observation
+                                # massbaltotal TMS mwea vs observation
+
+                            # --- save the monthly information in a hdf5 file and visulize the monthly information
+                            if store_monthly_step:
+
+                                output_folder_monthly = output_fp  # Assuming `pygem_prms.output_fp` exists
+                                output_fp_monthly = os.path.join(output_folder_monthly, f"monthly_{rgiid_ind}.json")
+                                # remove outliers based on the length change rate 
+                                lengthchange_dLdt_model_array_monthly = np.array(lengthchange_dLdt_model_array_monthly)[finite_mask,:]
+                                lengthchange_m_TMS_model_array_monthly = np.array(lengthchange_m_TMS_model_array_monthly)[finite_mask,:]
+                                calving_flux_Gta_TMS_model_array_monthly = np.array(calving_flux_Gta_TMS_model_array_monthly)[finite_mask,:]
+                                FA_mwea_TMS_model_array_monthly = np.array(FA_mwea_TMS_model_array_monthly)[finite_mask,:]
+                                velocity_at_calvingfront_model_array_monthly = np.array(velocity_at_calvingfront_model_array_monthly)[finite_mask,:]
+                                thickness_at_calvingfront_model_array_monthly = np.array(thickness_at_calvingfront_model_array_monthly)[finite_mask,:]
+                                width_at_calvingfront_model_array_monthly = np.array(width_at_calvingfront_model_array_monthly)[finite_mask,:]
+                                volume_bsl_model_array_monthly = np.array(volume_bsl_model_array_monthly)[finite_mask,:]
+                                volume_bwl_model_array_monthly = np.array(volume_bwl_model_array_monthly)[finite_mask,:]
+                                #massbalclim_TMS_model_array_monthly = np.array(massbalclim_TMS_model_array_monthly)[finite_mask,:]
+                                #massbaltotal_TMS_model_array_monthly =np.array( massbaltotal_TMS_model_array_monthly)[finite_mask,:]
+
+
+                                # Dictionary to store dataset names and corresponding data arrays
+                                output_data_dict_monthly = {
+                                    'param_prior_array': param_prior_array,
+                                    'calving_flux_Gta_average_model_array': calving_flux_Gta_average_model_array,
+                                    'massbalclim_model_array': massbalclim_model_array,
+                                    'massbaltotal_model_array': massbaltotal_model_array,
+                                    'FA_mwea_average_model_array': FA_mwea_average_model_array,
+                                    'calving_thickness_model_array': calving_thickness_model_array,
+                                    'lengthchange_dLdt_model_array_annual': lengthchange_dLdt_model_array_monthly,
+                                    'lengthchange_m_TMS_model_array_annual': lengthchange_m_TMS_model_array_monthly,
+                                    'calving_flux_Gta_TMS_model_array_annual': calving_flux_Gta_TMS_model_array_monthly,
+                                    'FA_mwea_TMS_model_array_annual': FA_mwea_TMS_model_array,
+                                    'velocity_at_calvingfront_model_array_annual': velocity_at_calvingfront_model_array_monthly,
+                                    'thickness_at_calvingfront_model_array_annual': thickness_at_calvingfront_model_array_monthly,
+                                    'width_at_calvingfront_model_array_annual': width_at_calvingfront_model_array_monthly,
+                                    'volume_bsl_model_array_annual': volume_bsl_model_array_monthly,
+                                    'volume_bwl_model_array_annual': volume_bwl_model_array_monthly,
+                                    # 'massbalclim_TMS_model_array_annual': massbalclim_TMS_model_array_monthly,
+                                    # 'massbaltotal_TMS_model_array_annual': massbaltotal_TMS_model_array_monthly,
+                                }
+
+                                # Save to HDF5
+                                with open(output_fp_monthly, 'w') as f:
+                                    json.dump(output_data_dict_monthly, f, indent=4, default=convert_to_serializable)
+
+                                # === Weighted
+                                lengthchange_dLdt_model_array_monthly_weighted = np.average(np.asarray(lengthchange_dLdt_model_array_monthly), axis=0, weights=Weights_k)
+                                lengthchange_m_TMS_model_array_monthly_weighted = np.average(np.asarray(lengthchange_m_TMS_model_array_monthly), axis=0, weights=Weights_k)
+                                calving_flux_Gta_TMS_model_array_monthly_weighted = np.average(np.asarray(calving_flux_Gta_TMS_model_array_monthly), axis=0, weights=Weights_k)
+                                FA_mwea_TMS_model_array_monthly_weighted = np.average(np.asarray(FA_mwea_TMS_model_array_monthly), axis=0, weights=Weights_k)
+                                velocity_at_calvingfront_model_array_monthly_weighted = np.average(np.asarray(velocity_at_calvingfront_model_array_monthly), axis=0, weights=Weights_k)
+                                thickness_at_calvingfront_model_array_monthly_weighted = np.average(np.asarray(thickness_at_calvingfront_model_array_monthly), axis=0, weights=Weights_k)
+                                width_at_calvingfront_model_array_monthly_weighted = np.average(np.asarray(width_at_calvingfront_model_array_monthly), axis=0, weights=Weights_k)
+                                volume_bsl_model_array_monthly_weighted = np.average(np.asarray(volume_bsl_model_array_monthly), axis=0, weights=Weights_k)
+                                volume_bwl_model_array_monthly_weighted = np.average(np.asarray(volume_bwl_model_array_monthly), axis=0, weights=Weights_k)
+                                #massbalclim_TMS_model_array_monthly_weighted = np.average(np.asarray(massbalclim_TMS_model_array_monthly), axis=0, weights=Weights_k)
+                                #massbaltotal_TMS_model_array_monthly_weighted = np.average(np.asarray(massbaltotal_TMS_model_array_monthly), axis=0, weights=Weights_k)
+
+                                # --- save the monthly information in a hdf5 file and visulize the monthly information
+                                output_folder_monthly_weighted = output_fp  # Assuming `pygem_prms.output_fp` exists
+                                output_fp_monthly_weighted = os.path.join(output_folder_monthly_weighted, f"monthly_weighted_{rgiid_ind}.json")
+                                # Dictionary to store dataset names and corresponding data arrays
+                                output_data_dict_monthly_weighted = {
+                                    'lengthchange_dLdt_model_array_monthly_weighted': lengthchange_dLdt_model_array_monthly_weighted,
+                                    'lengthchange_m_TMS_model_array_monthly_weighted': lengthchange_m_TMS_model_array_monthly_weighted,
+                                    'calving_flux_Gta_TMS_model_array_monthly_weighted': calving_flux_Gta_TMS_model_array_monthly_weighted,
+                                    'FA_mwea_TMS_model_array_monthly_weighted': FA_mwea_TMS_model_array_monthly_weighted,
+                                    'velocity_at_calvingfront_model_array_monthly_weighted': velocity_at_calvingfront_model_array_monthly_weighted,
+                                    'thickness_at_calvingfront_model_array_monthly_weighted': thickness_at_calvingfront_model_array_monthly_weighted,
+                                    'width_at_calvingfront_model_array_monthly_weighted': width_at_calvingfront_model_array_monthly_weighted,
+                                    'volume_bsl_model_array_monthly_weighted': volume_bsl_model_array_monthly_weighted,
+                                    'volume_bwl_model_array_monthly_weighted': volume_bwl_model_array_monthly_weighted,
+                                    # 'massbalclim_TMS_model_array_monthly_weighted': massbalclim_TMS_model_array_monthly_weighted,
+                                    # 'massbaltotal_TMS_model_array_monthly_weighted': massbaltotal_TMS_model_array_monthly_weighted,
+                                }
+                                # Save to HDF5
+                                with open(output_fp_monthly_weighted, 'w') as f:
+                                    json.dump(output_data_dict_monthly_weighted, f, indent=4, default=convert_to_serializable)
+
+                                # --- visualize monthly information
+                                Visualization_timeseries.plot_timeseries_Numpy(data = calving_flux_Gta_TMS_model_array_monthly_weighted*12, start_date='2000-01-01', end_date='2019-12-31',
+                                                                            save_name='Timeseries of calving (monthly-weighted)',save_path=save_path_figure, Y_label='calving flux (Gt/a)', F_title='Monthly Time Series-FA')
+                                Visualization_timeseries.plot_timeseries_Numpy(data = lengthchange_dLdt_model_array_monthly_weighted, start_date='2000-01-01', end_date='2019-12-31',
+                                                                            save_name='Timeseries of length change dLdt (monthly-weighted)',save_path=save_path_figure, Y_label='length change rate (m a⁻¹)', F_title='Monthly Time Series-dLdt')
+                                Visualization_timeseries.plot_timeseries_Numpy(data = velocity_at_calvingfront_model_array_monthly_weighted, start_date='2000-01-01', end_date='2019-12-31',
+                                                                            save_name='Timeseries of velocity at calving front (monthly-weighted)',save_path=save_path_figure, Y_label='velocity at calving front (m a⁻¹)', F_title='Monthly Time Series-velocity')
+                                # more choice can be added in the future
+
+                                # === Resampled
+                                lengthchange_dLdt_model_array_monthly_resample = lengthchange_dLdt_model_array_monthly[:,param_prior_array_resample_index]
+                                lengthchange_m_TMS_model_array_monthly_resample = lengthchange_m_TMS_model_array_monthly[:,param_prior_array_resample_index]
+                                calving_flux_Gta_TMS_model_array_monthly_resample = calving_flux_Gta_TMS_model_array_monthly[:,param_prior_array_resample_index]
+                                FA_mwea_TMS_model_array_monthly_resample = FA_mwea_TMS_model_array_monthly[:,param_prior_array_resample_index]
+                                velocity_at_calvingfront_model_array_monthly_resample = velocity_at_calvingfront_model_array_monthly[:,param_prior_array_resample_index]
+                                thickness_at_calvingfront_model_array_monthly_resample = thickness_at_calvingfront_model_array_monthly[:,param_prior_array_resample_index]
+                                width_at_calvingfront_model_array_monthly_resample = width_at_calvingfront_model_array_monthly[:,param_prior_array_resample_index]
+                                volume_bsl_model_array_monthly_resample = volume_bsl_model_array_monthly[:,param_prior_array_resample_index]
+                                volume_bwl_model_array_monthly_resample = volume_bwl_model_array_monthly[:,param_prior_array_resample_index]
+                                #massbalclim_TMS_model_array_monthly_resample = massbalclim_TMS_model_array_monthly[:,param_prior_array_resample_index]
+                                #massbaltotal_TMS_model_array_monthly_resample = massbaltotal_TMS_model_array_monthly[:,param_prior_array_resample_index]
+                                # --- save the monthly information in a hdf5 file and visulize the monthly information
+                                output_folder_monthly_resample = output_fp  # Assuming `pygem_prms.output_fp` exists
+                                output_fp_monthly_resample = os.path.join(output_folder_monthly_resample, f"monthly_resample_{rgiid_ind}.json")
+                                # Dictionary to store dataset names and corresponding data arrays
+                                output_data_dict_monthly_resample = {
+                                    'lengthchange_dLdt_model_array_monthly_resample': lengthchange_dLdt_model_array_monthly_resample,
+                                    'lengthchange_m_TMS_model_array_monthly_resample': lengthchange_m_TMS_model_array_monthly_resample,
+                                    'calving_flux_Gta_TMS_model_array_monthly_resample': calving_flux_Gta_TMS_model_array_monthly_resample,
+                                    'FA_mwea_TMS_model_array_monthly_resample': FA_mwea_TMS_model_array_monthly_resample,
+                                    'velocity_at_calvingfront_model_array_monthly_resample': velocity_at_calvingfront_model_array_monthly_resample,
+                                    'thickness_at_calvingfront_model_array_monthly_resample': thickness_at_calvingfront_model_array_monthly_resample,
+                                    'width_at_calvingfront_model_array_monthly_resample': width_at_calvingfront_model_array_monthly_resample,
+                                    'volume_bsl_model_array_monthly_resample': volume_bsl_model_array_monthly_resample,
+                                    'volume_bwl_model_array_monthly_resample': volume_bwl_model_array_monthly_resample,
+                                    # 'massbalclim_TMS_model_array_monthly_resample': massbalclim_TMS_model_array_monthly_resample,
+                                    # 'massbaltotal_TMS_model_array_monthly_resample': massbaltotal_TMS_model_array_monthly_resample,
+                                }
+                                # Save to HDF5
+                                with open(output_fp_monthly_resample, 'w') as f:
+                                    json.dump(output_data_dict_monthly_resample, f, indent=4, default=convert_to_serializable)
+                                # --- visualize monthly information
+
+                    except:
+                        print(traceback.format_exc())
+                else:
+                    print("Neff_k is less than 2, the weighted average is not performed.And the calibration falied and the Neff_k is:",Neff_k)
+                    failed_glacs.append(rgiid_ind)
+                    pass
+            
+            # Export model results and write list of failed glaciers
+            output_df_all.to_csv(output_fp + output_fn, index=False)
+
+            if len(failed_glacs) > 0:
+                with open(output_fp + 'failed_glaciers.txt', 'w') as f:
+                    for glacier in failed_glacs:
+                        f.write(glacier + '\n')
+        else:
+            print('Calibration already completed')
+            output_df_all = pd.read_csv(output_fp + output_fn)
+
+    #TODO check the missing glaciers and failed glaciers, need more information
+        
+
+
+
+def main():
+    """
+    Model calibration
+    Parameters
+    ----------
+    list_packed_vars : list
+        list of packed variables that enable the use of parallels
+
+    Returns
+    -------
+    netcdf files of the calibration output (specific output is dependent on the output option)
+    """
+    # Unpack variables
+    args = getparser().parse_args()
+    debug = args.debug == 1
+
+    # # get number of jobs #TODO For the parallel processing, need to be fixed
+    # njobs = len(args.rgi_region01)
+    # # number of cores for parallel processing
+    # if args.ncores > 1:
+    #     args.ncores = int(np.min([njobs, args.ncores]))
+
+    #%% data paths =====
+    # frontalabltion data (20-year averaged data)
+    frontalablation_fp = pygem_prms.main_directory + '/../calving_data/'
+    frontalablation_fn = 'frontalablation_data_test_'+pygem_prms.glac_no[0].split('.')[0]+'_'+ pygem_prms.glac_no[0].split('.')[1]+'.csv'
+    # frontalablation data (annual data) if available
+    frontalablation_annual_fp = pygem_prms.main_directory + '/../frontalablation_annual_data/'
+    frontalablation_annual_fn = 'frontalablation_annual_'+ pygem_prms.glac_no[0].split('.')[0]+'_'+pygem_prms.glac_no[0].split('.')[1]+'.csv'
+    # hugonnet data (climatic mass balance corrected by Frontal ablation) #TODO Check the dataset, which should be the climatic mass balance, not the total mass balance
+    hugonnet_fp = pygem_prms.hugonnet_fp
+    hugonnet_fn = 'df_pergla_global_20yr-filled.csv'
+    # length change data
+    lengthchange_annual_fp = pygem_prms.main_directory  + '/../lengthchange_data/'
+    lengthchange_annual_fn = 'lengthchange_annual_'+pygem_prms.glac_no[0].split('.')[0]+'_'+ pygem_prms.glac_no[0].split('.')[1]+'.csv'
+    # output data
+    base_dir = pygem_prms.main_directory
+    output_fp = os.path.join(base_dir, '..', 'calving_data', 'analysis')
+    os.makedirs(output_fp, exist_ok=True)
+
+    #%% merge input claving datasets ===== #TODO At the moment, they are already merged, but need to be fixed for the future
+    #merged_calving_data_fn = merge_data(frontalablation_fp=frontalablation_fp, overwrite=args.overwrite, verbose=args.verbose)
+
+    #%% calibrate each individual glacier's parameters_Tbias_kp_ddfsnow_tau =====
+    # call the function Cali_PBS_MB_FA_RT to calibrate the parameters
+    cali_PBS_MB_FA_RT(regions = args.rgi_region01,
+                       args = args,
+                       frontalablation_fp = frontalablation_fp,
+                       frontalablation_fn = frontalablation_fn,
+                       output_fp = output_fp, 
+                      hugonnet_fp = hugonnet_fp,
+                      hugonnet_fn = hugonnet_fn,
+                      lengthchange_annual_fp = lengthchange_annual_fp,
+                      lengthchange_annual_fn = lengthchange_annual_fn,
+                      overwrite=args.overwrite,
+                      verbose=args.verbose,
+                      Visualize_Index = args.Visualize_Index,
+                      store_monthly_step = args.store_monthly_step,
+                      debug = debug) 
+                      
+                      #= args.Visualize_Index,store_monthly_step = args.store_monthly_step,debug = debug,debug_spc = debug_spc)
+
+    # # calibrate each individual glacier's calving_k parameter #TODO Check the parallel processing
+    # calib_ind_calving_k_partial = partial(calib_ind_calving_k, args=args, frontalablation_fp=frontalablation_fp, frontalablation_fn=merged_calving_data_fn, output_fp=output_fp, hugonnet2021_fp=hugonnet2021_fp)
+    # with multiprocessing.Pool(args.ncores) as p:
+    #     p.map(calib_ind_calving_k_partial, args.rgi_region01)
+
+    #%% update the MB  #TODO Check the function for the update_mbdata
+    # update reference mass balance data accordingly
+    #update_mbdata(regions=args.rgi_region01, frontalablation_fp=output_fp, frontalablation_fn=frontalablation_cal_fn, hugonnet2021_fp=hugonnet2021_fp, hugonnet2021_facorr_fp=hugonnet2021_facorr_fp, ncores=args.ncores, overwrite=args.overwrite, verbose=args.verbose)
+
+    #%%  plot results # TODO check the function for the plot_calving_k_allregions
+    #plot_calving_k_allregions(output_fp=output_fp)
+
+
+#%% PARALLEL PROCESSING
+if __name__ == '__main__':
+    time_start = time.time()
+    
+    main()
+
+
+    print('Total processing time:', time.time()-time_start, 's')
+
+
