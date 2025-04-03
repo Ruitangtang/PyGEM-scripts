@@ -119,6 +119,12 @@ save_path_AMISINFO = output_fp + '/AMIS_info/'
 if not os.path.exists(save_path_AMISINFO):
     os.makedirs(save_path_AMISINFO)
 
+# the path to save the log file
+save_path_log = output_fp + '/log/'
+# Check if the directory exists, and if not, create it
+if not os.path.exists(save_path_log):
+    os.makedirs(save_path_log)
+
 
 #%% ----- The boundary condition for length change myr -----
 max_length_change_myr = 5000
@@ -2680,8 +2686,18 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                         N_failed += 1
                         pass
                 except Exception as err:
-                    print(traceback.format_exc())
-                    print(f"Error occurred for glacier {rgiid_ind}: {err}")
+                    # Handle the exception and print the error message
+                    error_message = f"Error occurred for glacier {rgiid_ind}: {err}\n"
+                    traceback_info = traceback.format_exc()
+                    # Print the traceback information
+                    print(error_message)
+                    print(traceback_info)
+                    # Save the traceback information to a log file
+                    with open(os.path.join(save_path_log, 'error_log.txt'), 'a') as log_file:
+                        log_file.write("\n================\n")
+                        log_file.write(error_message)
+                        log_file.write(traceback_info)
+                    # Track failed glaciers
                     Failed_glacs.append(rgiid_ind)
                     N_failed += 1
 
