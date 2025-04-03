@@ -2085,600 +2085,606 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
             # ----- RUN THE CALIBRATION -----
             #TODO It weights Parameters BASED ON INDIVIDUAL GLACIER MASS BALANCE + dLdt + FRONTAL ABLATION DATA, but at the moment,it's Monte Carlo -----
             for nglac in np.arange(main_glac_rgi.shape[0]):
-                glacier_str = '{0:0.5f}'.format(main_glac_rgi.loc[nglac,'RGIId_float'])
-                #if main_glac_rgi.loc[nglac,'RGIId'] in ['RGI60-03.00108']:
-                    
-                # Select individual glacier
-                main_glac_rgi_ind = main_glac_rgi.loc[[nglac],:]
-                main_glac_rgi_ind.reset_index(inplace=True, drop=True)
-                rgiid_ind = main_glac_rgi_ind.loc[0,'RGIId']
-
-                fa_glac_data_ind = fa_glac_data_reg.loc[fa_glac_data_reg.RGIId == rgiid_ind, :]
-                fa_glac_data_ind.reset_index(inplace=True, drop=True)
-                fa_gta_obs_ind = fa_glac_data_ind.loc[0,'fa_gta_obs']
-                fa_gta_obs_unc_ind = fa_glac_data_ind.loc[0,'fa_gta_obs_unc']
-                lengthchange_annual_data_ind = lengthchange_annual_data_reg.loc[lengthchange_annual_data_reg.RGIId == rgiid_ind, :]
-                lengthchange_annual_data_ind.reset_index(inplace=True,drop=True)
-                lengthchange_dLdt_obs_ind = ast.literal_eval(lengthchange_annual_data_ind.loc[0,'dLdt_m_per_yr'])
-                lengthchnage_dLdt_unc_obs_ind = ast.literal_eval(lengthchange_annual_data_ind.loc[0,'dLdt_m_per_yr_unc'])
-                if frontalablation_annual_data is not None:
-                    fa_annual_data_ind = fa_annual_data_reg.loc[fa_annual_data_reg.RGIId == rgiid_ind, :]
-                    fa_annual_data_ind.reset_index(inplace=True, drop=True)
-                    fa_annual_data_obs_ind = ast.literal_eval(fa_annual_data_ind.loc[0,'fa_Gta_annual'])
-                    fa_annual_data_obs_unc_ind = ast.literal_eval(fa_annual_data_ind.loc[0,'fa_Gta_unc_annual'])
-                else:
-                    fa_annual_data_obs_ind = np.nan
-                    fa_annual_data_obs_unc_ind = np.nan
-                #TODO add the mass balance information for ind
-
-                # Quantify the fa by the fa_gta_max, if the fa_gta_obs is larger than the fa_gta_max, then set the fa_gta_obs as fa_gta_max
-                fa_gta_max = output_df_all.loc[nglac,'fa_gta_max']
-                fa_gta_obs_unc = output_df_all.loc[nglac,'fa_gta_obs_unc']
-                print('The glacier is:',rgiid_ind,'the max FA gta is:',fa_gta_max)
-                if fa_glac_data_ind.loc[0,'fa_gta_obs'] > fa_gta_max:
-                    reg_calving_gta_obs = fa_gta_max
-                    fa_glac_data_ind.loc[0,'fa_gta_obs'] = fa_gta_max
-                # set the output path for the single glacier
-                save_path_figure_glac = os.path.join(save_path_figure, glacier_str.split('.')[0].zfill(2) + '/')
-                if not os.path.exists(save_path_figure_glac):
-                    os.makedirs(save_path_figure_glac,exist_ok=True)
-                
-                # ===== generate the particles =====
-                max_iterations = pygem_prms.max_iterations
-                Sample_N = pygem_prms.pbs_sample_no
-                for j in range(max_iterations): #TODO DO THE APATED CALIBRATION HERE
-                    #Sample the parameters
-                    print("the iteration is ",j)
-                    #pdb.set_trace()    
-                    # Generate the parameters
-                    if j == 0:
-                        # generate the parameters from the prior distribution
+                try:
+                    glacier_str = '{0:0.5f}'.format(main_glac_rgi.loc[nglac,'RGIId_float'])
+                    #if main_glac_rgi.loc[nglac,'RGIId'] in ['RGI60-03.00108']:
                         
-                        parameters_dict = sample_prior(Sample_N)
+                    # Select individual glacier
+                    main_glac_rgi_ind = main_glac_rgi.loc[[nglac],:]
+                    main_glac_rgi_ind.reset_index(inplace=True, drop=True)
+                    rgiid_ind = main_glac_rgi_ind.loc[0,'RGIId']
+
+                    fa_glac_data_ind = fa_glac_data_reg.loc[fa_glac_data_reg.RGIId == rgiid_ind, :]
+                    fa_glac_data_ind.reset_index(inplace=True, drop=True)
+                    fa_gta_obs_ind = fa_glac_data_ind.loc[0,'fa_gta_obs']
+                    fa_gta_obs_unc_ind = fa_glac_data_ind.loc[0,'fa_gta_obs_unc']
+                    lengthchange_annual_data_ind = lengthchange_annual_data_reg.loc[lengthchange_annual_data_reg.RGIId == rgiid_ind, :]
+                    lengthchange_annual_data_ind.reset_index(inplace=True,drop=True)
+                    lengthchange_dLdt_obs_ind = ast.literal_eval(lengthchange_annual_data_ind.loc[0,'dLdt_m_per_yr'])
+                    lengthchnage_dLdt_unc_obs_ind = ast.literal_eval(lengthchange_annual_data_ind.loc[0,'dLdt_m_per_yr_unc'])
+                    if frontalablation_annual_data is not None:
+                        fa_annual_data_ind = fa_annual_data_reg.loc[fa_annual_data_reg.RGIId == rgiid_ind, :]
+                        fa_annual_data_ind.reset_index(inplace=True, drop=True)
+                        fa_annual_data_obs_ind = ast.literal_eval(fa_annual_data_ind.loc[0,'fa_Gta_annual'])
+                        fa_annual_data_obs_unc_ind = ast.literal_eval(fa_annual_data_ind.loc[0,'fa_Gta_unc_annual'])
                     else:
-                        #Sample_N = Ne
-                        #pdb.set_trace()
-                        # generate the parameters from the posterior distribution (the last step)
-                        parameters_keys = pygem_prms.vars_to_calibrate
-                        parameters_values = thetap
-                        parameters_dict = {key: value for key, value in zip(parameters_keys, parameters_values)}
-                        parameters_dict['index'] = np.arange(Sample_N)
+                        fa_annual_data_obs_ind = np.nan
+                        fa_annual_data_obs_unc_ind = np.nan
+                    #TODO add the mass balance information for ind
+
+                    # Quantify the fa by the fa_gta_max, if the fa_gta_obs is larger than the fa_gta_max, then set the fa_gta_obs as fa_gta_max
+                    fa_gta_max = output_df_all.loc[nglac,'fa_gta_max']
+                    fa_gta_obs_unc = output_df_all.loc[nglac,'fa_gta_obs_unc']
+                    print('The glacier is:',rgiid_ind,'the max FA gta is:',fa_gta_max)
+                    if fa_glac_data_ind.loc[0,'fa_gta_obs'] > fa_gta_max:
+                        reg_calving_gta_obs = fa_gta_max
+                        fa_glac_data_ind.loc[0,'fa_gta_obs'] = fa_gta_max
+                    # set the output path for the single glacier
+                    save_path_figure_glac = os.path.join(save_path_figure, glacier_str.split('.')[0].zfill(2) + '/')
+                    if not os.path.exists(save_path_figure_glac):
+                        os.makedirs(save_path_figure_glac,exist_ok=True)
+                    
+                    # ===== generate the particles =====
+                    max_iterations = pygem_prms.max_iterations
+                    Sample_N = pygem_prms.pbs_sample_no
+                    for j in range(max_iterations): #TODO DO THE APATED CALIBRATION HERE
+                        #Sample the parameters
+                        print("the iteration is ",j)
+                        #pdb.set_trace()    
+                        # Generate the parameters
+                        if j == 0:
+                            # generate the parameters from the prior distribution
                             
-
-                    # Run the coupled model (PyGEM_OGGM_SERMeQ)
-                    lengthchange_dLdt_model_array_annual, calving_flux_Gta_TMS_model_array_annual,calving_flux_Gta_average_model_array,massbalclim_TMS_model_array_annual,massbalclim_model_array,mb_obs_mwea,mb_obs_mwea_err = Model_MB_FA_RT(model_function = reg_calving_flux,parameters_dict= parameters_dict,
-                                                                                         rgiid_ind = rgiid_ind,main_glac_rgi = main_glac_rgi_ind,glacier_str =glacier_str, fa_glac_data_reg= fa_glac_data_ind,
-                                                                                         ignore_nan=False,debug=debug,calibrate_timeseries =True,store_monthly_step=store_monthly_step,
-                                                                                         return_all = False,store_result= True,output_fp = output_fp,N_iteration = j)
-
-                    # ==== Replace the outliers by the boundarys
-                    #---- maskout the inf or -inf value based on the length change #TODO  Revise it , if it's inf, a specific number , e.g. 5000
-                    lengthchange_dLdt_model_array_annual = np.clip(lengthchange_dLdt_model_array_annual, min_length_change_myr, max_length_change_myr)
-                    # ==== generate the array as the input for AMIS
-                    #pdb.set_trace() # for 20-year 
-                    lengthchange_dLdt_MB_model_array_annual_array = np.concatenate((lengthchange_dLdt_model_array_annual,massbalclim_model_array.T),axis = 0)                    
-                    lengthchange_dLdt_model_array_annual_00_10 = lengthchange_dLdt_model_array_annual[:10,:]
-                    lengthchange_dLdt_model_array_annual_11_20 = lengthchange_dLdt_model_array_annual[10:20,:]
-                    massbalclim_TMS_model_array_annual_00_10 = massbalclim_TMS_model_array_annual[:10,:]
-                    massbalclim_TMS_model_array_annual_11_20 = massbalclim_TMS_model_array_annual[10:20,:]
-                    massbalclim_model_array_00_10 = np.expand_dims(np.nanmean(massbalclim_TMS_model_array_annual_00_10, axis=0),axis=1)
-                    massbalclim_model_array_11_20 = np.expand_dims(np.nanmean(massbalclim_TMS_model_array_annual_11_20, axis=0),axis =1)
-                    lengthchange_dLdt_MB_model_array_annual_array_00_10 = np.concatenate((lengthchange_dLdt_model_array_annual_00_10,massbalclim_model_array_00_10.T),axis = 0)
-                    lengthchange_dLdt_MB_model_array_annual_array_11_20 = np.concatenate((lengthchange_dLdt_model_array_annual_11_20,massbalclim_model_array_11_20.T),axis = 0)
-                    
-
-                    # ===== Observations =====
-                    # ----onvert to NumPy array and ensure proper shape of the observations #TODO At the moment, the calibration is based on the length change (TMS), the mass balance (multiple year average), and more choice can be added in the future
-                    if j ==0:
-
-                        ## ==== read the observation ====
-                        lengthchange_dLdt_obs_ind_array = np.array(lengthchange_dLdt_obs_ind).reshape(len(lengthchange_dLdt_obs_ind),1)
-                        mb_obs_mwea_ind_array = np.asarray(mb_obs_mwea).reshape(-1, 1)
-                        fa_gta_obs_ind_array = np.asarray(fa_gta_obs_ind).reshape(-1, 1)
-                        
-                        # ----square of uncertainty of observations
-                        lengthchnage_dLdt_unc_obs_ind_2_array = np.square(np.asarray(lengthchnage_dLdt_unc_obs_ind)).reshape(-1, 1)
-                        mb_obs_mwea_err_2_array = np.square(np.asarray(mb_obs_mwea_err)).reshape(-1, 1)
-                        fa_gta_obs_unc_2_array = np.square(np.asarray(fa_gta_obs_unc)).reshape(-1, 1)
-                        if frontalablation_annual_data is not None:
-                            fa_annual_data_obs_ind_array = np.array(fa_annual_data_obs_ind).reshape(len(fa_annual_data_obs_ind),1)
-                            fa_annual_data_obs_unc_2_array = np.square(np.asarray(fa_annual_data_obs_unc_ind)).reshape(-1, 1)
-                        #TODO At the momment, the calibration based on the length change, the mass balance, and the frontal ablation is not considered, and 
-                        # for the length change, the first 10 years + the 10-year averages as the calibration data, and the last 10 years as the validation data,
-                        # but for the future, it should has more flexiale choices, and the timeseries of mass balance and the frontal ablation should be considered as well.
-                        # 10-years annual length change and the 10-year average climatic mass balance
-                        lengthchange_dLdt_annual_CMB_obs_ind_array = np.concatenate((lengthchange_dLdt_obs_ind_array,mb_obs_mwea_ind_array),axis = 0)
-                        lengthchange_dLdt_annual_CMB_obs_ind_2_array = np.concatenate((lengthchnage_dLdt_unc_obs_ind_2_array,mb_obs_mwea_err_2_array),axis = 0)
-
-                        ##  ==== split the observation data as calibration data and validation data
-                        #TODO At the moment, the calibration is based on the length change (TMS), the mass balance (multiple year average), and more choice can be added in the future
-                        # for the length change, the first 10 years + the 10-year averages as the calibration data, and the last 10 years as the validation data,
-                        # but for the future, it should has more flexiale choices, and the timeseries of mass balance and the frontal ablation should be considered as well.
-                        # 10-years annual length change and the 10-year average climatic mass balance
-                        #pdb.set_trace()
-                        lengthchange_dLdt_obs_ind_array_00_10 = lengthchange_dLdt_obs_ind_array[:10, :]
-                        lengthchange_dLdt_obs_ind_array_11_20 = lengthchange_dLdt_obs_ind_array[10:20,:]
-                        lengthchange_dLdt_annual_CMB_obs_ind_array_00_10 = np.concatenate((lengthchange_dLdt_obs_ind_array_00_10,mb_obs_mwea_ind_array),axis = 0)
-                        lengthchange_dLdt_annual_CMB_obs_ind_array_11_20 = np.concatenate((lengthchange_dLdt_obs_ind_array_11_20,mb_obs_mwea_ind_array),axis = 0)
-                        lengthchnage_dLdt_unc_obs_ind_2_array_00_10 = lengthchnage_dLdt_unc_obs_ind_2_array[:10, :]
-                        lengthchnage_dLdt_unc_obs_ind_2_array_11_20 = lengthchnage_dLdt_unc_obs_ind_2_array[10:20,:]
-                        lengthchange_dLdt_annual_CMB_obs_ind_2_array_00_10 = np.concatenate((lengthchnage_dLdt_unc_obs_ind_2_array_00_10,mb_obs_mwea_err_2_array),axis = 0)
-                        lengthchange_dLdt_annual_CMB_obs_ind_2_array_11_20 = np.concatenate((lengthchnage_dLdt_unc_obs_ind_2_array_11_20,mb_obs_mwea_err_2_array),axis = 0)
-
-
-                    #%% Generate the proposal, and do the AMIS,
-                    #TODO the validation shold be adjusted based on the user's choice, flexiblely based on the observation data, here is hard coded as the 10/20 years
-                    # calibration dataset 2000-2009
-                    predicted = lengthchange_dLdt_MB_model_array_annual_array_00_10
-                    observations_sbst_masked = lengthchange_dLdt_annual_CMB_obs_ind_array_00_10
-                    r_cov = lengthchange_dLdt_annual_CMB_obs_ind_2_array_00_10
-                    # calibration dataset 2010-2019
-                    # predicted = lengthchange_dLdt_MB_model_array_annual_array_11_20
-                    # observations_sbst_masked = lengthchange_dLdt_annual_CMB_obs_ind_array_11_20
-                    # r_cov = lengthchange_dLdt_annual_CMB_obs_ind_2_array_11_20
-
-
-                    # generate the proposal (array)
-                    if j == 0:
-                        parameters_dict_noIndex = {key: value for key, value in parameters_dict.items() if key != "index"} 
-                        # print("Original Dictionary Keys:", parameters_dict.keys())
-                        # print("Updated Dictionary Keys:", parameters_dict_noIndex.keys())
-                        # pdb.set_trace()
-                        proposal_model = np.array(list(parameters_dict_noIndex.values())) # the proposal distributions of parameters used in the physical model
-                    else:
-                        proposal_model = thetap
-                    #pdb.set_trace()
-                    proposal = transform_space(proposal_model, 'to_normal') # TODO check the function glogit, how to deal with four parameters
-                    
-                    vars_to_perturbate = pygem_prms.vars_to_calibrate
-                    priormean = np.zeros(len(vars_to_perturbate)) #TODO Should be the transformed values
-                    priorsd = np.zeros(len(vars_to_perturbate))
-
-                    for count, var in enumerate(vars_to_perturbate):
-                        priormean[count] = pygem_prms.transformed_mean_priors[var]
-                        priorsd[count] = pygem_prms.transformed_std_priors[var]
-                        priorcov = np.diag(priorsd**2)
-                    
-                    #pdb.set_trace()
-                    # interation
-                    if j == 0:
-                        
-                        No = np.size(observations_sbst_masked) # TODO Check the dimention, here is the number of observations, should be 11, 10 for the length change and 1 for the mass balance
-                        Ne = proposal.shape[1]
-                        Nl = pygem_prms.max_iterations
-                        Np = np.shape(proposal)[0]
-                        predall = np.zeros([No, Ne, Nl])
-                        predall[:] = np.nan
-                        propsall = np.zeros([Np, Ne, Nl])
-                        propsall[:] = np.nan
-                        propmall = np.zeros([Np, Nl])
-                        propmall[:] = np.nan
-                        propsall_model = np.zeros([Np, Ne, Nl])
-                        propsall_model[:] = np.nan
-                        print('Np:', Np)
-                        print('Ne:', Ne)
-                        print('Nl:', Nl)
-                        print('priormean :', priormean)
-                        #pdb.set_trace()
-                        propmall[:, j] = priormean
-                        propcall = np.zeros([Np, Np, Nl])
-                        propcall[:] = np.nan
-                        propcall[:, :, j] = priorcov
-                        adapt_thresh = pygem_prms.Neffthrs
-                    #pdb.set_trace()
-                    propsall[:, :, j] = proposal
-                    predall[:, :, j] = predicted
-                    ells = np.arange(j+1)
-                    obs = observations_sbst_masked
-                    # the proposall_model used in the model
-                    propsall_model [:, :, j] = proposal_model
-                    #priormean =priormean.reshape(-1,1)
-                    #pdb.set_trace()
-                    Weights_k, Neff_k = AMIS(obs, predall[:, :, ells],
-                                    r_cov, priormean, priorcov,
-                                    propmall[:, ells], propcall[:, :, ells],
-                                    propsall[:, :, ells])
-
-                    print('Neff: {Neff_k} in j:{j}'.format(Neff_k=int(Neff_k),j=j))
-                    print('Weights_k is :', Weights_k)
-
-                    diversity = Neff_k/Ne
-                    doadapt = diversity < adapt_thresh
-                    notlast = (j+1) < max_iterations
-                    w = Weights_k.flatten('F') #TODO check the shape of the Weights_k, does it need to be flatten
-
-                    # ==== save the parameters and Weights and Neff ====
-                    # Dictionary to store dataset names and corresponding data arrays
-                    output_data_dict_AMIS = {
-                                            'Neff_k': Neff_k,
-                                            'weights_array': Weights_k,
-                                            'doadapt': doadapt,
-                                            'notlast': notlast,
-                                            'Iteration': j
-                                            }
-                    output_folder_AMIS = os.path.join(save_path_AMISINFO,glacier_str.split('.')[0].zfill(2)) # Assuming `pygem_prms.output_fp` exists
-                    # Check if directory exists, otherwise create it
-                    if not os.path.exists(output_folder_AMIS):
-                        os.makedirs(output_folder_AMIS)
-                    output_filename_AMIS = f"calibration_model_AMIS_Info_{rgiid_ind}_{j}.json" # dataset with weights and removed outliers compared to the prior samples/values
-                    output_fp_AMIS = os.path.join(output_folder_AMIS, output_filename_AMIS)
-                    # Save to JSON
-                    with open(output_fp_AMIS, 'w') as f:
-                        json.dump(output_data_dict_AMIS, f, indent=4, default=convert_to_serializable)
-
-                    # ==== Can instead always set clip to 1 if you don't want to clip
-                    doclip = doadapt and notlast
-                    if doclip:
-                        clip = int(np.round(adapt_thresh*Ne))
-                        ws = -np.sort(-w)
-                        wc = ws[clip-1]
-                        nonzero = wc > 0
-                        if nonzero:
-                            toclip = w > wc
-                            w[toclip] = wc
-                            w = w/np.sum(w)
+                            parameters_dict = sample_prior(Sample_N)
                         else:
-                            doclip = False
+                            #Sample_N = Ne
+                            #pdb.set_trace()
+                            # generate the parameters from the posterior distribution (the last step)
+                            parameters_keys = pygem_prms.vars_to_calibrate
+                            parameters_values = thetap
+                            parameters_dict = {key: value for key, value in zip(parameters_keys, parameters_values)}
+                            parameters_dict['index'] = np.arange(Sample_N)
+                                
 
-                    Nw = np.size(w)
-                    pinds = np.arange(Nw)
-                    reinds = np.random.choice(pinds, Ne, p=w)
-                    thetap = propsall[:, :, ells]
-                    thetap = np.reshape(thetap, [Np, Nw], order='F')
-                    thetap = thetap[:, reinds]
-                    pm = np.mean(thetap, axis=1)
-                    if doclip:
-                        A = (thetap.T-pm).T
-                        pc = (A@A.T)/Ne
-                    else:
-                        pc = np.copy(priorcov)*(0.5**j)
-                    print("pc after AMIS is",pc)
-                    # Draw from this Gaussian for the next adaptive iteration
-                    # if there will be one
-                    #pdb.set_trace()
-                    if doadapt and notlast:
+                        # Run the coupled model (PyGEM_OGGM_SERMeQ)
+                        lengthchange_dLdt_model_array_annual, calving_flux_Gta_TMS_model_array_annual,calving_flux_Gta_average_model_array,massbalclim_TMS_model_array_annual,massbalclim_model_array,mb_obs_mwea,mb_obs_mwea_err = Model_MB_FA_RT(model_function = reg_calving_flux,parameters_dict= parameters_dict,
+                                                                                            rgiid_ind = rgiid_ind,main_glac_rgi = main_glac_rgi_ind,glacier_str =glacier_str, fa_glac_data_reg= fa_glac_data_ind,
+                                                                                            ignore_nan=False,debug=debug,calibrate_timeseries =True,store_monthly_step=store_monthly_step,
+                                                                                            return_all = False,store_result= True,output_fp = output_fp,N_iteration = j)
 
-                        while True:
-                            try:
-                                L = np.linalg.cholesky(pc)
-                                break
-                            except np.linalg.LinAlgError:
-                                pc = ct.cov_nearest(pc, method="clipped")
-                                L = np.linalg.cholesky(pc)
-                                print("np.linalg.LinAlgError in cholesky")
-                                #pdb.set_trace()
-                                break
+                        # ==== Replace the outliers by the boundarys
+                        #---- maskout the inf or -inf value based on the length change #TODO  Revise it , if it's inf, a specific number , e.g. 5000
+                        lengthchange_dLdt_model_array_annual = np.clip(lengthchange_dLdt_model_array_annual, min_length_change_myr, max_length_change_myr)
+                        # ==== generate the array as the input for AMIS
+                        #pdb.set_trace() # for 20-year 
+                        lengthchange_dLdt_MB_model_array_annual_array = np.concatenate((lengthchange_dLdt_model_array_annual,massbalclim_model_array.T),axis = 0)                    
+                        lengthchange_dLdt_model_array_annual_00_10 = lengthchange_dLdt_model_array_annual[:10,:]
+                        lengthchange_dLdt_model_array_annual_11_20 = lengthchange_dLdt_model_array_annual[10:20,:]
+                        massbalclim_TMS_model_array_annual_00_10 = massbalclim_TMS_model_array_annual[:10,:]
+                        massbalclim_TMS_model_array_annual_11_20 = massbalclim_TMS_model_array_annual[10:20,:]
+                        massbalclim_model_array_00_10 = np.expand_dims(np.nanmean(massbalclim_TMS_model_array_annual_00_10, axis=0),axis=1)
+                        massbalclim_model_array_11_20 = np.expand_dims(np.nanmean(massbalclim_TMS_model_array_annual_11_20, axis=0),axis =1)
+                        lengthchange_dLdt_MB_model_array_annual_array_00_10 = np.concatenate((lengthchange_dLdt_model_array_annual_00_10,massbalclim_model_array_00_10.T),axis = 0)
+                        lengthchange_dLdt_MB_model_array_annual_array_11_20 = np.concatenate((lengthchange_dLdt_model_array_annual_11_20,massbalclim_model_array_11_20.T),axis = 0)
+                        
 
-                        Z = np.random.randn(Np, Ne)
-                        thetap = (pm+(L@Z).T).T
-                        propcall[:, :, j+1] = pc
-                        propmall[:, j+1] = pm
+                        # ===== Observations =====
+                        # ----onvert to NumPy array and ensure proper shape of the observations #TODO At the moment, the calibration is based on the length change (TMS), the mass balance (multiple year average), and more choice can be added in the future
+                        if j ==0:
 
-                    # Update parameters for next iteration (it is just
-                    # resampling if not adapt and/or last)
-
-                    thetap = transform_space(thetap, 'from_normal')
-                    # TODO how to update the ensembel
-                    #Ensemble.iter_update(step, thetap, create=True, iteration=j)
-                    #print("the thetap is ",thetap)
-                    #pdb.set_trace()
-                    # exit if not collapsed
-                    if not doadapt:
-                        break
-
-                if (not doadapt) or (not notlast): # TODO add the information of the txt infor about good and maximum iterations, with the Neff
-                    # Return the final ensemble and weights
-                    param_prior_array_all = propsall_model[:,:,ells]
-                    Np, Ne, Nl = np.shape(param_prior_array_all)
-                    param_prior_array_all_reshape = np.reshape(param_prior_array_all,(Np, Ne*Nl),order = 'F')
-                    param_post_array = param_prior_array_all_reshape[:, np.random.choice(Ne*Nl, size=Sample_N, replace=True, p=Weights_k)] # chose the replace true, means the weights is uniform 1/n
-                    #transform the array to the parameters dictionary by adding the Index
-                    parameters_dict_post = {key: value for key, value in zip(parameters_keys, param_post_array)}
-                    parameters_dict_post['index'] = np.arange(Sample_N)
-                    
-                    #store the posterior of parameters
-                    output_folder_params_poster = os.path.join(save_path_parameter, 'Poster')
-                    # Ensure directories exist
-                    os.makedirs(output_folder_params_poster, exist_ok=True)
-                    output_filename_params_poster = f'calibration_poster_Params_{rgiid_ind}.json'
-                    output_fp_params = os.path.join(output_folder_params_poster, output_filename_params_poster)
-
-                    # Save to JSON  
-                    #pdb.set_trace()
-                    with open(output_fp_params, "w") as f:
-                        #json.dump(modelprms_data_serializable, f, indent=4)
-                        json.dump(parameters_dict_post, f, indent=4, default=convert_to_serializable)
-
-                    # save the statistics of the parameters
-                    # Dictionary to store dataset names and corresponding data arrays
-                    params_dict_post_statis = {"mean": np.mean(param_post_array, axis=1),
-                                        "std": np.std(param_post_array, axis=1),
-                                        "min": np.min(param_post_array, axis=1),
-                                        "max": np.max(param_post_array, axis=1),
-                                        "median": np.median(param_post_array, axis=1), 
-                                        "IQR": np.percentile(param_post_array, 75, axis=1) - np.percentile(param_post_array, 25, axis=1),
-                                        "MAD": median_abs_deviation(param_post_array, axis=1),
-                                        "skewness": skew(param_post_array, axis=1),
-                                        "kurtosis": kurtosis(param_post_array, axis=1)}
-                    
-                    output_folder_post_params_statis = os.path.join(save_path_parameter)  # Assuming `pygem_prms.output_fp` exists
-                    # Check if directory exists, otherwise create it
-                    if not os.path.exists(output_folder_post_params_statis):
-                        os.makedirs(output_folder_post_params_statis)
-                    output_filename_post_params_statis = f"parameters_statistic_{rgiid_ind}_poster.json" # dataset with parameters
-                    output_fp_post_params_statis = os.path.join(output_folder_post_params_statis, output_filename_post_params_statis)
-                    # Save to JSON
-                    with open(output_fp_post_params_statis, 'w') as f:
-                        json.dump(params_dict_post_statis, f, indent=4, default=convert_to_serializable)
-
-                    #%%
-                    # ==== unique the posterior parameters, and save the unique parameters
-                    param_post_array_unique,unique_indices,unique_counts = np.unique(param_post_array, axis = 1,return_index=True, return_counts=True)
-                    param_post_array_unique_dic = {key: value for key, value in zip(parameters_keys, param_post_array_unique)}
-                    param_post_array_unique_dic['index'] = np.arange(param_post_array_unique.shape[1]) 
-                    output_folder_post_params_unique = os.path.join(save_path_parameter,'Poster','Unique')
-                    Weights_unique = unique_counts/np.sum(unique_counts)
-                    # Ensure directories exist
-                    os.makedirs(output_folder_post_params_unique, exist_ok=True)
-                    output_filename_params_unique = f'calibration_poster_Params_unique_{rgiid_ind}.json'
-                    output_fp_params_unique = os.path.join(output_folder_post_params_unique, output_filename_params_unique)
-                    # Save to JSON
-                    with open(output_fp_params_unique, "w") as f:
-                        json.dump(param_post_array_unique_dic, f, indent=4, default=convert_to_serializable)
-
-                    # ==== save the unique parameters, indices and the counts and weights in json
-                    output_data_dict_unique_Info = {
-                                            'parameters_array': param_post_array_unique, 
-                                            'unique_indices': unique_indices,
-                                            'unique_counts': unique_counts,
-                                            'weights_array': Weights_unique
-                                            }
-                    output_filename_params_unique_Info = f'calibration_poster_Params_unique_{rgiid_ind}_Info.json'
-                    output_fp_params_unique_Info = os.path.join(output_folder_post_params_unique, output_filename_params_unique_Info)                    
-                    # Save to JSON
-                    with open(output_fp_params_unique_Info, "w") as f:
-                        json.dump(output_data_dict_unique_Info, f, indent=4, default=convert_to_serializable)
-                    
-
-                    #%%
-                    # ==== recall the model to compute the model output based on the post parameters
-                                        # Run the coupled model (PyGEM_OGGM_SERMeQ)
-                    (lengthchange_dLdt_model_array_annual_post, lengthchange_m_TMS_model_array_annual_post, 
-                    calving_flux_Gta_TMS_model_array_annual_post,massbalclim_TMS_model_array_annual_post,massbaltotal_TMS_model_array_annual_post,
-                    FA_mwea_TMS_model_array_annual_post,velocity_at_calvingfront_model_array_annual_post,thickness_at_calvingfront_model_array_annual_post,
-                    width_at_calvingfront_model_array_annual_post, volume_bsl_model_array_annual_post, 
-                    volume_bwl_model_array_annual_post,calving_flux_Gta_average_model_array_post, 
-                    calving_thickness_model_array_post, massbalclim_model_array_post,
-                    massbaltotal_model_array_post, FA_mwea_average_model_array_post, 
-                    mb_obs_mwea, mb_obs_mwea_err
-                    ) = Model_MB_FA_RT(model_function=reg_calving_flux,
-                                       parameters_dict=param_post_array_unique_dic,
-                                       rgiid_ind=rgiid_ind,
-                                       main_glac_rgi=main_glac_rgi_ind,
-                                        glacier_str=glacier_str, 
-                                       fa_glac_data_reg=fa_glac_data_ind,
-                                       ignore_nan=False,
-                                       debug=debug,
-                                       calibrate_timeseries=True,
-                                       store_monthly_step=store_monthly_step,
-                                       return_all=True,
-                                       store_result=True,
-                                       output_fp=output_fp,
-                                       N_iteration="Poster"
-                                       )
-
-                    # ==== get the average results # TODO check the dimention of the array, axis =1, or 0
-                    #pdb.set_trace()
-
-                    calving_flux_Gta_average_model_weighted = np.average(calving_flux_Gta_average_model_array_post.flatten(),weights = Weights_unique)
-                    calving_thickness_model_weighted = np.average(calving_thickness_model_array_post.flatten(),weights = Weights_unique)
-                    massbalclim_model_weighted = np.average(massbalclim_model_array_post.flatten(),weights = Weights_unique)
-                    massbaltotal_model_weighted = np.average(massbaltotal_model_array_post.flatten(),weights = Weights_unique)
-                    FA_mwea_average_model_weighted = np.average(FA_mwea_average_model_array_post.flatten(),weights = Weights_unique)
-
-                    lengthchange_dLdt_model_annual_weighted = np.average(lengthchange_dLdt_model_array_annual_post,axis = 1,weights = Weights_unique)
-                    lengthchange_m_TMS_model_annual_weighted = np.average(lengthchange_m_TMS_model_array_annual_post,axis = 1,weights = Weights_unique)
-                    calving_flux_Gta_TMS_model_annual_weighted = np.average(calving_flux_Gta_TMS_model_array_annual_post,axis = 1,weights = Weights_unique)
-                    massbalclim_TMS_model_annual_weighted = np.average(massbalclim_TMS_model_array_annual_post,axis =1,weights = Weights_unique)
-                    massbaltotal_TMS_model_annual_weighted = np.average(massbaltotal_TMS_model_array_annual_post,axis =1,weights = Weights_unique)
-                    FA_mwea_TMS_model_annual_weighted = np.average(FA_mwea_TMS_model_array_annual_post,axis =1,weights = Weights_unique)
-                    velocity_at_calvingfront_model_array_annual_weighted = np.average(velocity_at_calvingfront_model_array_annual_post,axis =1,weights = Weights_unique)
-                    thickness_at_calvingfront_model_array_annual_weighted = np.average(thickness_at_calvingfront_model_array_annual_post,axis =1,weights = Weights_unique)
-                    width_at_calvingfront_model_array_annual_weighted = np.average(width_at_calvingfront_model_array_annual_post,axis =1,weights = Weights_unique)
-                    volume_bsl_model_array_annual_weighted = np.average(volume_bsl_model_array_annual_post,axis =1,weights = Weights_unique)
-                    volume_bwl_model_array_annual_weighted = np.average(volume_bwl_model_array_annual_post,axis =1,weights = Weights_unique)
-
-                    # ==== Save the weighted results in json
-                    output_folder_weights = os.path.join(save_path_modeloutput,'Poster', 'Weighted')  # Assuming `pygem_prms.output_fp` exists
-                    # Check if directory exists, otherwise create it
-                    if not os.path.exists(output_folder_weights):
-                        os.makedirs(output_folder_weights)
-                    output_filename_weighted = f'calibration_weighted_output_{rgiid_ind}_poster.json' # dataset with weighted output
-                    output_fp_weighted = os.path.join(output_folder_weights, output_filename_weighted)
-                    # Dictionary to store dataset names and corresponding data arrays
-                    dataset_dict_weighted = {'calving_flux_Gta_average_model_weighted': calving_flux_Gta_average_model_weighted,
-                                            'calving_thickness_model_weighted_m': calving_thickness_model_weighted,
-                                            'massbalclim_model_weighted_mwea': massbalclim_model_weighted,
-                                            'massbaltotal_model_weighted_mwea': massbaltotal_model_weighted,
-                                            'FA_mwea_average_model_weighted': FA_mwea_average_model_weighted,
-                                            'lengthchange_dLdt_model_annual_weighted_myr': lengthchange_dLdt_model_annual_weighted,
-                                            'lengthchange_m_TMS_model_annual_weighted': lengthchange_m_TMS_model_annual_weighted,
-                                            'calving_flux_Gta_TMS_model_annual_weighted': calving_flux_Gta_TMS_model_annual_weighted,
-                                            'massbalclim_TMS_model_annual_weighted_mwea': massbalclim_TMS_model_annual_weighted,
-                                            'massbaltotal_TMS_model_annual_weighted_mwea': massbaltotal_TMS_model_annual_weighted,
-                                            'FA_mwea_TMS_model_annual_weighted': FA_mwea_TMS_model_annual_weighted,
-                                            'velocity_at_calvingfront_model_array_annual_weighted_myr': velocity_at_calvingfront_model_array_annual_weighted,
-                                            'thickness_at_calvingfront_model_array_annual_weighted_m': thickness_at_calvingfront_model_array_annual_weighted,
-                                            'width_at_calvingfront_model_array_annual_weighted_m': width_at_calvingfront_model_array_annual_weighted,
-                                            'volume_bsl_model_array_annual_weighted_m3': volume_bsl_model_array_annual_weighted,
-                                            'volume_bwl_model_array_annual_weighted_m3': volume_bwl_model_array_annual_weighted}
-                    # Save to json
-                    with open(output_fp_weighted, 'w') as f:
-                        json.dump(dataset_dict_weighted, f, indent=4, default=convert_to_serializable)
-
-                    #pdb.set_trace()
-                    # ==== Visulize the results
-                    calving_flux_Gta_average_model_array_post_repeat = np.repeat(calving_flux_Gta_average_model_array_post,unique_counts,axis =0)
-                    lengthchange_dLdt_model_array_annual_post_repeat = np.repeat(lengthchange_dLdt_model_array_annual_post,unique_counts,axis = 1)
-                    lengthchange_m_TMS_model_array_annual_post_repeat = np.repeat(lengthchange_m_TMS_model_array_annual_post,unique_counts,axis = 1)
-                    massbalclim_model_array_post_repeat = np.repeat(massbalclim_model_array_post,unique_counts,axis =0)
-                    try:
-                        # accoording to the unique counts, and the weights, recoverty the output array 
-                        if Visualize_Index:
-
-                            # priod avearge fa/calving_flux Gta  #TODO CHANGE TO THE POSTERIOR
-                            Visualization_timeseries.plot_model_vs_observation((np.append(calving_flux_Gta_average_model_array_post_repeat, calving_flux_Gta_average_model_weighted)).tolist(),
-                                                                            fa_gta_obs_ind_array, plot_type='point', model_label='Modeled frontal ablation (Gt a⁻¹)', obs_label='Observed frontal ablation (Gt a⁻¹)',
-                                                                                model_legends=[f"Particle {i+1}" for i in range(Sample_N)] + ["Weighted Avg"], start_date=2000,
-                                                                                title='Calving flux comparison model vs observation', observation_error=fa_gta_obs_unc_ind,
-                                                                                save_path=save_path_figure_glac, save_name='Calving flux(20-year average) comparison model vs observation (weighted)')
+                            ## ==== read the observation ====
+                            lengthchange_dLdt_obs_ind_array = np.array(lengthchange_dLdt_obs_ind).reshape(len(lengthchange_dLdt_obs_ind),1)
+                            mb_obs_mwea_ind_array = np.asarray(mb_obs_mwea).reshape(-1, 1)
+                            fa_gta_obs_ind_array = np.asarray(fa_gta_obs_ind).reshape(-1, 1)
                             
-                            # length change rate dLdt vs observation
-                            Visualization_timeseries.plot_model_vs_observation([*lengthchange_dLdt_model_array_annual_post_repeat.T, lengthchange_dLdt_model_annual_weighted], 
-                                                                            lengthchange_dLdt_obs_ind, plot_type='timeseries',
-                                                                            model_legends=[f"Particle {i+1}" for i in range(Sample_N)] + ["Weighted Avg"],
-                                                                            title='Length Change Rate (dLdt) Comparison: Model vs Observation', xlabel='Year',
-                                                                            ylabel='Length Change Rate (m a⁻¹)', observation_error=lengthchnage_dLdt_unc_obs_ind,
-                                                                            start_date=2000, save_path=save_path_figure_glac, save_name='length_change_rate_comparison')
-                            # length change m (the difference of the length of the elevation-band flowlines)vs observation
-                            Visualization_timeseries.plot_model_vs_observation([*lengthchange_m_TMS_model_array_annual_post_repeat.T,
-                                                                                lengthchange_m_TMS_model_annual_weighted], lengthchange_dLdt_obs_ind,
-                                                                                plot_type='timeseries', model_legends=[f"Particle {i+1}" for i in range(Sample_N)] + ["Weighted Avg"],
-                                                                                title='length change comparison model vs observation', xlabel='Year', ylabel='length change (m)',
-                                                                                observation_error=lengthchnage_dLdt_unc_obs_ind, start_date=2000, save_path=save_path_figure_glac,
-                                                                                save_name='length change comparison model vs observation (weighted)')
+                            # ----square of uncertainty of observations
+                            lengthchnage_dLdt_unc_obs_ind_2_array = np.square(np.asarray(lengthchnage_dLdt_unc_obs_ind)).reshape(-1, 1)
+                            mb_obs_mwea_err_2_array = np.square(np.asarray(mb_obs_mwea_err)).reshape(-1, 1)
+                            fa_gta_obs_unc_2_array = np.square(np.asarray(fa_gta_obs_unc)).reshape(-1, 1)
+                            if frontalablation_annual_data is not None:
+                                fa_annual_data_obs_ind_array = np.array(fa_annual_data_obs_ind).reshape(len(fa_annual_data_obs_ind),1)
+                                fa_annual_data_obs_unc_2_array = np.square(np.asarray(fa_annual_data_obs_unc_ind)).reshape(-1, 1)
+                            #TODO At the momment, the calibration based on the length change, the mass balance, and the frontal ablation is not considered, and 
+                            # for the length change, the first 10 years + the 10-year averages as the calibration data, and the last 10 years as the validation data,
+                            # but for the future, it should has more flexiale choices, and the timeseries of mass balance and the frontal ablation should be considered as well.
+                            # 10-years annual length change and the 10-year average climatic mass balance
+                            lengthchange_dLdt_annual_CMB_obs_ind_array = np.concatenate((lengthchange_dLdt_obs_ind_array,mb_obs_mwea_ind_array),axis = 0)
+                            lengthchange_dLdt_annual_CMB_obs_ind_2_array = np.concatenate((lengthchnage_dLdt_unc_obs_ind_2_array,mb_obs_mwea_err_2_array),axis = 0)
 
-                            # massbalclim mwea vs observation
-                            Visualization_timeseries.plot_model_vs_observation((np.append(massbalclim_model_array_post_repeat, massbalclim_model_weighted)).tolist(),
-                                                                            mb_obs_mwea, plot_type='point', model_legends=[f"Particle {i+1}" for i in range(Sample_N)] + ["Weighted Avg"],
-                                                                            title='mass balance climatology comparison model vs observation', xlabel='Year',
-                                                                            ylabel='mass balance climatology (mwea)', observation_error=mb_obs_mwea_err, start_date=2000,
-                                                                            save_path=save_path_figure_glac, save_name='mass balance climatology comparison model vs observation')
-                    except:
-                        print(traceback.format_exc())
-
-                        # TODO add more choices if more observations are considered
-                        # massbaltotal mwea vs observation
-                        # frontal ablation mwea vs observation
-                        # Velocity at the calving front vs observation
-                        # Thickness at the calving front vs observation
-                        # Width at the calving front vs observation
-                        # Volume of the basal sliding zone vs observation
-                        # Volume of the basal wetland zone vs observation
-                        # massbalclim TMS mwea vs observation
-                        # massbaltotal TMS mwea vs observation
+                            ##  ==== split the observation data as calibration data and validation data
+                            #TODO At the moment, the calibration is based on the length change (TMS), the mass balance (multiple year average), and more choice can be added in the future
+                            # for the length change, the first 10 years + the 10-year averages as the calibration data, and the last 10 years as the validation data,
+                            # but for the future, it should has more flexiale choices, and the timeseries of mass balance and the frontal ablation should be considered as well.
+                            # 10-years annual length change and the 10-year average climatic mass balance
+                            #pdb.set_trace()
+                            lengthchange_dLdt_obs_ind_array_00_10 = lengthchange_dLdt_obs_ind_array[:10, :]
+                            lengthchange_dLdt_obs_ind_array_11_20 = lengthchange_dLdt_obs_ind_array[10:20,:]
+                            lengthchange_dLdt_annual_CMB_obs_ind_array_00_10 = np.concatenate((lengthchange_dLdt_obs_ind_array_00_10,mb_obs_mwea_ind_array),axis = 0)
+                            lengthchange_dLdt_annual_CMB_obs_ind_array_11_20 = np.concatenate((lengthchange_dLdt_obs_ind_array_11_20,mb_obs_mwea_ind_array),axis = 0)
+                            lengthchnage_dLdt_unc_obs_ind_2_array_00_10 = lengthchnage_dLdt_unc_obs_ind_2_array[:10, :]
+                            lengthchnage_dLdt_unc_obs_ind_2_array_11_20 = lengthchnage_dLdt_unc_obs_ind_2_array[10:20,:]
+                            lengthchange_dLdt_annual_CMB_obs_ind_2_array_00_10 = np.concatenate((lengthchnage_dLdt_unc_obs_ind_2_array_00_10,mb_obs_mwea_err_2_array),axis = 0)
+                            lengthchange_dLdt_annual_CMB_obs_ind_2_array_11_20 = np.concatenate((lengthchnage_dLdt_unc_obs_ind_2_array_11_20,mb_obs_mwea_err_2_array),axis = 0)
 
 
-                    # ==== save the monthly information in a hdf5 file and visulize the monthly information
-                    if store_monthly_step:
+                        #%% Generate the proposal, and do the AMIS,
+                        #TODO the validation shold be adjusted based on the user's choice, flexiblely based on the observation data, here is hard coded as the 10/20 years
+                        # calibration dataset 2000-2009
+                        predicted = lengthchange_dLdt_MB_model_array_annual_array_00_10
+                        observations_sbst_masked = lengthchange_dLdt_annual_CMB_obs_ind_array_00_10
+                        r_cov = lengthchange_dLdt_annual_CMB_obs_ind_2_array_00_10
+                        # calibration dataset 2010-2019
+                        # predicted = lengthchange_dLdt_MB_model_array_annual_array_11_20
+                        # observations_sbst_masked = lengthchange_dLdt_annual_CMB_obs_ind_array_11_20
+                        # r_cov = lengthchange_dLdt_annual_CMB_obs_ind_2_array_11_20
 
-                        # read the monthly posterior result and calculate the weighted average
-                        output_folder_monthly = os.path.join(save_path_modeloutput , 'Monthly')  # Assuming `pygem_prms.output_fp` exists
-                        os.makedirs(output_folder_monthly, exist_ok=True)
-                        output_filename_monthly = f"calibration_model_Monthly_output_{rgiid_ind}_Poster.json"  # Assuming `pygem_prms.output_fp` exists
-                        output_fp_monthly = os.path.join(output_folder_monthly, output_filename_monthly)
 
-                        # Read json
+                        # generate the proposal (array)
+                        if j == 0:
+                            parameters_dict_noIndex = {key: value for key, value in parameters_dict.items() if key != "index"} 
+                            # print("Original Dictionary Keys:", parameters_dict.keys())
+                            # print("Updated Dictionary Keys:", parameters_dict_noIndex.keys())
+                            # pdb.set_trace()
+                            proposal_model = np.array(list(parameters_dict_noIndex.values())) # the proposal distributions of parameters used in the physical model
+                        else:
+                            proposal_model = thetap
                         #pdb.set_trace()
-                        with open(output_fp_monthly, 'r') as f:
-                            output_data_dict_monthly = json.load(f)
+                        proposal = transform_space(proposal_model, 'to_normal') # TODO check the function glogit, how to deal with four parameters
+                        
+                        vars_to_perturbate = pygem_prms.vars_to_calibrate
+                        priormean = np.zeros(len(vars_to_perturbate)) #TODO Should be the transformed values
+                        priorsd = np.zeros(len(vars_to_perturbate))
 
-                        # remove outliers based on the length change rate 
-                        lengthchange_dLdt_model_array_monthly_post = np.array(output_data_dict_monthly['lengthchange_dLdt_model_array_monthly'])
-                        lengthchange_m_TMS_model_array_monthly_post = np.array(output_data_dict_monthly['lengthchange_m_TMS_model_array_monthly'])
-                        calving_flux_Gta_TMS_model_array_monthly_post = np.array(output_data_dict_monthly['calving_flux_Gta_TMS_model_array_monthly'])
-                        FA_mwea_TMS_model_array_monthly_post = np.array(output_data_dict_monthly['FA_mwea_TMS_model_array_monthly'])
-                        velocity_at_calvingfront_model_array_monthly_post = np.array( output_data_dict_monthly['velocity_at_calvingfront_model_array_monthly'])
-                        thickness_at_calvingfront_model_array_monthly_post = np.array(output_data_dict_monthly['thickness_at_calvingfront_model_array_monthly'])
-                        width_at_calvingfront_model_array_monthly_post = np.array(output_data_dict_monthly['width_at_calvingfront_model_array_monthly'])
-                        volume_bsl_model_array_monthly_post = np.array(output_data_dict_monthly['volume_bsl_model_array_monthly'])
-                        volume_bwl_model_array_monthly_post = np.array(output_data_dict_monthly['volume_bwl_model_array_monthly'])
-                        massbalclim_TMS_model_array_monthly_post = np.array(output_data_dict_monthly['massbalclim_TMS_model_array_monthly'])
-                        massbaltotal_TMS_model_array_monthly_post =np.array( output_data_dict_monthly['massbaltotal_TMS_model_array_monthly'])
-
-                        # === Weighted # TODO check the dimention, axis =0 or, axis = 1 ?
+                        for count, var in enumerate(vars_to_perturbate):
+                            priormean[count] = pygem_prms.transformed_mean_priors[var]
+                            priorsd[count] = pygem_prms.transformed_std_priors[var]
+                            priorcov = np.diag(priorsd**2)
+                        
                         #pdb.set_trace()
-                        lengthchange_dLdt_model_array_monthly_post_weighted = np.average(lengthchange_dLdt_model_array_monthly_post, axis=0,weights = Weights_unique)
-                        lengthchange_m_TMS_model_array_monthly_post_weighted = np.average(lengthchange_m_TMS_model_array_monthly_post, axis=0,weights = Weights_unique)
-                        calving_flux_Gta_TMS_model_array_monthly_post_weighted = np.average(calving_flux_Gta_TMS_model_array_monthly_post, axis=0,weights = Weights_unique)
-                        FA_mwea_TMS_model_array_monthly_post_weighted = np.average(FA_mwea_TMS_model_array_monthly_post, axis=0,weights = Weights_unique)
-                        velocity_at_calvingfront_model_array_monthly_post_weighted = np.average(velocity_at_calvingfront_model_array_monthly_post, axis=0,weights = Weights_unique)
-                        thickness_at_calvingfront_model_array_monthly_post_weighted = np.average(thickness_at_calvingfront_model_array_monthly_post, axis=0,weights = Weights_unique)
-                        width_at_calvingfront_model_array_monthly_post_weighted = np.average(width_at_calvingfront_model_array_monthly_post, axis=0,weights = Weights_unique)
-                        volume_bsl_model_array_monthly_post_weighted = np.average(volume_bsl_model_array_monthly_post, axis=0,weights = Weights_unique)
-                        volume_bwl_model_array_monthly_post_weighted = np.average(volume_bwl_model_array_monthly_post, axis=0,weights = Weights_unique)
-                        massbalclim_TMS_model_array_monthly_post_weighted = np.average(np.asarray(massbalclim_TMS_model_array_monthly_post), axis=0,weights = Weights_unique)
-                        massbaltotal_TMS_model_array_monthly_post_weighted = np.average(np.asarray(massbaltotal_TMS_model_array_monthly_post), axis=0,weights = Weights_unique)
+                        # interation
+                        if j == 0:
+                            
+                            No = np.size(observations_sbst_masked) # TODO Check the dimention, here is the number of observations, should be 11, 10 for the length change and 1 for the mass balance
+                            Ne = proposal.shape[1]
+                            Nl = pygem_prms.max_iterations
+                            Np = np.shape(proposal)[0]
+                            predall = np.zeros([No, Ne, Nl])
+                            predall[:] = np.nan
+                            propsall = np.zeros([Np, Ne, Nl])
+                            propsall[:] = np.nan
+                            propmall = np.zeros([Np, Nl])
+                            propmall[:] = np.nan
+                            propsall_model = np.zeros([Np, Ne, Nl])
+                            propsall_model[:] = np.nan
+                            print('Np:', Np)
+                            print('Ne:', Ne)
+                            print('Nl:', Nl)
+                            print('priormean :', priormean)
+                            #pdb.set_trace()
+                            propmall[:, j] = priormean
+                            propcall = np.zeros([Np, Np, Nl])
+                            propcall[:] = np.nan
+                            propcall[:, :, j] = priorcov
+                            adapt_thresh = pygem_prms.Neffthrs
+                        #pdb.set_trace()
+                        propsall[:, :, j] = proposal
+                        predall[:, :, j] = predicted
+                        ells = np.arange(j+1)
+                        obs = observations_sbst_masked
+                        # the proposall_model used in the model
+                        propsall_model [:, :, j] = proposal_model
+                        #priormean =priormean.reshape(-1,1)
+                        #pdb.set_trace()
+                        Weights_k, Neff_k = AMIS(obs, predall[:, :, ells],
+                                        r_cov, priormean, priorcov,
+                                        propmall[:, ells], propcall[:, :, ells],
+                                        propsall[:, :, ells])
 
-                        # --- save the monthly information in a hdf5 file and visulize the monthly information
-                        output_folder_monthly_weighted = os.path.join(save_path_modeloutput, 'Poster','Weighted','Monthly')
-                        os.makedirs(output_folder_monthly_weighted, exist_ok=True)
-                        output_filename_monthly_weighted = f"calibration_model_Monthly_output_{rgiid_ind}_Poster_weighted.json"  # Assuming `pygem_prms.output_fp` exists
-                        output_fp_monthly_weighted = os.path.join(output_folder_monthly_weighted, output_filename_monthly_weighted)
+                        print('Neff: {Neff_k} in j:{j}'.format(Neff_k=int(Neff_k),j=j))
+                        print('Weights_k is :', Weights_k)
+
+                        diversity = Neff_k/Ne
+                        doadapt = diversity < adapt_thresh
+                        notlast = (j+1) < max_iterations
+                        w = Weights_k.flatten('F') #TODO check the shape of the Weights_k, does it need to be flatten
+
+                        # ==== save the parameters and Weights and Neff ====
                         # Dictionary to store dataset names and corresponding data arrays
-                        output_data_dict_monthly_weighted = {
-                            'lengthchange_dLdt_model_array_monthly_post_weighted': lengthchange_dLdt_model_array_monthly_post_weighted,
-                            'lengthchange_m_TMS_model_array_monthly_post_weighted': lengthchange_m_TMS_model_array_monthly_post_weighted,
-                            'calving_flux_Gta_TMS_model_array_monthly_post_weighted': calving_flux_Gta_TMS_model_array_monthly_post_weighted,
-                            'FA_mwea_TMS_model_array_monthly_post_weighted': FA_mwea_TMS_model_array_monthly_post_weighted,
-                            'velocity_at_calvingfront_model_array_monthly_post_weighted': velocity_at_calvingfront_model_array_monthly_post_weighted,
-                            'thickness_at_calvingfront_model_array_monthly_post_weighted': thickness_at_calvingfront_model_array_monthly_post_weighted,
-                            'width_at_calvingfront_model_array_monthly_post_weighted': width_at_calvingfront_model_array_monthly_post_weighted,
-                            'volume_bsl_model_array_monthly_post_weighted': volume_bsl_model_array_monthly_post_weighted,
-                            'volume_bwl_model_array_monthly_post_weighted': volume_bwl_model_array_monthly_post_weighted,
-                            'massbalclim_TMS_model_array_monthly_post_weighted': massbalclim_TMS_model_array_monthly_post_weighted,
-                            'massbaltotal_TMS_model_array_monthly_post_weighted': massbaltotal_TMS_model_array_monthly_post_weighted,
-                        }
-                        # Save to HDF5
-                        with open(output_fp_monthly_weighted, 'w') as f:
-                            json.dump(output_data_dict_monthly_weighted, f, indent=4, default=convert_to_serializable)
+                        output_data_dict_AMIS = {
+                                                'Neff_k': Neff_k,
+                                                'weights_array': Weights_k,
+                                                'doadapt': doadapt,
+                                                'notlast': notlast,
+                                                'Iteration': j
+                                                }
+                        output_folder_AMIS = os.path.join(save_path_AMISINFO,glacier_str.split('.')[0].zfill(2)) # Assuming `pygem_prms.output_fp` exists
+                        # Check if directory exists, otherwise create it
+                        if not os.path.exists(output_folder_AMIS):
+                            os.makedirs(output_folder_AMIS)
+                        output_filename_AMIS = f"calibration_model_AMIS_Info_{rgiid_ind}_{j}.json" # dataset with weights and removed outliers compared to the prior samples/values
+                        output_fp_AMIS = os.path.join(output_folder_AMIS, output_filename_AMIS)
+                        # Save to JSON
+                        with open(output_fp_AMIS, 'w') as f:
+                            json.dump(output_data_dict_AMIS, f, indent=4, default=convert_to_serializable)
 
-                        # --- visualize monthly information
-                        Visualization_timeseries.plot_timeseries_Numpy(data = calving_flux_Gta_TMS_model_array_monthly_post_weighted*12, start_date='2000-01-01', end_date='2019-12-31',
-                                                                    save_name='Timeseries of calving (monthly-weighted)',save_path=save_path_figure_glac, Y_label='calving flux (Gt/a)', F_title='Monthly Time Series-FA')
-                        Visualization_timeseries.plot_timeseries_Numpy(data = lengthchange_dLdt_model_array_monthly_post_weighted, start_date='2000-01-01', end_date='2019-12-31',
-                                                                    save_name='Timeseries of length change dLdt (monthly-weighted)',save_path=save_path_figure_glac, Y_label='length change rate (m a⁻¹)', F_title='Monthly Time Series-dLdt')
-                        Visualization_timeseries.plot_timeseries_Numpy(data = velocity_at_calvingfront_model_array_monthly_post_weighted, start_date='2000-01-01', end_date='2019-12-31',
-                                                                    save_name='Timeseries of velocity at calving front (monthly-weighted)',save_path=save_path_figure_glac, Y_label='velocity at calving front (m a⁻¹)', F_title='Monthly Time Series-velocity')
-                        # more choice can be added in the future
+                        # ==== Can instead always set clip to 1 if you don't want to clip
+                        doclip = doadapt and notlast
+                        if doclip:
+                            clip = int(np.round(adapt_thresh*Ne))
+                            ws = -np.sort(-w)
+                            wc = ws[clip-1]
+                            nonzero = wc > 0
+                            if nonzero:
+                                toclip = w > wc
+                                w[toclip] = wc
+                                w = w/np.sum(w)
+                            else:
+                                doclip = False
+
+                        Nw = np.size(w)
+                        pinds = np.arange(Nw)
+                        reinds = np.random.choice(pinds, Ne, p=w)
+                        thetap = propsall[:, :, ells]
+                        thetap = np.reshape(thetap, [Np, Nw], order='F')
+                        thetap = thetap[:, reinds]
+                        pm = np.mean(thetap, axis=1)
+                        if doclip:
+                            A = (thetap.T-pm).T
+                            pc = (A@A.T)/Ne
+                        else:
+                            pc = np.copy(priorcov)*(0.5**j)
+                        print("pc after AMIS is",pc)
+                        # Draw from this Gaussian for the next adaptive iteration
+                        # if there will be one
+                        #pdb.set_trace()
+                        if doadapt and notlast:
+
+                            while True:
+                                try:
+                                    L = np.linalg.cholesky(pc)
+                                    break
+                                except np.linalg.LinAlgError:
+                                    pc = ct.cov_nearest(pc, method="clipped")
+                                    L = np.linalg.cholesky(pc)
+                                    print("np.linalg.LinAlgError in cholesky")
+                                    #pdb.set_trace()
+                                    break
+
+                            Z = np.random.randn(Np, Ne)
+                            thetap = (pm+(L@Z).T).T
+                            propcall[:, :, j+1] = pc
+                            propmall[:, j+1] = pm
+
+                        # Update parameters for next iteration (it is just
+                        # resampling if not adapt and/or last)
+
+                        thetap = transform_space(thetap, 'from_normal')
+                        # TODO how to update the ensembel
+                        #Ensemble.iter_update(step, thetap, create=True, iteration=j)
+                        #print("the thetap is ",thetap)
+                        #pdb.set_trace()
+                        # exit if not collapsed
+                        if not doadapt:
+                            break
+
+                    if (not doadapt) or (not notlast): # TODO add the information of the txt infor about good and maximum iterations, with the Neff
+                        # Return the final ensemble and weights
+                        param_prior_array_all = propsall_model[:,:,ells]
+                        Np, Ne, Nl = np.shape(param_prior_array_all)
+                        param_prior_array_all_reshape = np.reshape(param_prior_array_all,(Np, Ne*Nl),order = 'F')
+                        param_post_array = param_prior_array_all_reshape[:, np.random.choice(Ne*Nl, size=Sample_N, replace=True, p=Weights_k)] # chose the replace true, means the weights is uniform 1/n
+                        #transform the array to the parameters dictionary by adding the Index
+                        parameters_dict_post = {key: value for key, value in zip(parameters_keys, param_post_array)}
+                        parameters_dict_post['index'] = np.arange(Sample_N)
+                        
+                        #store the posterior of parameters
+                        output_folder_params_poster = os.path.join(save_path_parameter, 'Poster')
+                        # Ensure directories exist
+                        os.makedirs(output_folder_params_poster, exist_ok=True)
+                        output_filename_params_poster = f'calibration_poster_Params_{rgiid_ind}.json'
+                        output_fp_params = os.path.join(output_folder_params_poster, output_filename_params_poster)
+
+                        # Save to JSON  
+                        #pdb.set_trace()
+                        with open(output_fp_params, "w") as f:
+                            #json.dump(modelprms_data_serializable, f, indent=4)
+                            json.dump(parameters_dict_post, f, indent=4, default=convert_to_serializable)
+
+                        # save the statistics of the parameters
+                        # Dictionary to store dataset names and corresponding data arrays
+                        params_dict_post_statis = {"mean": np.mean(param_post_array, axis=1),
+                                            "std": np.std(param_post_array, axis=1),
+                                            "min": np.min(param_post_array, axis=1),
+                                            "max": np.max(param_post_array, axis=1),
+                                            "median": np.median(param_post_array, axis=1), 
+                                            "IQR": np.percentile(param_post_array, 75, axis=1) - np.percentile(param_post_array, 25, axis=1),
+                                            "MAD": median_abs_deviation(param_post_array, axis=1),
+                                            "skewness": skew(param_post_array, axis=1),
+                                            "kurtosis": kurtosis(param_post_array, axis=1)}
+                        
+                        output_folder_post_params_statis = os.path.join(save_path_parameter)  # Assuming `pygem_prms.output_fp` exists
+                        # Check if directory exists, otherwise create it
+                        if not os.path.exists(output_folder_post_params_statis):
+                            os.makedirs(output_folder_post_params_statis)
+                        output_filename_post_params_statis = f"parameters_statistic_{rgiid_ind}_poster.json" # dataset with parameters
+                        output_fp_post_params_statis = os.path.join(output_folder_post_params_statis, output_filename_post_params_statis)
+                        # Save to JSON
+                        with open(output_fp_post_params_statis, 'w') as f:
+                            json.dump(params_dict_post_statis, f, indent=4, default=convert_to_serializable)
+
+                        #%%
+                        # ==== unique the posterior parameters, and save the unique parameters
+                        param_post_array_unique,unique_indices,unique_counts = np.unique(param_post_array, axis = 1,return_index=True, return_counts=True)
+                        param_post_array_unique_dic = {key: value for key, value in zip(parameters_keys, param_post_array_unique)}
+                        param_post_array_unique_dic['index'] = np.arange(param_post_array_unique.shape[1]) 
+                        output_folder_post_params_unique = os.path.join(save_path_parameter,'Poster','Unique')
+                        Weights_unique = unique_counts/np.sum(unique_counts)
+                        # Ensure directories exist
+                        os.makedirs(output_folder_post_params_unique, exist_ok=True)
+                        output_filename_params_unique = f'calibration_poster_Params_unique_{rgiid_ind}.json'
+                        output_fp_params_unique = os.path.join(output_folder_post_params_unique, output_filename_params_unique)
+                        # Save to JSON
+                        with open(output_fp_params_unique, "w") as f:
+                            json.dump(param_post_array_unique_dic, f, indent=4, default=convert_to_serializable)
+
+                        # ==== save the unique parameters, indices and the counts and weights in json
+                        output_data_dict_unique_Info = {
+                                                'parameters_array': param_post_array_unique, 
+                                                'unique_indices': unique_indices,
+                                                'unique_counts': unique_counts,
+                                                'weights_array': Weights_unique
+                                                }
+                        output_filename_params_unique_Info = f'calibration_poster_Params_unique_{rgiid_ind}_Info.json'
+                        output_fp_params_unique_Info = os.path.join(output_folder_post_params_unique, output_filename_params_unique_Info)                    
+                        # Save to JSON
+                        with open(output_fp_params_unique_Info, "w") as f:
+                            json.dump(output_data_dict_unique_Info, f, indent=4, default=convert_to_serializable)
+                        
+
+                        #%%
+                        # ==== recall the model to compute the model output based on the post parameters
+                                            # Run the coupled model (PyGEM_OGGM_SERMeQ)
+                        (lengthchange_dLdt_model_array_annual_post, lengthchange_m_TMS_model_array_annual_post, 
+                        calving_flux_Gta_TMS_model_array_annual_post,massbalclim_TMS_model_array_annual_post,massbaltotal_TMS_model_array_annual_post,
+                        FA_mwea_TMS_model_array_annual_post,velocity_at_calvingfront_model_array_annual_post,thickness_at_calvingfront_model_array_annual_post,
+                        width_at_calvingfront_model_array_annual_post, volume_bsl_model_array_annual_post, 
+                        volume_bwl_model_array_annual_post,calving_flux_Gta_average_model_array_post, 
+                        calving_thickness_model_array_post, massbalclim_model_array_post,
+                        massbaltotal_model_array_post, FA_mwea_average_model_array_post, 
+                        mb_obs_mwea, mb_obs_mwea_err
+                        ) = Model_MB_FA_RT(model_function=reg_calving_flux,
+                                        parameters_dict=param_post_array_unique_dic,
+                                        rgiid_ind=rgiid_ind,
+                                        main_glac_rgi=main_glac_rgi_ind,
+                                            glacier_str=glacier_str, 
+                                        fa_glac_data_reg=fa_glac_data_ind,
+                                        ignore_nan=False,
+                                        debug=debug,
+                                        calibrate_timeseries=True,
+                                        store_monthly_step=store_monthly_step,
+                                        return_all=True,
+                                        store_result=True,
+                                        output_fp=output_fp,
+                                        N_iteration="Poster"
+                                        )
+
+                        # ==== get the average results # TODO check the dimention of the array, axis =1, or 0
+                        #pdb.set_trace()
+
+                        calving_flux_Gta_average_model_weighted = np.average(calving_flux_Gta_average_model_array_post.flatten(),weights = Weights_unique)
+                        calving_thickness_model_weighted = np.average(calving_thickness_model_array_post.flatten(),weights = Weights_unique)
+                        massbalclim_model_weighted = np.average(massbalclim_model_array_post.flatten(),weights = Weights_unique)
+                        massbaltotal_model_weighted = np.average(massbaltotal_model_array_post.flatten(),weights = Weights_unique)
+                        FA_mwea_average_model_weighted = np.average(FA_mwea_average_model_array_post.flatten(),weights = Weights_unique)
+
+                        lengthchange_dLdt_model_annual_weighted = np.average(lengthchange_dLdt_model_array_annual_post,axis = 1,weights = Weights_unique)
+                        lengthchange_m_TMS_model_annual_weighted = np.average(lengthchange_m_TMS_model_array_annual_post,axis = 1,weights = Weights_unique)
+                        calving_flux_Gta_TMS_model_annual_weighted = np.average(calving_flux_Gta_TMS_model_array_annual_post,axis = 1,weights = Weights_unique)
+                        massbalclim_TMS_model_annual_weighted = np.average(massbalclim_TMS_model_array_annual_post,axis =1,weights = Weights_unique)
+                        massbaltotal_TMS_model_annual_weighted = np.average(massbaltotal_TMS_model_array_annual_post,axis =1,weights = Weights_unique)
+                        FA_mwea_TMS_model_annual_weighted = np.average(FA_mwea_TMS_model_array_annual_post,axis =1,weights = Weights_unique)
+                        velocity_at_calvingfront_model_array_annual_weighted = np.average(velocity_at_calvingfront_model_array_annual_post,axis =1,weights = Weights_unique)
+                        thickness_at_calvingfront_model_array_annual_weighted = np.average(thickness_at_calvingfront_model_array_annual_post,axis =1,weights = Weights_unique)
+                        width_at_calvingfront_model_array_annual_weighted = np.average(width_at_calvingfront_model_array_annual_post,axis =1,weights = Weights_unique)
+                        volume_bsl_model_array_annual_weighted = np.average(volume_bsl_model_array_annual_post,axis =1,weights = Weights_unique)
+                        volume_bwl_model_array_annual_weighted = np.average(volume_bwl_model_array_annual_post,axis =1,weights = Weights_unique)
+
+                        # ==== Save the weighted results in json
+                        output_folder_weights = os.path.join(save_path_modeloutput,'Poster', 'Weighted')  # Assuming `pygem_prms.output_fp` exists
+                        # Check if directory exists, otherwise create it
+                        if not os.path.exists(output_folder_weights):
+                            os.makedirs(output_folder_weights)
+                        output_filename_weighted = f'calibration_weighted_output_{rgiid_ind}_poster.json' # dataset with weighted output
+                        output_fp_weighted = os.path.join(output_folder_weights, output_filename_weighted)
+                        # Dictionary to store dataset names and corresponding data arrays
+                        dataset_dict_weighted = {'calving_flux_Gta_average_model_weighted': calving_flux_Gta_average_model_weighted,
+                                                'calving_thickness_model_weighted_m': calving_thickness_model_weighted,
+                                                'massbalclim_model_weighted_mwea': massbalclim_model_weighted,
+                                                'massbaltotal_model_weighted_mwea': massbaltotal_model_weighted,
+                                                'FA_mwea_average_model_weighted': FA_mwea_average_model_weighted,
+                                                'lengthchange_dLdt_model_annual_weighted_myr': lengthchange_dLdt_model_annual_weighted,
+                                                'lengthchange_m_TMS_model_annual_weighted': lengthchange_m_TMS_model_annual_weighted,
+                                                'calving_flux_Gta_TMS_model_annual_weighted': calving_flux_Gta_TMS_model_annual_weighted,
+                                                'massbalclim_TMS_model_annual_weighted_mwea': massbalclim_TMS_model_annual_weighted,
+                                                'massbaltotal_TMS_model_annual_weighted_mwea': massbaltotal_TMS_model_annual_weighted,
+                                                'FA_mwea_TMS_model_annual_weighted': FA_mwea_TMS_model_annual_weighted,
+                                                'velocity_at_calvingfront_model_array_annual_weighted_myr': velocity_at_calvingfront_model_array_annual_weighted,
+                                                'thickness_at_calvingfront_model_array_annual_weighted_m': thickness_at_calvingfront_model_array_annual_weighted,
+                                                'width_at_calvingfront_model_array_annual_weighted_m': width_at_calvingfront_model_array_annual_weighted,
+                                                'volume_bsl_model_array_annual_weighted_m3': volume_bsl_model_array_annual_weighted,
+                                                'volume_bwl_model_array_annual_weighted_m3': volume_bwl_model_array_annual_weighted}
+                        # Save to json
+                        with open(output_fp_weighted, 'w') as f:
+                            json.dump(dataset_dict_weighted, f, indent=4, default=convert_to_serializable)
+
+                        #pdb.set_trace()
+                        # ==== Visulize the results
+                        calving_flux_Gta_average_model_array_post_repeat = np.repeat(calving_flux_Gta_average_model_array_post,unique_counts,axis =0)
+                        lengthchange_dLdt_model_array_annual_post_repeat = np.repeat(lengthchange_dLdt_model_array_annual_post,unique_counts,axis = 1)
+                        lengthchange_m_TMS_model_array_annual_post_repeat = np.repeat(lengthchange_m_TMS_model_array_annual_post,unique_counts,axis = 1)
+                        massbalclim_model_array_post_repeat = np.repeat(massbalclim_model_array_post,unique_counts,axis =0)
+                        try:
+                            # accoording to the unique counts, and the weights, recoverty the output array 
+                            if Visualize_Index:
+
+                                # priod avearge fa/calving_flux Gta  #TODO CHANGE TO THE POSTERIOR
+                                Visualization_timeseries.plot_model_vs_observation((np.append(calving_flux_Gta_average_model_array_post_repeat, calving_flux_Gta_average_model_weighted)).tolist(),
+                                                                                fa_gta_obs_ind_array, plot_type='point', model_label='Modeled frontal ablation (Gt a⁻¹)', obs_label='Observed frontal ablation (Gt a⁻¹)',
+                                                                                    model_legends=[f"Particle {i+1}" for i in range(Sample_N)] + ["Weighted Avg"], start_date=2000,
+                                                                                    title='Calving flux comparison model vs observation', observation_error=fa_gta_obs_unc_ind,
+                                                                                    save_path=save_path_figure_glac, save_name='Calving flux(20-year average) comparison model vs observation (weighted)')
+                                
+                                # length change rate dLdt vs observation
+                                Visualization_timeseries.plot_model_vs_observation([*lengthchange_dLdt_model_array_annual_post_repeat.T, lengthchange_dLdt_model_annual_weighted], 
+                                                                                lengthchange_dLdt_obs_ind, plot_type='timeseries',
+                                                                                model_legends=[f"Particle {i+1}" for i in range(Sample_N)] + ["Weighted Avg"],
+                                                                                title='Length Change Rate (dLdt) Comparison: Model vs Observation', xlabel='Year',
+                                                                                ylabel='Length Change Rate (m a⁻¹)', observation_error=lengthchnage_dLdt_unc_obs_ind,
+                                                                                start_date=2000, save_path=save_path_figure_glac, save_name='length_change_rate_comparison')
+                                # length change m (the difference of the length of the elevation-band flowlines)vs observation
+                                Visualization_timeseries.plot_model_vs_observation([*lengthchange_m_TMS_model_array_annual_post_repeat.T,
+                                                                                    lengthchange_m_TMS_model_annual_weighted], lengthchange_dLdt_obs_ind,
+                                                                                    plot_type='timeseries', model_legends=[f"Particle {i+1}" for i in range(Sample_N)] + ["Weighted Avg"],
+                                                                                    title='length change comparison model vs observation', xlabel='Year', ylabel='length change (m)',
+                                                                                    observation_error=lengthchnage_dLdt_unc_obs_ind, start_date=2000, save_path=save_path_figure_glac,
+                                                                                    save_name='length change comparison model vs observation (weighted)')
+
+                                # massbalclim mwea vs observation
+                                Visualization_timeseries.plot_model_vs_observation((np.append(massbalclim_model_array_post_repeat, massbalclim_model_weighted)).tolist(),
+                                                                                mb_obs_mwea, plot_type='point', model_legends=[f"Particle {i+1}" for i in range(Sample_N)] + ["Weighted Avg"],
+                                                                                title='mass balance climatology comparison model vs observation', xlabel='Year',
+                                                                                ylabel='mass balance climatology (mwea)', observation_error=mb_obs_mwea_err, start_date=2000,
+                                                                                save_path=save_path_figure_glac, save_name='mass balance climatology comparison model vs observation')
+                        except:
+                            print(traceback.format_exc())
+
+                            # TODO add more choices if more observations are considered
+                            # massbaltotal mwea vs observation
+                            # frontal ablation mwea vs observation
+                            # Velocity at the calving front vs observation
+                            # Thickness at the calving front vs observation
+                            # Width at the calving front vs observation
+                            # Volume of the basal sliding zone vs observation
+                            # Volume of the basal wetland zone vs observation
+                            # massbalclim TMS mwea vs observation
+                            # massbaltotal TMS mwea vs observation
+
+
+                        # ==== save the monthly information in a hdf5 file and visulize the monthly information
+                        if store_monthly_step:
+
+                            # read the monthly posterior result and calculate the weighted average
+                            output_folder_monthly = os.path.join(save_path_modeloutput , 'Monthly')  # Assuming `pygem_prms.output_fp` exists
+                            os.makedirs(output_folder_monthly, exist_ok=True)
+                            output_filename_monthly = f"calibration_model_Monthly_output_{rgiid_ind}_Poster.json"  # Assuming `pygem_prms.output_fp` exists
+                            output_fp_monthly = os.path.join(output_folder_monthly, output_filename_monthly)
+
+                            # Read json
+                            #pdb.set_trace()
+                            with open(output_fp_monthly, 'r') as f:
+                                output_data_dict_monthly = json.load(f)
+
+                            # remove outliers based on the length change rate 
+                            lengthchange_dLdt_model_array_monthly_post = np.array(output_data_dict_monthly['lengthchange_dLdt_model_array_monthly'])
+                            lengthchange_m_TMS_model_array_monthly_post = np.array(output_data_dict_monthly['lengthchange_m_TMS_model_array_monthly'])
+                            calving_flux_Gta_TMS_model_array_monthly_post = np.array(output_data_dict_monthly['calving_flux_Gta_TMS_model_array_monthly'])
+                            FA_mwea_TMS_model_array_monthly_post = np.array(output_data_dict_monthly['FA_mwea_TMS_model_array_monthly'])
+                            velocity_at_calvingfront_model_array_monthly_post = np.array( output_data_dict_monthly['velocity_at_calvingfront_model_array_monthly'])
+                            thickness_at_calvingfront_model_array_monthly_post = np.array(output_data_dict_monthly['thickness_at_calvingfront_model_array_monthly'])
+                            width_at_calvingfront_model_array_monthly_post = np.array(output_data_dict_monthly['width_at_calvingfront_model_array_monthly'])
+                            volume_bsl_model_array_monthly_post = np.array(output_data_dict_monthly['volume_bsl_model_array_monthly'])
+                            volume_bwl_model_array_monthly_post = np.array(output_data_dict_monthly['volume_bwl_model_array_monthly'])
+                            massbalclim_TMS_model_array_monthly_post = np.array(output_data_dict_monthly['massbalclim_TMS_model_array_monthly'])
+                            massbaltotal_TMS_model_array_monthly_post =np.array( output_data_dict_monthly['massbaltotal_TMS_model_array_monthly'])
+
+                            # === Weighted # TODO check the dimention, axis =0 or, axis = 1 ?
+                            #pdb.set_trace()
+                            lengthchange_dLdt_model_array_monthly_post_weighted = np.average(lengthchange_dLdt_model_array_monthly_post, axis=0,weights = Weights_unique)
+                            lengthchange_m_TMS_model_array_monthly_post_weighted = np.average(lengthchange_m_TMS_model_array_monthly_post, axis=0,weights = Weights_unique)
+                            calving_flux_Gta_TMS_model_array_monthly_post_weighted = np.average(calving_flux_Gta_TMS_model_array_monthly_post, axis=0,weights = Weights_unique)
+                            FA_mwea_TMS_model_array_monthly_post_weighted = np.average(FA_mwea_TMS_model_array_monthly_post, axis=0,weights = Weights_unique)
+                            velocity_at_calvingfront_model_array_monthly_post_weighted = np.average(velocity_at_calvingfront_model_array_monthly_post, axis=0,weights = Weights_unique)
+                            thickness_at_calvingfront_model_array_monthly_post_weighted = np.average(thickness_at_calvingfront_model_array_monthly_post, axis=0,weights = Weights_unique)
+                            width_at_calvingfront_model_array_monthly_post_weighted = np.average(width_at_calvingfront_model_array_monthly_post, axis=0,weights = Weights_unique)
+                            volume_bsl_model_array_monthly_post_weighted = np.average(volume_bsl_model_array_monthly_post, axis=0,weights = Weights_unique)
+                            volume_bwl_model_array_monthly_post_weighted = np.average(volume_bwl_model_array_monthly_post, axis=0,weights = Weights_unique)
+                            massbalclim_TMS_model_array_monthly_post_weighted = np.average(np.asarray(massbalclim_TMS_model_array_monthly_post), axis=0,weights = Weights_unique)
+                            massbaltotal_TMS_model_array_monthly_post_weighted = np.average(np.asarray(massbaltotal_TMS_model_array_monthly_post), axis=0,weights = Weights_unique)
+
+                            # --- save the monthly information in a hdf5 file and visulize the monthly information
+                            output_folder_monthly_weighted = os.path.join(save_path_modeloutput, 'Poster','Weighted','Monthly')
+                            os.makedirs(output_folder_monthly_weighted, exist_ok=True)
+                            output_filename_monthly_weighted = f"calibration_model_Monthly_output_{rgiid_ind}_Poster_weighted.json"  # Assuming `pygem_prms.output_fp` exists
+                            output_fp_monthly_weighted = os.path.join(output_folder_monthly_weighted, output_filename_monthly_weighted)
+                            # Dictionary to store dataset names and corresponding data arrays
+                            output_data_dict_monthly_weighted = {
+                                'lengthchange_dLdt_model_array_monthly_post_weighted': lengthchange_dLdt_model_array_monthly_post_weighted,
+                                'lengthchange_m_TMS_model_array_monthly_post_weighted': lengthchange_m_TMS_model_array_monthly_post_weighted,
+                                'calving_flux_Gta_TMS_model_array_monthly_post_weighted': calving_flux_Gta_TMS_model_array_monthly_post_weighted,
+                                'FA_mwea_TMS_model_array_monthly_post_weighted': FA_mwea_TMS_model_array_monthly_post_weighted,
+                                'velocity_at_calvingfront_model_array_monthly_post_weighted': velocity_at_calvingfront_model_array_monthly_post_weighted,
+                                'thickness_at_calvingfront_model_array_monthly_post_weighted': thickness_at_calvingfront_model_array_monthly_post_weighted,
+                                'width_at_calvingfront_model_array_monthly_post_weighted': width_at_calvingfront_model_array_monthly_post_weighted,
+                                'volume_bsl_model_array_monthly_post_weighted': volume_bsl_model_array_monthly_post_weighted,
+                                'volume_bwl_model_array_monthly_post_weighted': volume_bwl_model_array_monthly_post_weighted,
+                                'massbalclim_TMS_model_array_monthly_post_weighted': massbalclim_TMS_model_array_monthly_post_weighted,
+                                'massbaltotal_TMS_model_array_monthly_post_weighted': massbaltotal_TMS_model_array_monthly_post_weighted,
+                            }
+                            # Save to HDF5
+                            with open(output_fp_monthly_weighted, 'w') as f:
+                                json.dump(output_data_dict_monthly_weighted, f, indent=4, default=convert_to_serializable)
+
+                            # --- visualize monthly information
+                            Visualization_timeseries.plot_timeseries_Numpy(data = calving_flux_Gta_TMS_model_array_monthly_post_weighted*12, start_date='2000-01-01', end_date='2019-12-31',
+                                                                        save_name='Timeseries of calving (monthly-weighted)',save_path=save_path_figure_glac, Y_label='calving flux (Gt/a)', F_title='Monthly Time Series-FA')
+                            Visualization_timeseries.plot_timeseries_Numpy(data = lengthchange_dLdt_model_array_monthly_post_weighted, start_date='2000-01-01', end_date='2019-12-31',
+                                                                        save_name='Timeseries of length change dLdt (monthly-weighted)',save_path=save_path_figure_glac, Y_label='length change rate (m a⁻¹)', F_title='Monthly Time Series-dLdt')
+                            Visualization_timeseries.plot_timeseries_Numpy(data = velocity_at_calvingfront_model_array_monthly_post_weighted, start_date='2000-01-01', end_date='2019-12-31',
+                                                                        save_name='Timeseries of velocity at calving front (monthly-weighted)',save_path=save_path_figure_glac, Y_label='velocity at calving front (m a⁻¹)', F_title='Monthly Time Series-velocity')
+                            # more choice can be added in the future
 
 
 
-                    # output as statistic information of the weighted results,#TODO add more information as users need
-                    output_df_all.loc[nglac, 'calving_flux_Gta_average_model_weighted'] = calving_flux_Gta_average_model_weighted
-                    output_df_all.loc[nglac, 'calving_thickness_model_weighted_m'] = calving_thickness_model_weighted
-                    output_df_all.loc[nglac,'massbalclim_model_weighted_mwea'] = massbalclim_model_weighted
-                    output_df_all.loc[nglac,'massbaltotal_model_weighted_mwea'] = massbaltotal_model_weighted
-                    output_df_all.loc[nglac,'FA_mwea_average_model_weighted'] = FA_mwea_average_model_weighted
-                    output_df_all.loc[nglac,'no_errors'] = 1
-                    output_df_all.loc[nglac,'oggm_dynamics'] =1
+                        # output as statistic information of the weighted results,#TODO add more information as users need
+                        output_df_all.loc[nglac, 'calving_flux_Gta_average_model_weighted'] = calving_flux_Gta_average_model_weighted
+                        output_df_all.loc[nglac, 'calving_thickness_model_weighted_m'] = calving_thickness_model_weighted
+                        output_df_all.loc[nglac,'massbalclim_model_weighted_mwea'] = massbalclim_model_weighted
+                        output_df_all.loc[nglac,'massbaltotal_model_weighted_mwea'] = massbaltotal_model_weighted
+                        output_df_all.loc[nglac,'FA_mwea_average_model_weighted'] = FA_mwea_average_model_weighted
+                        output_df_all.loc[nglac,'no_errors'] = 1
+                        output_df_all.loc[nglac,'oggm_dynamics'] =1
 
 
-                    # statistics of glaciers classes failed, good AMIS, or bad AMIS
-                    if not doadapt:
-                        output_df_all.loc[nglac,'good_AMIS'] = 1
-                        output_df_all.loc[nglac,'bad_AMIS'] = 0
-                        output_df_all.loc[nglac,'iterations'] = j
-                        output_df_all.loc[nglac,'Neff_k'] = Neff_k
-                        Good_AMIS.append(rgiid_ind)
-                        N_good_AMIS += 1
+                        # statistics of glaciers classes failed, good AMIS, or bad AMIS
+                        if not doadapt:
+                            output_df_all.loc[nglac,'good_AMIS'] = 1
+                            output_df_all.loc[nglac,'bad_AMIS'] = 0
+                            output_df_all.loc[nglac,'iterations'] = j
+                            output_df_all.loc[nglac,'Neff_k'] = Neff_k
+                            Good_AMIS.append(rgiid_ind)
+                            N_good_AMIS += 1
 
-                    elif (not notlast):
-                        # the iteration has reached the maximum but we didn't get the converged result
-                        output_df_all.loc[nglac,'good_AMIS'] = 0
-                        output_df_all.loc[nglac,'bad_AMIS'] = 1
-                        output_df_all.loc[nglac,'iterations'] = j
-                        output_df_all.loc[nglac,'Neff_k'] = Neff_k
-                        Bad_AMIS.append(rgiid_ind)
-                        N_bad_AMIS += 1                       
+                        elif (not notlast):
+                            # the iteration has reached the maximum but we didn't get the converged result
+                            output_df_all.loc[nglac,'good_AMIS'] = 0
+                            output_df_all.loc[nglac,'bad_AMIS'] = 1
+                            output_df_all.loc[nglac,'iterations'] = j
+                            output_df_all.loc[nglac,'Neff_k'] = Neff_k
+                            Bad_AMIS.append(rgiid_ind)
+                            N_bad_AMIS += 1                       
 
-                else :
-                    # the AMIS failed, we didn't get the converged result
-                    print("the AMIS failed, we didn't get the converged result.And the calibration falied and the Neff_k is:",Neff_k)
+                    else :
+                        # the AMIS failed, we didn't get the converged result
+                        print("the AMIS failed, we didn't get the converged result.And the calibration falied and the Neff_k is:",Neff_k)
+                        Failed_glacs.append(rgiid_ind)
+                        N_failed += 1
+                        pass
+                except Exception as err:
+                    print(traceback.format_exc())
+                    print(f"Error occurred for glacier {rgiid_ind}: {err}")
                     Failed_glacs.append(rgiid_ind)
                     N_failed += 1
-                    pass
-            
+
             # Export model results and write list of failed glaciers
             output_df_all.to_csv(output_fp + output_fn, index=False)
 
