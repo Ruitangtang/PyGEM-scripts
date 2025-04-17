@@ -10,6 +10,8 @@ import xarray as xr
 import pickle
 import ast
 import math
+import matplotlib
+# matplotlib.use('TkAgg',force=True)
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator,MultipleLocator
 from matplotlib.animation import FuncAnimation, PillowWriter
