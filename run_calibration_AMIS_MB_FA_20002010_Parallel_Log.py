@@ -2949,7 +2949,7 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                 file_exists_bad = os.path.exists(bad_amis_fp)
                 mode_bad = 'a' if file_exists_bad else 'w'
                 with open(bad_amis_fp, mode_bad) as f:
-                    if not file_exists:
+                    if not file_exists_bad:
                         f.write("Bad AMIS Results Log\n")
                         f.write("====================\n")
                     f.write(f'There are {N_bad_AMIS} glaciers that failed calibration\n')
