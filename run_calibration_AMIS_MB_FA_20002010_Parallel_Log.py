@@ -34,7 +34,7 @@ import pandas as pd
 import pickle
 import xarray as xr
 import matplotlib
-matplotlib.use('TkAgg',force=True)
+#matplotlib.use('TkAgg',force=True)
 import matplotlib.pyplot as plt
 plt.ioff()
 import numpy as np
@@ -2768,12 +2768,12 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                                                                                     observation_error=lengthchnage_dLdt_unc_obs_ind, start_date=2000, save_path=save_path_figure_glac,
                                                                                     save_name='length change comparison model vs observation (weighted)')
 
-                                # massbalclim mwea vs observation
-                                Visualization_timeseries.plot_model_vs_observation((np.append(massbalclim_model_array_post_repeat, massbalclim_model_weighted)).tolist(),
-                                                                                mb_obs_mwea, plot_type='point', model_legends=[f"Particle {i+1}" for i in range(Sample_N)] + ["Weighted Avg"],
-                                                                                title='mass balance climatology comparison model vs observation', xlabel='Year',
-                                                                                ylabel='mass balance climatology (mwea)', observation_error=mb_obs_mwea_err, start_date=2000,
-                                                                                save_path=save_path_figure_glac, save_name='mass balance climatology comparison model vs observation')
+                                # massbalclim mwea vs observation #TODO at the moment model output is 20-year average, but the observation is 10-year average, should be changed later
+                                # Visualization_timeseries.plot_model_vs_observation((np.append(massbalclim_model_array_post_repeat, massbalclim_model_weighted)).tolist(),
+                                #                                                 mb_obs_mwea, plot_type='point', model_legends=[f"Particle {i+1}" for i in range(Sample_N)] + ["Weighted Avg"],
+                                #                                                 title='mass balance climatology comparison model vs observation', xlabel='Year',
+                                #                                                 ylabel='mass balance climatology (mwea)', observation_error=mb_obs_mwea_err, start_date=2000,
+                                #                                                 save_path=save_path_figure_glac, save_name='mass balance climatology comparison model vs observation')
                         except:
                             print(traceback.format_exc())
 
@@ -2920,26 +2920,42 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
 
             if len(Failed_glacs) > 0:
                 failed_glaciers_fp = os.path.join(save_path_statistics_reg, 'Failed_glaciers.txt')
-                with open(failed_glaciers_fp, 'w') as f:
+                file_exists_failed = os.path.exists(failed_glaciers_fp)
+                mode_failed = 'a' if file_exists_failed else 'w'
+                with open(failed_glaciers_fp, mode_failed) as f:
+                    if not file_exists_failed:
+                        f.write("Failed Glaciers Log\n")
+                        f.write("====================\n")
                     f.write(f'There are {N_failed} glaciers that failed calibration\n')
-                    f.writelines(f"{glacier}\n" for glacier in Failed_glacs)
-
+                    for glacier in Failed_glacs:
+                        f.write(f"{glacier}\n")
+                    f.write("\n================\n")
 
             if Good_AMIS:
                 good_amis_fp = os.path.join(save_path_statistics_reg, 'Good_AMIS.txt')
-                with open(good_amis_fp, 'w') as f:
+                file_exists_good= os.path.exists(good_amis_fp)
+                mode_good = 'a' if file_exists_good else 'w'
+                with open(good_amis_fp, mode_good) as f:
+                    if not file_exists_good:
+                        f.write("Good AMIS Results Log\n")
+                        f.write("====================\n")
                     f.write(f'There are {N_good_AMIS} glaciers that passed calibration\n')
                     for glacier, N_iters in zip(Good_AMIS, N_good_iterations):
                         f.write(f"{glacier}, with {N_iters} iterations\n")
-
+                    f.write("\n================\n")
             
             if Bad_AMIS:
                 bad_amis_fp = os.path.join(save_path_statistics_reg, 'Bad_AMIS.txt')
-                with open(bad_amis_fp, 'w') as f:
+                file_exists_bad = os.path.exists(bad_amis_fp)
+                mode_bad = 'a' if file_exists_bad else 'w'
+                with open(bad_amis_fp, mode_bad) as f:
+                    if not file_exists:
+                        f.write("Bad AMIS Results Log\n")
+                        f.write("====================\n")
                     f.write(f'There are {N_bad_AMIS} glaciers that failed calibration\n')
-                    #f.writelines(f"{glacier}\n" for glacier in Bad_AMIS)
                     for glacier, N_iters in zip(Bad_AMIS, N_bad_iterations):
-                        f.write(f"{glacier}, with {N_iters} iterations\n")
+                        f.write(f"{glacier}, with {N_iters} iterations\n")   
+                    f.write("\n================\n")
 
         else:
             print('Calibration already completed')
