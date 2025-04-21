@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Loop over task files from Task0.txt to TaskN.txt
-for task_id in {3..11}  # Change 9 to however many tasks you have
+for task_id in {10..11}  # Change 9 to however many tasks you have
 do
     echo "Running task $task_id..."
 
