@@ -960,7 +960,6 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                 cfg.PARAMS['cfl_number'] = pygem_prms.cfl_number
             else:
                 cfg.PARAMS['cfl_number'] = pygem_prms.cfl_number_calving
-            
             # ----- Mass balance model for ice thickness inversion using OGGM -----
             mbmod_inv = PyGEMMassBalance(gdir, modelprms, glacier_rgi_table,
                                          hindcast=pygem_prms.hindcast,
@@ -2172,7 +2171,9 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
         # ===== LOAD GLACIERS =====
         main_glac_rgi_all = modelsetup.selectglaciersrgitable(glac_no = glacno_reg_wdata) # TODO check the input of function selectglaciersrgitable
         # Select Tidewater glaciers
-        termtype_list = [1,5]
+        termtype_list = [1,5] # TODO check the termtype list, at the moment, either RGI6 or RGI7, has the correct and assigned termtype, we based on the Williams et al. 2020 for the Northern Hemisphere
+        # main_glac_rgi = main_glac_rgi_all.loc[main_glac_rgi_all['TermType'].isin(termtype_list)]
+        main_glac_rgi_all['TermType'] = 1
         main_glac_rgi = main_glac_rgi_all.loc[main_glac_rgi_all['TermType'].isin(termtype_list)]
         main_glac_rgi.reset_index(inplace=True, drop=True)
 
