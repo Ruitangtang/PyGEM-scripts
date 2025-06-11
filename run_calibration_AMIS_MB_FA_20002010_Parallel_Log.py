@@ -2957,7 +2957,7 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                     for glacier, N_iters in zip(Bad_AMIS, N_bad_iterations):
                         f.write(f"{glacier}, with {N_iters} iterations\n")   
                     f.write("\n================\n")
-
+                    
         else:
             print('Calibration already completed')
             output_df_all = pd.read_csv(save_path_summary + output_fn)
