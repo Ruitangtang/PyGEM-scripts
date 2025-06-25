@@ -11,6 +11,7 @@ import pickle
 import ast
 import math
 import matplotlib
+from matplotlib.gridspec import GridSpec
 # matplotlib.use('TkAgg',force=True)
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator,MultipleLocator
@@ -1726,3 +1727,188 @@ def plot_length_dl_TS_Annual(output_path= '/Calibration_AMIS_MB_FA_20002010_N200
         save_file = os.path.join(save_path, save_name + '.png')
         plt.savefig(save_file, bbox_inches='tight')
         print(f"Figure saved to {save_file}")
+
+
+# function to plot the CDF and one-to-one comparison of observation and modeled value
+def plot_cdf_and_one_to_one(observed_df = None, modeled_df = None, modeled_df_raw= None,
+                            obs_name = None, obs_unc_name = None, modeled_key = None, item_name = None,
+                            period = None, Xlabel = None, Ylabel = None,Xlim = None, Ylim = None,
+                            subplot_label_L ='a', subplot_label_R = 'b',title= None, save_path=None, save_name=None,
+                            legend_index = True):
+    """
+    Plots the CDF for observed and modeled values,
+    and a one-to-one comparison with box plots for modeled results and error bars for observations.
+    Parameters:
+    - observed_df (pd.DataFrame): DataFrame containing observed values with columns e.g. 'rgiid', 'length_change', 'length_change_unc'.
+    - modeled_df (pd.DataFrame): DataFrame containing modeled values with columns 'rgiid', 'mean', 'hdi_95_low', 'hdi_95_high'.
+    - modeled_df_raw (pd.DataFrame): DataFrame containing raw modeled values for box plots, with 'rgiid' and 'lengthchange_dLdt_model_array_annual_myr' columns.
+    - obs_name (str): Name of the observed length change column in observed_df, e.g. 'length_change'.
+    - obs_unc_name (str): Name of the observed length change uncertainty column in observed_df, e.g. 'length_change_unc'.
+    - modeled_key (str): Key for the modeled values in modeled_df, e.g. 'lengthchange_dLdt_model_array_annual_myr'.
+    - item_name (str): Name of the item to be compare, e.g. 'Length Change'.
+    - period (str): Period for the data, e.g. '2000-2010'.
+    - Xlabel (str): Label for the x-axis. e.g. 'Length Change (m, observed)', 'Climatic Mass Balance (m w.e. a$^{-1}$, observed)'.
+    - Ylabel (str): Label for the y-axis. e.g. 'Length Change (m, modeled)', 'Climatic Mass Balance (m w.e. a$^{-1}$, modeled)''.
+    - Xlim (tuple): Limits for the x-axis, e.g. (0, 1000).
+    - Ylim (tuple): Limits for the y-axis, e.g. (0, 1000).
+    - subplot_label_L (str): Label for the left subplot, e.g. 'a)'.
+    - subplot_label_R (str): Label for the right subplot, e.g. 'b)'.
+    - title (str): Title for the plot.
+    - save_path (str): Path to save the plot.
+    - save_name (str): Name to save the plot file.
+    - legend_index (bool): Whether to include legend index in the plot. The default is True.
+    """
+    # Merge DataFrames
+    merged_df = pd.merge(observed_df, modeled_df, left_on='rgiid', right_on='rgiid', how='inner')
+
+    # Extract data
+    # scale the length change from m to km
+    if obs_name == 'length_change':
+        scale_v = 0.001  # Changed from 0.0001 to properly convert m to km
+    else:
+        scale_v = 1
+    obs_change = merged_df[obs_name].values * scale_v
+    obs_unc = merged_df[obs_unc_name].values * scale_v
+    model_mean = merged_df['mean'].values * scale_v
+    hdi_low, hdi_high = merged_df['hdi_95_low'].values * scale_v, merged_df['hdi_95_high'].values * scale_v
+
+    # Create figure with proper layout management
+    fig = plt.figure(figsize=(10, 5), constrained_layout=True)
+    #fig.suptitle(title, fontsize=18, y=1.02)
+
+    # Create gridspec with adjusted margins
+    gs = GridSpec(1, 2, figure=fig, width_ratios=[1, 1], height_ratios=[1], wspace=0.17, 
+                  left=0.04, right=0.86, bottom=0.15, top=0.9)
+
+    # --- One-to-One Plot with Boxplots (left subplot) ---
+    ax1 = fig.add_subplot(gs[0])
+
+    # Create boxplot data for each RGI ID using ensemble results
+    box_data = []
+    for _, row in modeled_df_raw.iterrows():
+        # Convert string representation to numpy array if needed
+        if isinstance(row[modeled_key], str):
+            # More robust string to array conversion
+            ensemble_members = np.array([float(x) for x in row[modeled_key].strip('[]').split()]) * scale_v
+        else:
+            ensemble_members = np.array(row[modeled_key]) * scale_v
+        box_data.append(ensemble_members)  # THIS WAS MISSING IN ORIGINAL CODE
+
+    # Calculate default limits if not provided
+    if Xlim is None:
+        all_box_values = np.concatenate(box_data)
+        Xlim = (min(obs_change.min(), all_box_values.min()), 
+                max(obs_change.max(), all_box_values.max()))
+    if Ylim is None:
+        Ylim = Xlim  # Use same limits for y-axis
+
+    # Position boxes at observed value positions
+    box_positions = obs_change
+    box_widths = 0.05 * (Xlim[1] - Xlim[0])  # 5% of total x-range
+
+    boxprops = dict(facecolor='orange', alpha=0.3, edgecolor='orange', linewidth=1.5)
+    whiskerprops = dict(color='orange', alpha=0.8)
+    medianprops = dict(color='orange', linewidth=1.5)
+    capprops = dict(color='orange', linewidth=1.5)
+
+    # Ensure we have matching lengths
+    if len(box_data) != len(box_positions):
+        raise ValueError(f"Length mismatch: box_data ({len(box_data)}) != box_positions ({len(box_positions)})")
+
+    ax1.boxplot(box_data,
+               positions=box_positions,
+               widths=box_widths,
+               patch_artist=True,
+               boxprops=boxprops,
+               whiskerprops=whiskerprops,
+               medianprops=medianprops,
+               capprops=capprops,
+               showfliers=False,
+               manage_ticks=False)
+
+    # Create a proxy artist for the boxplot in the legend
+    box_legend = plt.Line2D([0], [0], color='orange', alpha=0.3, lw=5, label='Modeled')
+
+    # Plot values with error bars
+    ax1.errorbar(obs_change, model_mean,
+               xerr=obs_unc, markersize=4,
+               fmt='o', color='blue', alpha=0.7,
+               label='Observed', capsize=3)
+
+    # Plot 1:1 line
+    ax1.plot(Xlim, Xlim, 'k--', label='1:1 Line')
+
+    # Configure plot
+    ax1.set(xlabel=Xlabel,
+           ylabel=Ylabel,
+           aspect='equal',
+           xlim=Xlim,
+           ylim=Ylim)
+    #ax1.legend(handles=ax1.get_legend_handles_labels()[0] + [box_legend])
+    ax1.grid(linestyle='--')
+    #set the legend
+    if legend_index:
+        # If legend_index is True, show the legend including existing handles and box_legend
+        handles = ax1.get_legend_handles_labels()[0] + [box_legend]
+        ax1.legend(handles=handles, frameon=False)  # Show legend without box edge
+    else:
+        # If legend_index is False, do not show the legend at all
+        ax1.legend().set_visible(False)  # This effectively hides the legend
+    # Add 'a)' label outside top-left
+    ax1.annotate(subplot_label_L, xy=(-0.13, 0.96), xycoords='axes fraction',
+                fontsize=18, weight='normal', ha='left', va='bottom',
+                bbox=dict(facecolor='white', edgecolor='none', pad=0))
+    # --- CDF Plot (right subplot) ---
+    ax2 = fig.add_subplot(gs[1])
+    
+    # Plot observed CDF and uncertainty
+    sns.ecdfplot(obs_change, ax=ax2, label='Observed', color='blue')
+    
+    # Calculate and plot observed uncertainty band
+    lower_obs = obs_change - obs_unc
+    upper_obs = obs_change + obs_unc
+    x_obs = np.linspace(lower_obs.min(), upper_obs.max(), 1000)
+    cdf_lower = np.searchsorted(np.sort(lower_obs), x_obs, side='right') / len(lower_obs)
+    cdf_upper = np.searchsorted(np.sort(upper_obs), x_obs, side='right') / len(upper_obs)
+    ax2.fill_between(x_obs, cdf_lower, cdf_upper, color='blue', alpha=0.3, label='Observed Uncertainty')
+    
+    # Plot modeled CDF and HDI
+    sns.ecdfplot(model_mean, ax=ax2, label='Modeled Mean', color='orange')
+    x_model = np.linspace(hdi_low.min(), hdi_high.max(), 1000)
+    cdf_hdi_low = np.searchsorted(np.sort(hdi_low), x_model, side='right') / len(hdi_low)
+    cdf_hdi_high = np.searchsorted(np.sort(hdi_high), x_model, side='right') / len(hdi_high)
+    ax2.fill_between(x_model, cdf_hdi_low, cdf_hdi_high, color='orange', alpha=0.3, label='HDI 95%')
+
+    ax2.set(xlabel=item_name,
+           ylabel='Cumulative Probability',
+           xlim = Xlim)
+
+    ax2.grid(linestyle='--')
+    #set the legend
+    if legend_index:
+        # If legend_index is True, show the legend including existing handles
+        handles = ax2.get_legend_handles_labels()[0]
+        ax2.legend(handles=handles, frameon=False)
+    else:
+        # If legend_index is False, do not show the legend at all
+        ax2.legend().set_visible(False)
+    # Add 'b)' label outside top-left
+    ax2.annotate(subplot_label_R, xy=(-0.14, 0.96), xycoords='axes fraction',
+                fontsize=18, weight='normal', ha='left', va='bottom',
+                bbox=dict(facecolor='white', edgecolor='none', pad=0))
+    # Adjust layout and save
+    plt.tight_layout()
+    # Save the figure
+    if save_path is None:
+        save_path = 'Regional_analysis/figures/'
+    else:
+        save_path = os.path.join(save_path, 'Regional_analysis', 'figures')
+    os.makedirs(save_path, exist_ok=True)
+    if save_name is None:
+        save_name = 'cdf_and_one_to_one_comparison' + f'_{item_name.replace(" ", "_")}' + f'_{period.replace("-", "_")}'
+    save_file = os.path.join(save_path, f"{save_name}.png")
+    plt.savefig(save_file, bbox_inches='tight', dpi=300)
+
+    #print(f"Figure saved to {save_file}")
+
+    #plt.show()
