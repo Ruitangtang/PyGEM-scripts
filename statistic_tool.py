@@ -18,99 +18,901 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 from scipy.stats import linregress
+import json
+import ast
 
 
-#%% Read the data (emsemble members and their corresponding info e.g. weights/counts for unique value) and calculate the statistics
-def read_data_and_calculate_statistics(data_fp = None, unique_fp = None, unique_index = True,ensemble_members=None, weights=None):
+
+# Read data from CSV, Excel, or JSON files based on their extension
+def read_data_from_file(file_path):
     """
-    Read data from a json file and calculate statistics for each ensemble member.
-
+    Read data from CSV, Excel, or JSON files based on their extension.
+    
     Parameters:
-    data_fp (str): File path to the file containing the data.
-    unique_fp (str): File path to the file containing the weights for each ensemble member.
-    unique_index (bool): If True, use the weights to restructure the DataFrame to ensure unique indices.
-    ensemble_members (list): List of ensemble members to analyze.
-    weights (list): List of weights corresponding to each ensemble member.
+    file_path (str): Path to the data file.
+    Returns:
+    pd.DataFrame: DataFrame containing the read data.
+    """
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"The file {file_path} does not exist.")
+    
+    # Check the file extension and read the data accordingly
+    try:
+        if file_path.endswith('.csv'):
+            return pd.read_csv(file_path)
+        elif file_path.endswith('.xlsx'):
+            return pd.read_excel(file_path)
+        elif file_path.endswith('.json'):
+            with open(file_path, 'r') as f:
+                return json.load(f)
+        else:
+            raise ValueError(f"Unsupported file type: {file_path}")
+    except Exception as e:
+        print(f"Error reading {file_path}: {e}")
+        return None
+
+
+# Reconstruct the data for each glacier based on unique ensemble members and their corresponding counts
+def reconstruct_data(data_dict, unique_counts):
+    """
+    Reconstruct the data for each glacier based on unique ensemble members and their corresponding counts.
+    
+    Parameters:
+    data_dict (dict): Dictionary containing original data arrays for each key, where each value may be a 1D or 2D array.
+    unique_counts (list or np.ndarray): Counts for each unique ensemble member.
+    
+    Returns:
+    dict: A dictionary containing the reconstructed data with expanded entries according to the unique counts.
+    """
+    if unique_counts is None:
+        raise ValueError("unique_counts must be provided to reconstruct the data.")
+    else:
+        # Ensure unique_counts is a NumPy array
+        unique_counts = np.array(unique_counts)
+
+    df_output = {}  # Initialize output dictionary
+
+    for key, data_uniq in data_dict.items():
+        data_uniq = np.array(data_uniq)  # Ensure data_uniq is a NumPy array
+        
+        if data_uniq.ndim == 1:
+            # If data_uniq is a 1D array
+            if len(unique_counts) != data_uniq.shape[0]:
+                raise ValueError(f"Length of unique_counts must match the length of the 1D data_uniq for key: {key}.")
+            data = np.repeat(data_uniq, unique_counts)
+        
+        elif data_uniq.ndim == 2:
+            # If data_uniq is a 2D array
+            rows = data_uniq.shape[0]  # Number of rows
+            columns = data_uniq.shape[1]  # Number of columns
+
+            if rows == len(unique_counts):
+                # If the number of rows matches unique_counts, repeat along rows
+                data = np.repeat(data_uniq, unique_counts, axis=0)
+            elif columns == len(unique_counts):
+                # If the number of columns matches unique_counts (must be 1 here), repeat along columns
+                data = np.repeat(data_uniq, unique_counts, axis=1)
+            else:
+                raise ValueError(f"Dimensions of unique_counts must match one dimension of the 2D data_uniq for key: {key}. Expected counts to match rows {rows} or columns {columns}.")
+
+        else:
+            raise ValueError("Unsupported data dimension. Only 1D and 2D arrays are supported.")
+
+        df_output[key] = data  # Store the reconstructed data in the output dictionary
+
+    return df_output
+
+
+# Compute fixed interval statistics （mean, sum） for a given dictionary of data arrays
+def compute_fixed_interval_stats(data_dict, interval_years= 10, key_indices=None):
+    """ Compute fixed interval statistics (mean, sum) for a given dictionary of data arrays.
+    Parameters:
+    data_dict (dict): Dictionary containing data arrays for each key, where each value is a 2D array (years x members).
+    interval_years (int): Number of years for each fixed interval. The default is 10 years.
+    key_indices (tuple, optional): Tuple of start and end indices to slice the keys from the dictionary. If None, all keys are used.
+    Returns:
+    means_results (dict): Dictionary containing mean values for each key, with shape [num_intervals, n_members].
+    sums_results (dict): Dictionary containing sum values for each key, with shape [num_intervals, n_members].
+    """
+    means_results = {}
+    sums_results = {}
+
+    # Get keys from the dictionary
+    keys = list(data_dict.keys())
+
+    # Check if the key_indices parameter is provided
+    if key_indices is not None:
+        # Slice keys based on the provided indices
+        start_index, end_index = key_indices
+        keys = keys[start_index:end_index]
+
+    for key in keys:
+        data_array = data_dict[key]
+
+        # Check that the data has two dimensions
+        if data_array.ndim != 2:
+            print(f"Data for key '{key}' does not have two dimensions. Actual dims: {data_array.ndim}")
+            continue
+
+        # Shape of data: expect (n_years, n_members)
+        n_years, n_members = data_array.shape
+
+        # Ensure that n_years is large enough for the specified intervals
+        if n_years < interval_years:
+            print(f"Data for key '{key}' does not have enough years ({n_years}) for the specified interval: {interval_years}.")
+            continue
+
+        # Calculate the number of complete intervals we can form
+        num_intervals = n_years // interval_years
+        
+        # Initialize arrays to store means and sums for dynamic intervals
+        means = np.zeros((num_intervals, n_members))
+        sums = np.zeros((num_intervals, n_members))
+
+        for i in range(num_intervals):
+            start_idx = i * interval_years
+            end_idx = start_idx + interval_years
+            
+            # Extract the interval data
+            interval_data = data_array[start_idx:end_idx]
+            
+            # Calculate mean and sum for this interval
+            means[i] = interval_data.mean(axis=0)  # Mean for each of the n_members
+            sums[i] = interval_data.sum(axis=0)    # Sum for each of the n_members
+        
+        # Store the results in a dictionary
+        means_results[key] = means  # Shape: [num_intervals, n_members]
+        sums_results[key] = sums    # Shape: [num_intervals, n_members]
+
+    return means_results, sums_results
+
+
+# Process the data for each glacier
+def read_extract_data_individual(file_path=None,file_name=None,unique_path=None,save_reconstructed=False):
+    """ Process the data for each glacier, reconstruct depending on unique_counts,and save as new json (optional).
+    
+    Parameters:
+    file_path (str): Path to the glacier data file.
+    file_name (str): suffix of the file name, e.g. '.csv', '.xlsx', 'json',etc.
+    unique_path (str): Path to the unique counts or weights file, if applicable.
+    save_reconstructed (bool): If True, save the reconstructed data to a subfolder 'reconstructed_data'.
+    
+    Returns:
+    pd.DataFrame: Processed DataFrame with relevant statistics.
+    """
+    # Example processing: Calculate mean and standard deviation of a specific column
+    # Adjust this based on your actual data structure and requirements
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"The file {file_path} does not exist.")
+    else:
+        # Read the data (assuming it's a CSV, Excel, or JSON file)
+        glacier_data = read_data_from_file(file_path)
+
+    # check and read the unique counts or weights from the specified file
+    if not os.path.exists(unique_path):
+        raise FileNotFoundError(f"The file {unique_path} does not exist.")
+    else:
+        # Read the unique counts or weights from the specified file
+        unique_info = read_data_from_file(unique_path)
+    print('')
+    # read the columns from the unique_info DataFrame about the counts/weights
+    unique_counts = unique_info['unique_counts']
+
+    if glacier_data is None:
+        raise ValueError(f"Failed to read data from {file_path}. Please check the file format and content.")
+    else:
+        # recontruct the data if necessary
+        glacier_data_constructed = reconstruct_data(glacier_data, unique_counts)     
+        # If save_reconstructed is True, save the reconstructed data to the specified folder
+        if save_reconstructed:
+            # save it under the subfolder 'reconstructed_data' in the glacier folder
+            reconstructed_folder = os.path.join(os.path.dirname(file_path), 'reconstructed_data')
+            if not os.path.exists(reconstructed_folder):
+                os.makedirs(reconstructed_folder)
+            # Ensure file_name is provided, if not, extract it from the file_path
+            if file_name is None:
+                file_name = os.path.basename(file_path)
+            # Check if the file_name has an extension, if not, add '.json' as default
+            if not file_name.endswith(('.json', '.csv', '.xlsx')):
+                file_name += '.json'
+            reconstructed_file_path = os.path.join(reconstructed_folder, file_name)
+            if file_name.endswith('.json'):
+                glacier_data_constructed.to_json(reconstructed_file_path, orient='records', lines=True)
+            elif file_name.endswith('.csv'):
+                glacier_data_constructed.to_csv(reconstructed_file_path, index=False)
+            elif file_name.endswith('.xlsx'):
+                glacier_data_constructed.to_excel(reconstructed_file_path, index=False)
+            else:
+                raise ValueError("Unsupported file format. Please provide a .json, .csv, or .xlsx file.")
+        return glacier_data_constructed  # Return the processed DataFrame
+
+
+# Split a dictionary of NumPy arrays into multiple dictionaries based on the input dimension
+def split_dict_flexible(data_dict, split_dimension=1):
+    """
+    Splits a dictionary of NumPy arrays into multiple dictionaries based on the input dimension.
+    
+    Parameters:
+    - data_dict (dict): A dictionary where each key maps to a NumPy array.
+    - split_dimension (int): The number of rows to keep in each new dictionary.
 
     Returns:
-    pd.DataFrame: DataFrame containing the calculated statistics.
+    - split_dicts (list of dict): A list of dictionaries containing the split arrays.
     """
-    # Read the data (assuming it's in json/csv/xlsx format)
-    if not os.path.exists(data_fp):
-        raise FileNotFoundError(f"The file {data_fp} does not exist.")
-    # Load the data into a DataFrame
-    if data_fp.endswith('.json'):
-        df = pd.read_json(data_fp)
-    elif data_fp.endswith('.csv'):
-        # If the data is in CSV format, read it using pandas
-        if not os.path.exists(data_fp):
-            raise FileNotFoundError(f"The file {data_fp} does not exist.")
-        if data_fp.endswith('.csv'):
-            # Read the CSV file
-            df = pd.read_csv(data_fp)
-        else:
-            raise ValueError("Unsupported file format. Please provide a .json or .csv file.")
-    elif data_fp.endswith('.xlsx'):
-        # If the data is in Excel format, read it using pandas
-        if not os.path.exists(data_fp):
-            raise FileNotFoundError(f"The file {data_fp} does not exist.")
-        df = pd.read_excel(data_fp)
-    else:
-        raise ValueError("Unsupported file format. Please provide a .json, .csv, or .xlsx file.")
- 
-    # Check if the members are unique and weights/counts are provided, adn require restructuring
-    if unique_index:
-        if os.path.exists(unique_fp):
-            # Load the weights/counts from the specified file
-            if unique_fp.endswith('.json'):
-                unique_info = pd.read_json(unique_fp)
-            elif unique_fp.endswith('.csv'):
-                unique_info = pd.read_csv(unique_fp)
-            elif unique_fp.endswith('.xlsx'):
-                unique_info = pd.read_excel(unique_fp)
-            else:
-                raise ValueError("Unsupported file format for weights. Please provide a .json, .csv, or .xlsx file.")
-        else:
-            raise FileNotFoundError(f"The file {unique_fp} does not exist.")
+    # Check if split_dimension is valid
+    if split_dimension <= 0:
+        raise ValueError("split_dimension must be a positive integer.")
+    
+    split_dicts = []
+    
+    for key, value in data_dict.items():
+        # Ensure the value is a NumPy array
+        if not isinstance(value, np.ndarray):
+            raise ValueError(f"Value for key '{key}' is not a NumPy array.")
         
-        # Check if the unique_info DataFrame contains the necessary columns
-        if 'unique_counts' not in unique_info.columns or 'weight_array' not in unique_info.columns:
-            raise ValueError("The unique_info DataFrame must contain 'member' and 'weight' columns.")
-        else:
-            # read the columns from the unique_info DataFrame about the counts/weights
-            unique_counts = unique_info['unique_counts']
-            #weight_array = unique_info['weight_array']
+        # Get the shape of the value
+        n_rows, n_cols = value.shape
+        
+        # Ensure the number of rows is divisible by split_dimension
+        if n_rows % split_dimension != 0:
+            raise ValueError(f"Value for key '{key}' does not have a number of rows divisible by split_dimension. Found rows: {n_rows}")
+
+        # Split the array into separate parts
+        part_count = n_rows // split_dimension
+        
+        # Create empty dictionaries for each part
+        for i in range(part_count):
+            if i >= len(split_dicts):
+                split_dicts.append({})  # Create a new dictionary if it doesn't exist
+            
+            # Slice the array into the new shape
+            split_dicts[i][key] = value[i*split_dimension:(i+1)*split_dimension, :]
     
-        # use the unique_info DataFrame to restructure the original DataFrame
-        df = np.repeat(df.values, unique_counts.values, axis=1)
+    return split_dicts
+
+
+# Calculate the Highest Posterior Density Interval (HPDI)
+def hdi(data, cred_mass=0.95):
+    """Calculate the Highest Posterior Density Interval (HPDI).
+    Parameters:
+    data (np.ndarray): 1D array of data points.
+    cred_mass (float): Credible mass for the HPDI, default is 0.95.
+    Returns:
+    tuple: A tuple containing the lower and upper bounds of the HPDI.
+    """
+    sorted_data = np.sort(data)
+    n = len(sorted_data)
+    hdi_index_inc = int(cred_mass * n)
+
+    # List for potential intervals
+    hdi_intervals = []
+
+    for i in range(n - hdi_index_inc + 1):
+        hdi_intervals.append((sorted_data[i], sorted_data[i + hdi_index_inc - 1]))
+
+    # Find the interval with the smallest width
+    hdi_widths = [(hdi[1] - hdi[0]) for hdi in hdi_intervals]
+    min_width_index = np.argmin(hdi_widths)
+
+    return hdi_intervals[min_width_index]
+
+
+# Calculate statistics (mean, median, std, percentiles, mad, HPDI) for each key in a dictionary of data arrays
+def calculate_statistics(data_dict):
+    stats_results = {}
+    
+    for key, data_array in data_dict.items():
+        # Ensure data is a NumPy array
+        if not isinstance(data_array, np.ndarray):
+            print(f"Data for key '{key}' is not a NumPy array.")
+            continue
+        
+        # Ensure data is two-dimensional
+        if data_array.ndim != 2:
+            print(f"Data for key '{key}' does not have two dimensions. Actual dims: {data_array.ndim}")
+            continue
+        
+        # Get the number of intervals and members
+        n_intervals, n_members = data_array.shape
+        
+        # Initialize storage for statistics
+        percentiles_results = np.zeros((n_intervals, 4))  # Shape for percentiles: [n_intervals, 4]
+        hpdi_bounds = np.zeros((n_intervals, 2))  # 2 for lower and upper bounds of HPDI
+
+        # Calculate statistics for each interval
+        for i in range(n_intervals):
+            interval_data = data_array[i, :]
+            mean_value = np.mean(interval_data)  # Mean for interval
+            median_value = np.median(interval_data)  # Median for interval
+            std_value = np.std(interval_data)  # Standard deviation for interval
+            mad_value = np.mean(np.abs(interval_data - mean_value))  # Calculate MAD
+            
+            # Store percentiles
+            percentiles_results[i, :] = np.percentile(interval_data, [2.5, 25, 75, 97.5])
+            hpdi_bounds[i, :] = hdi(interval_data)  # HPDI calculation
+            
+            # Store values directly into the results
+            stats_results[key] = {
+                'mean': mean_value,
+                'median': median_value,
+                'std': std_value,
+                'percent_2.5': percentiles_results[i, 0],
+                'percent_25': percentiles_results[i, 1],
+                'percent_75': percentiles_results[i, 2],
+                'percent_97.5': percentiles_results[i, 3],
+                'mad': mad_value,
+                'hdi_95_low': hpdi_bounds[i, 0],
+                'hdi_95_high': hpdi_bounds[i, 1]
+            }
+
+    return stats_results
+
+
+# Save a Pandas DataFrame to a CSV file
+def save_dataframe_to_csv(file_path, file_name, data):
+    """
+    Save data to a CSV file. Converts to a Pandas DataFrame if necessary.
+
+    Parameters:
+    file_path (str): Directory where the CSV file will be saved.
+    file_name (str): Name of the CSV file (without extension).
+    data: Data to save (must be convertible to a DataFrame).
+
+    Returns:
+    None
+    """
+    # Convert to DataFrame if not already
+    if not isinstance(data, pd.DataFrame):
+        try:
+            data = pd.DataFrame(data)
+        except Exception as e:
+            print(f"Failed to convert data to DataFrame: {e}")
+            return
+
+    # Ensure the directory exists
+    os.makedirs(file_path, exist_ok=True)
+
+    # Construct full file path
+    full_path = os.path.join(file_path, f"{file_name}.csv")
+
+    # Save the DataFrame
+    data.to_csv(full_path, index=True)
+    #print(f"DataFrame has been saved to {full_path}")
+    return data
+
+
+# calculate statistics from the dictionary of glacier data
+def statistic_dict(glacier_data):
+    """ 
+    calculate the statistics for the dicts (mean,median,std, 2.5%,25%,75%,97.5%,mad, HPDI).
+    
+    Parameters:
+    glacier_data (pd.DataFrame): DataFrame containing the glacier data to be processed.
+    
+    Returns:
+    pd.DataFrame: Processed DataFrame with relevant statistics.
+    """
+    # Example processing: Calculate mean and standard deviation of a specific column
+    # Adjust this based on your actual data structure and requirements
+    processed_data = glacier_data.copy()
+    
+    # Assuming 'value' is a column in the DataFrame that we want to analyze
+    if 'value' in processed_data.columns:
+        processed_data['mean'] = processed_data['value'].mean()
+        processed_data['std_dev'] = processed_data['value'].std()
+    
+    return processed_data
+
+
+# Convert numpy arrays to lists for JSON serialization
+def convert_to_serializable(obj):
+    """Convert common non-serializable objects to serializable formats."""
+    if isinstance(obj, (np.ndarray, np.generic)):
+        return obj.tolist()
+    elif isinstance(obj, (pd.DataFrame, pd.Series)):
+        return obj.to_dict()
+    elif isinstance(obj, (int, float, str, bool, type(None))):
+        return obj
+    elif isinstance(obj, dict):
+        return {k: convert_to_serializable(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [convert_to_serializable(item) for item in obj]
+    elif hasattr(obj, '__dict__'):
+        return convert_to_serializable(obj.__dict__)
     else:
-        # If unique_index is False, we assume the DataFrame is already structured correctly
-        # and does not require any additional processing for unique indices.
-        df = df.copy()
-
-    #
+        return str(obj)  # Fallback to string representation
     
 
 
+#%% Read and extract data for all glaciers in a specified region
+def read_extract_data_region(region_output_path = None, region_params_path= None,reg_id= None, data_index =None):
+    """
+    Read and extract data for all glaciers in a specified region, with RGI IDs included in outputs.
 
-    # If ensemble_members and weights are not provided, extract them from the DataFrame
+    Parameters:
+    region_output_path (str): Path containing glacier folders with model results.
+    region_params_path (str): Path to AMIS parameter folders for the region.
+    reg_id (str): Identifier for the region, used for saving outputs. e.g. '07', '08','10' etc.
+    data_index (str): Identifier for the data type ('Annual', 'Monthly', 'Poster', 'Prior').
+
+    Returns:
+    all_glacier_data_stats (list): List of dictionaries containing statistics for each glacier.
+    all_glacier_data_mean (dict): Dictionary containing mean data for different periods.
+    all_glacier_data_sum (dict): Dictionary containing sum data for different periods.
+
+    """
+    all_glacier_data_stats = []
+    all_glacier_data_mean = {'2000_2010': [], '2010_2020': [], '2000_2020': []}
+    all_glacier_data_sum = {'2000_2010': [], '2010_2020': [], '2000_2020': []}
+
+    for glacier in os.listdir(region_output_path):
+        glacier_path = os.path.join(region_output_path, glacier, data_index)
+        info_path = os.path.join(region_params_path, glacier, 'Poster', 'Unique')
+
+        if not (os.path.isdir(glacier_path) and data_index in ['Annual', 'Monthly']):
+            print(f"Invalid or missing glacier path: {glacier_path}")
+            continue
+
+        for file in os.listdir(glacier_path):
+            if not file.endswith('_Poster.json'):
+                continue
+
+            file_path = os.path.join(glacier_path, file)
+            unique_file = next((u for u in os.listdir(info_path) if u.endswith('_Info.json')), None)
+            unique_path = os.path.join(info_path, unique_file) if unique_file else None
+            
+            # Process data
+            data = read_extract_data_individual(file_path=file_path, file_name=file, unique_path=unique_path)
+            mean_10yrs, sum_10yrs = compute_fixed_interval_stats(data, interval_years=10, key_indices=(0, 11))
+            mean_20yrs, sum_20yrs = compute_fixed_interval_stats(data, interval_years=20, key_indices=(0, 11))
+            
+            # Split stats
+            mean_2000_2010, mean_2010_2020 = split_dict_flexible(mean_10yrs, split_dimension=1)
+            sum_2000_2010, sum_2010_2020 = split_dict_flexible(sum_10yrs, split_dimension=1)
+
+            # Create data records with RGI ID at top level
+            rgi_id = glacier
+            
+            # Store mean data (flat structure)
+            all_glacier_data_mean['2000_2010'].append({
+                'rgiid': rgi_id,
+                **mean_2000_2010  # Unpack all mean data fields
+            })
+            all_glacier_data_mean['2010_2020'].append({
+                'rgiid': rgi_id,
+                **mean_2010_2020
+            })
+            all_glacier_data_mean['2000_2020'].append({
+                'rgiid': rgi_id,
+                **mean_20yrs
+            })
+            
+            # Store sum data (flat structure)
+            all_glacier_data_sum['2000_2010'].append({
+                'rgiid': rgi_id,
+                **sum_2000_2010
+            })
+            all_glacier_data_sum['2010_2020'].append({
+                'rgiid': rgi_id,
+                **sum_2010_2020
+            })
+            all_glacier_data_sum['2000_2020'].append({
+                'rgiid': rgi_id,
+                **sum_20yrs
+            })
+
+            # Calculate and store statistics
+            stats = {
+                'rgiid': rgi_id,
+                'mean_stats_20002010': calculate_statistics(mean_2000_2010),
+                'mean_stats_20102020': calculate_statistics(mean_2010_2020),
+                'mean_stats_20002020': calculate_statistics(mean_20yrs),
+                'sum_stats_20002010': calculate_statistics(sum_2000_2010),
+                'sum_stats_20102020': calculate_statistics(sum_2010_2020),
+                'sum_stats_20002020': calculate_statistics(sum_20yrs),
+            }
+            all_glacier_data_stats.append(stats)
+
+            # Save individual glacier stats
+            stats_path = os.path.join(glacier_path, 'Statis_info')
+            for name, df in [(k,v) for k,v in stats.items() if k != 'rgiid']:
+                save_dataframe_to_csv(stats_path, f'{glacier}_{name}', df)
+    # Sort all data by RGI ID
+    def sort_by_rgiid(data_list):
+        return sorted(data_list, key=lambda x: x['rgiid'])
+
+    all_glacier_data_stats = sort_by_rgiid(all_glacier_data_stats)
+    for period in all_glacier_data_mean:
+        all_glacier_data_mean[period] = sort_by_rgiid(all_glacier_data_mean[period])
+    for period in all_glacier_data_sum:
+        all_glacier_data_sum[period] = sort_by_rgiid(all_glacier_data_sum[period])
+
+    # Save regional data in the postprocessing folder
+    region_output_path_Postprocessing = os.path.join(region_output_path,'..', '..','Postprocessing',reg_id, data_index)
+    save_regional_data(region_output_path_Postprocessing, all_glacier_data_stats,all_glacier_data_mean,all_glacier_data_sum)
+
+    return all_glacier_data_stats,all_glacier_data_mean,all_glacier_data_sum
 
 
 
+# Save all regional data to appropriate files with proper serialization of numpy arrays
+def save_regional_data(base_path,stats_list,mean_data, sum_data):
+    """Save all regional data to appropriate files with proper serialization of numpy arrays.
+    
+    Parameters:
+    base_path (str): Base path where the data will be saved.
+    stats_list (list): List of dictionaries containing statistics for each glacier.
+    mean_data (dict): Dictionary containing mean data for different periods.
+    sum_data (dict): Dictionary containing sum data for different periods."""
+    
+    def convert_numpy(obj):
+        """Convert numpy arrays to lists for JSON serialization."""
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, (list, tuple)):
+            return [convert_numpy(item) for item in obj]
+        elif isinstance(obj, dict):
+            return {k: convert_numpy(v) for k, v in obj.items()}
+        return obj
+
+    # Prepare paths
+    stats_path = os.path.join(base_path, 'Statis_info')
+    data_path = os.path.join(base_path, 'Regional_raw_info')
+    
+    # Create directories if needed
+    os.makedirs(stats_path, exist_ok=True)
+    os.makedirs(data_path, exist_ok=True)
+
+    # Convert and save statistics
+    serializable_stats = [convert_to_serializable(stat) for stat in stats_list]
+    serializable_stats.sort(key=lambda x: x['rgiid'])
+    
+    with open(os.path.join(stats_path, 'All_stats_Info_region.json'), 'w') as f:
+        json.dump(serializable_stats, f, indent=4)
+
+    # Convert and save mean and sum data
+    for period in ['2000_2010', '2010_2020', '2000_2020']:
+        # Convert numpy arrays in mean_data
+        serializable_mean = convert_numpy(mean_data[period])
+        with open(os.path.join(data_path, f'Regional_mean_{period}.json'), 'w') as f:
+            json.dump(serializable_mean, f, indent=4)
+        
+        # Convert numpy arrays in sum_data
+        serializable_sum = convert_numpy(sum_data[period])
+        with open(os.path.join(data_path, f'Regional_sum_{period}.json'), 'w') as f:
+            json.dump(serializable_sum, f, indent=4)
 
 
 
-    # Initialize a list to store results
+# the function to calculate the delta of the glacier length changes
+def calculate_length_change(dLdt_data, interval_years=10):
+    """
+    Calculate glacier length changes and uncertainties over fixed intervals.
+
+    Parameters:
+    - dLdt_data (pd.DataFrame): Contains 'RGIId', 'dLdt_m_per_yr', 'dLdt_m_per_yr_unc' (as stringified lists).
+    - interval_years (int): Years per interval (e.g., 10).
+
+    Returns:
+    - pd.DataFrame: With 'rgiid', 'length_change', 'length_change_unc', lists per glacier.
+    """
+    if not {'RGIId', 'dLdt_m_per_yr', 'dLdt_m_per_yr_unc'}.issubset(dLdt_data.columns):
+        raise ValueError("Input must include 'RGIId', 'dLdt_m_per_yr', and 'dLdt_m_per_yr_unc'.")
+
     results = []
 
-    # Calculate statistics for each ensemble member
-    for member, weight in zip(ensemble_members, weights):
-        member_data = df[df['member'] == member]
-        mean_value = np.average(member_data['value'], weights=weight)
-        std_dev = np.std(member_data['value'])
-        results.append({'member': member, 'mean': mean_value, 'std_dev': std_dev})
+    for _, row in dLdt_data.iterrows():
+        rgiid_raw = row['RGIId']
+        rgiid = f"{int(rgiid_raw.split('-')[1].split('.')[0])}.{rgiid_raw.split('-')[1].split('.')[1]}"
 
-    # Convert results to DataFrame
-    results_df = pd.DataFrame(results)
+        dLdt = np.array(ast.literal_eval(row['dLdt_m_per_yr']), dtype=float)
+        dLdt_unc = np.array(ast.literal_eval(row['dLdt_m_per_yr_unc']), dtype=float)
+
+        if len(dLdt) < interval_years:
+            raise ValueError(f"Not enough data for {rgiid} to compute interval of {interval_years} years.")
+
+        changes, uncertainties = [], []
+        for i in range(len(dLdt) // interval_years):
+            s, e = i * interval_years, (i + 1) * interval_years
+            changes.append(np.sum(dLdt[s:e]))
+            uncertainties.append(np.sqrt(np.sum(dLdt_unc[s:e] ** 2)))
+
+        results.append({
+            'rgiid': rgiid,
+            'length_change': changes,
+            'length_change_unc': uncertainties
+        })
+
+    return pd.DataFrame(results)
+
+
+# Extract and save a DataFrame from a dictionary to a specified file format
+def extract_and_save_df(dataframes_dict=None, df_name=None, output_path=None, file_name=None, file_format='csv',
+                       data_index = 'Annual'):
+    """
+    Extracts a DataFrame from a dictionary and saves it to a specified file format.
+
+    :param dataframes_dict: Dictionary containing DataFrames.
+    :param df_name: Name of the DataFrame to extract.
+    :param output_path: Path to save the DataFrame file (defaults to current directory if None).
+    :param file_name: The name of the output file (without extension).
+    :param file_format: Format to save as ('csv' or 'json'), defaults to 'csv'.
+    :param data_index:  Identifier for the data type ('Annual', 'Monthly', 'Poster', 'Prior'), the default is 'Annual'.
+    :return: The extracted DataFrame.
+    """
+    # Check if the DataFrame exists
+    df = dataframes_dict.get(df_name)
+    if df is None:
+        raise ValueError(f"DataFrame '{df_name}' not found.")
+
+    # Set output_path to current directory if None
+    if output_path is None:
+        output_path = os.getcwd()  # Use current working directory
+        
+    # Specify the path for saving the regional statistics info
+    all_stats_path = os.path.join(output_path, data_index, 'Statis_info')
+
+    # Create the output directory if it doesn't exist
+    os.makedirs(all_stats_path, exist_ok=True)
+
+    # Generate the full output file path
+    file_path = os.path.join(all_stats_path, f"{file_name}.{file_format}")
     
-    return results_df
+    # Save DataFrame to the specified format
+    if file_format == 'csv':
+        df.to_csv(file_path, index=False)
+    elif file_format == 'json':
+        df.to_json(file_path, orient='records', lines=True)
+    else:
+        raise ValueError("Unsupported file format. Use 'csv' or 'json'.")
+    
+    #print(f"DataFrame '{df_name}' saved as {file_path}")
+    return df
+
+
+# Extract data from a nested structure and return a list of DataFrames
+def extract_dataframes(data, primary_keys=None, key_dict=None, exclude_key='rgiid'):
+    """
+    Extracts data from the nested structure and returns a list of DataFrames.
+
+    :param data: List of dictionaries containing keys with nested structure.
+    :param primary_keys: List of primary keys to process (e.g., ['key_0', 'key_1']).
+    :param key_dict: Specify which key's dictionary to process; defaults to item[key_name].
+    :param exclude_key: Key to exclude from extraction (default is 'rgiid').
+    :return: Dictionary of DataFrames, each associated with the respective key and a_x.
+    """
+    
+    dataframes = {}
+
+    # Use all keys if primary_keys is not defined
+    if primary_keys is None:
+        primary_keys = [key for key in data[0] if key != exclude_key]
+
+    # Iterate over each item in the data list
+    for item in data:
+        rgiid = item.get(exclude_key)
+
+        # Iterate over specified primary keys
+        for key_name in primary_keys:
+            # Use the provided key_dict or default to item[key_name]
+            current_key_dict = key_dict if key_dict is not None else item[key_name]
+            
+            # Retrieve the a_x keys dynamically
+            a_keys = [a_key for a_key in current_key_dict]
+
+            # Create DataFrames for each a_x key
+            for a_key in a_keys:
+                # Prepare DataFrame data
+                df_data = []
+                
+                # Accumulate b_x and rgiid
+                for sub_item in data:
+                    sub_rgiid = sub_item.get(exclude_key)
+                    if key_name in sub_item:
+                        sub_key_dict = sub_item[key_name]
+
+                        if a_key in sub_key_dict:
+                            b_values = {**sub_key_dict[a_key], exclude_key: sub_rgiid}
+                            df_data.append(b_values)
+
+                # Create a DataFrame and store it in the dictionary
+                df = pd.DataFrame(df_data)
+                # Name the DataFrame based on the key and a_key
+                df_name = f"{key_name}_{a_key}"
+                dataframes[df_name] = df
+
+    return dataframes
+
+
+#%% EXTRACT STATISTICS FROM A REGION
+# result_dataframes = {}
+# model_output_fp_region = None
+# Define a list of tuples containing DataFrame names and their corresponding output file names
+stats_to_extract = [
+    # Mean dL/dt statistics
+    ('mean_stats_20002010_lengthchange_dLdt_model_array_annual_myr', 'mean_0010_dLdt_SQ_myr'),
+    ('mean_stats_20102020_lengthchange_dLdt_model_array_annual_myr', 'mean_1020_dLdt_SQ_myr'),
+    ('mean_stats_20002020_lengthchange_dLdt_model_array_annual_myr', 'mean_0020_dLdt_SQ_myr'),
+
+    # Sum of dL/dt statistics
+    ('sum_stats_20002010_lengthchange_dLdt_model_array_annual_myr', 'sum_0010_dL_SQ_m'),
+    ('sum_stats_20102020_lengthchange_dLdt_model_array_annual_myr', 'sum_1020_dL_SQ_m'),
+    ('sum_stats_20002020_lengthchange_dLdt_model_array_annual_myr', 'sum_0020_dL_SQ_m'),
+
+    # Mean TMS length change statistics
+    ('mean_stats_20002010_lengthchange_m_TMS_model_array_annual', 'mean_0010_dLdt_FL_myr'),
+    ('mean_stats_20102020_lengthchange_m_TMS_model_array_annual', 'mean_1020_dLdt_FL_myr'),
+    ('mean_stats_20002020_lengthchange_m_TMS_model_array_annual', 'mean_0020_dLdt_FL_myr'),
+
+    # Sum of TMS length change statistics
+    ('sum_stats_20002010_lengthchange_m_TMS_model_array_annual', 'sum_0010_dL_FL_m'),
+    ('sum_stats_20102020_lengthchange_m_TMS_model_array_annual', 'sum_1020_dL_FL_m'),
+    ('sum_stats_20002020_lengthchange_m_TMS_model_array_annual', 'sum_0020_dL_FL_m'),
+
+    # Mean calving flux statistics
+    ('mean_stats_20002010_calving_flux_Gta_TMS_model_array_annual', 'mean_0010_FA_Gta'),
+    ('mean_stats_20102020_calving_flux_Gta_TMS_model_array_annual', 'mean_1020_FA_Gta'),
+    ('mean_stats_20002020_calving_flux_Gta_TMS_model_array_annual', 'mean_0020_FA_Gta'),
+
+    # Sum of calving flux statistics
+    ('sum_stats_20002010_calving_flux_Gta_TMS_model_array_annual', 'sum_0010_FA_Gt'),
+    ('sum_stats_20102020_calving_flux_Gta_TMS_model_array_annual', 'sum_1020_FA_Gt'),
+    ('sum_stats_20002020_calving_flux_Gta_TMS_model_array_annual', 'sum_0020_FA_Gt'),
+
+    # Mean mass balance clim statistics
+    ('mean_stats_20002010_massbalclim_TMS_model_array_annual_mwea', 'mean_0010_mb_clim_mwea'),
+    ('mean_stats_20102020_massbalclim_TMS_model_array_annual_mwea', 'mean_1020_mb_clim_mwea'),
+    ('mean_stats_20002020_massbalclim_TMS_model_array_annual_mwea', 'mean_0020_mb_clim_mwea'),
+
+    # Sum of mass balance clim statistics
+    ('sum_stats_20002010_massbalclim_TMS_model_array_annual_mwea', 'sum_0010_mb_clim_mwe'),
+    ('sum_stats_20102020_massbalclim_TMS_model_array_annual_mwea', 'sum_1020_mb_clim_mwe'),
+    ('sum_stats_20002020_massbalclim_TMS_model_array_annual_mwea', 'sum_0020_mb_clim_mwe'),
+
+    # Mean mass balance total statistics
+    ('mean_stats_20002010_massbaltotal_TMS_model_array_annual_mwea', 'mean_0010_mb_total_mwea'),
+    ('mean_stats_20102020_massbaltotal_TMS_model_array_annual_mwea', 'mean_1020_mb_total_mwea'),
+    ('mean_stats_20002020_massbaltotal_TMS_model_array_annual_mwea', 'mean_0020_mb_total_mwea'),
+
+    # Sum of mass balance total statistics
+    ('sum_stats_20002010_massbaltotal_TMS_model_array_annual_mwea', 'sum_0010_mb_total_mwe'),
+    ('sum_stats_20102020_massbaltotal_TMS_model_array_annual_mwea', 'sum_1020_mb_total_mwe'),
+    ('sum_stats_20002020_massbaltotal_TMS_model_array_annual_mwea', 'sum_0020_mb_total_mwe'),
+
+    # Mean FA statistics
+    ('mean_stats_20002010_FA_mwea_TMS_model_array_annual', 'mean_0010_FA_mwea'),
+    ('mean_stats_20102020_FA_mwea_TMS_model_array_annual', 'mean_1020_FA_mwea'),
+    ('mean_stats_20002020_FA_mwea_TMS_model_array_annual', 'mean_0020_FA_mwea'),
+
+    # Sum of FA statistics
+    ('sum_stats_20002010_FA_mwea_TMS_model_array_annual', 'sum_0010_FA_mwe'),
+    ('sum_stats_20102020_FA_mwea_TMS_model_array_annual', 'sum_1020_FA_mwe'),
+    ('sum_stats_20002020_FA_mwea_TMS_model_array_annual', 'sum_0020_FA_mwe'),
+
+    # Mean velocity at calving front statistics
+    ('mean_stats_20002010_velocity_at_calvingfront_model_array_annual_myr', 'mean_0010_vel_myr'),
+    ('mean_stats_20102020_velocity_at_calvingfront_model_array_annual_myr', 'mean_1020_vel_myr'),
+    ('mean_stats_20002020_velocity_at_calvingfront_model_array_annual_myr', 'mean_0020_vel_myr'),
+
+    # Mean thickness at calving front statistics
+    ('mean_stats_20002010_thickness_at_calvingfront_model_array_annual_m', 'mean_0010_thickness_m'),
+    ('mean_stats_20102020_thickness_at_calvingfront_model_array_annual_m', 'mean_1020_thickness_m'),
+    ('mean_stats_20002020_thickness_at_calvingfront_model_array_annual_m', 'mean_0020_thickness_m'),
+
+    # Mean width at calving front statistics
+    ('mean_stats_20002010_width_at_calvingfront_model_array_annual_m', 'mean_0010_width_m'),
+    ('mean_stats_20102020_width_at_calvingfront_model_array_annual_m', 'mean_1020_width_m'),
+    ('mean_stats_20002020_width_at_calvingfront_model_array_annual_m', 'mean_0020_width_m'),
+
+    # Mean volume at BSL statistics
+    ('mean_stats_20002010_volume_bsl_model_array_annual_m3', 'mean_0010_vol_bsl_m3'),
+    ('mean_stats_20102020_volume_bsl_model_array_annual_m3', 'mean_1020_vol_bsl_m3'),
+    ('mean_stats_20002020_volume_bsl_model_array_annual_m3', 'mean_0020_vol_bsl_m3'),
+
+    # Sum of volume at BSL statistics
+    ('sum_stats_20002010_volume_bsl_model_array_annual_m3', 'sum_0010_vol_bsl_m3'),
+    ('sum_stats_20102020_volume_bsl_model_array_annual_m3', 'sum_1020_vol_bsl_m3'),
+    ('sum_stats_20002020_volume_bsl_model_array_annual_m3', 'sum_0020_vol_bsl_m3'),
+
+    # Mean volume at BWL statistics
+    ('mean_stats_20002010_volume_bwl_model_array_annual_m3', 'mean_0010_vol_bwl_m3'),
+    ('mean_stats_20102020_volume_bwl_model_array_annual_m3', 'mean_1020_vol_bwl_m3'),
+    ('mean_stats_20002020_volume_bwl_model_array_annual_m3', 'mean_0020_vol_bwl_m3'),
+
+    # Sum of volume at BWL statistics
+    ('sum_stats_20002010_volume_bwl_model_array_annual_m3', 'sum_0010_vol_bwl_m3'),
+    ('sum_stats_20102020_volume_bwl_model_array_annual_m3', 'sum_1020_vol_bwl_m3'),
+    ('sum_stats_20002020_volume_bwl_model_array_annual_m3', 'sum_0020_vol_bwl_m3')
+]
+
+# Extract and save data in a loop
+# for df_name, file_name in stats_to_extract:
+#     extract_and_save_df(dataframes_dict=result_dataframes,
+#                         df_name=df_name,
+#                         output_path=model_output_fp_region,
+#                         file_name=file_name,
+#                         file_format='csv')
+
+
+#%% Extract and save ensemble data
+def extract_and_save_ensemble_data(data_dict = None,save_path = None,data_index= 'Annual',
+                                   key_value='lengthchange_dLdt_model_array_annual_myr',
+                                   file_name= 'mean_dL_SQ_0020_raw_m',period= None,
+                                   ensemble_func= None,file_format= 'csv',
+                                   explode_ensembles = True):
+    """
+    Flexibly extract ensemble data and save to specified path.
+    
+    Args:
+        data_dict: Dictionary containing glacier data (sum_data or mean_data)
+        save_path: Directory to save output files
+        data_index: Identifier for the data type ('Annual', 'Monthly', 'Poster', 'Prior')
+        key_value: The data key to extract
+        file_name: Base name for output files
+        period: Which time period to extract (for mean_data), '2000_2010', '2010_2020', '2000_2020', or None for all
+        ensemble_func: Function to apply to ensembles (e.g., np.mean)
+        file_format: Output format ('csv', 'parquet', or 'feather')
+        explode_ensembles: Whether to split ensemble members into columns
+        
+    Returns:
+        DataFrame with extracted data and full save path if saved successfully
+    """
+    # Validate inputs
+    if period and period not in data_dict:
+        raise ValueError(f"Invalid period. Choose from: {list(data_dict.keys())}")
+    
+    if file_format not in ['csv', 'parquet', 'feather']:
+        raise ValueError("file_format must be 'csv', 'parquet', or 'feather'")
+
+    # Select data to process
+    process_data = data_dict[period] if period else data_dict
+    
+    # Extract data
+    extracted_data = []
+    for glacier_data in process_data:
+        rgiid = glacier_data['rgiid']
+        ensemble_array = glacier_data.get(key_value)
+        
+        if ensemble_array is None:
+            print(f"Warning: Key '{key_value}' not found for glacier {rgiid}")
+            continue
+            
+        processed_data = ensemble_func(ensemble_array) if ensemble_func else ensemble_array
+        
+        extracted_data.append({
+            'rgiid': rgiid,
+            key_value: processed_data.tolist() if isinstance(processed_data, np.ndarray) else processed_data
+        })
+
+    # Create DataFrame
+    df = pd.DataFrame(extracted_data)
+    
+    # Explode ensemble members if requested
+    if explode_ensembles and not ensemble_func and isinstance(df[key_value].iloc[0], list):
+        df = pd.concat([
+            df['rgiid'], 
+            pd.DataFrame(df[key_value].tolist())
+        ], axis=1)
+        df.columns = ['rgiid'] + [f'{key_value}' for i in range(len(df.columns)-1)]
+    
+    # Ensure save directory exists
+    save_path = os.path.join(save_path,  data_index,'Regional_raw_info')
+    os.makedirs(save_path, exist_ok=True)
+    
+    # Construct full file path
+    save_file = f"{file_name}.{file_format}"
+    full_path = os.path.join(save_path,save_file)
+    
+    # Save based on format
+    try:
+        if file_format == 'csv':
+            df.to_csv(full_path, index=False)
+        elif file_format == 'parquet':
+            df.to_parquet(full_path)
+        elif file_format == 'feather':
+            df.to_feather(full_path)
+        print(f"Successfully saved to {full_path}")
+        return df
+    except Exception as e:
+        print(f"Error saving file: {e}")
+        return df
