@@ -121,7 +121,7 @@ def main ():
     # Check if the observation data file path is provided
     if not args.obs_data_fp:
         # If not provided, use the default observation data file path
-        obs_data_fp = pygem_prms.main_directory + '/../Calibration_dataset'
+        obs_data_fp = pygem_prms.main_directory + '/../Calibration_dataset/RGI_fit_Obs_fa_dLdt_MB'
     else:
         # If provided, use the observation data file path from the arguments
         obs_data_fp = args.obs_data_fp
@@ -410,3 +410,8 @@ if __name__ == "__main__":
     # Run the main function
     main()
     print("Analysis completed successfully.")
+
+
+
+#%% Running example
+# python analysis_calibration --region_id 7 --data_index 'Annual'
