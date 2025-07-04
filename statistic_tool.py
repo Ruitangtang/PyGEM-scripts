@@ -20,7 +20,9 @@ import numpy as np
 from scipy.stats import linregress
 import json
 import ast
-
+import re
+from scipy.stats import ks_2samp  # Import K-S test function
+import pygem_input as pygem_prms
 
 
 # Read data from CSV, Excel, or JSON files based on their extension
@@ -916,3 +918,168 @@ def extract_and_save_ensemble_data(data_dict = None,save_path = None,data_index=
     except Exception as e:
         print(f"Error saving file: {e}")
         return df
+
+
+# read the txt file and get the rgiid
+def extract_rgi_ids(filepath = None,filename = None):
+    """
+    Extracts RGI IDs from a text file and formats them as [REGION].[GLACIER_ID] (e.g., 7.00029 from RGI60-07.00029).
+
+    Args:
+        filepath (str): Path to the directory containing the text file.
+        filename (str): Path to the text file containing RGI IDs.
+
+    Returns:
+        pd.DataFrame: DataFrame with cleaned RGI IDs (columns: 'rgiid').
+    """
+    # The full file path and check if the file exists
+    full_path = os.path.join(filepath, filename)
+    if not os.path.exists(full_path):
+        raise FileNotFoundError(f"The file {full_path} does not exist.")
+
+    with open(full_path, 'r') as file:
+        content = file.read()
+
+    # Improved regex to:
+    # 1. Capture region (e.g., 07) and glacier ID (e.g., 00029)
+    # 2. Handle optional leading zeros in the region
+    matches = re.findall(r'RGI\d+-(\d{2})\.(\d{5})', content)
+
+    # Process matches: 
+    # - Remove leading zeros from region (e.g., 07 → 7)
+    # - Keep all 5 digits of glacier ID (e.g., 00029 → 00029)
+    rgiid_group = [
+        f"{int(region)}.{glacier_id}"  # int() strips leading zeros
+        for region, glacier_id in matches
+    ]
+
+    return pd.DataFrame(rgiid_group, columns=['rgiid'])
+
+
+# Function to get the statistics information for the comparison of observed and modeled values
+def get_statistics_compare(obs_change=None, obs_unc=None, hdi_high=None,hdi_low=None, model_mean=None,n_simulations=1000,
+                           Loglevel = 'INFO',output_path = None,item_name = None,period = None,reg_id = None):
+    """    Computes statistics for comparing observed and modeled values.
+    Parameters:
+    - obs_change (np.ndarray): Observed values.
+    - obs_unc (np.ndarray): Uncertainty in observed values.
+    - hdi_high (np.ndarray): High values of the highest density interval (HDI) for modeled values.
+    - hdi_low (np.ndarray): Low values of the HDI for modeled values.
+    - model_mean (np.ndarray): Mean of the modeled values.
+    - n_simulations (int): Number of simulations for uncertainty adjustment. the default is 1000.
+    - Loglevel (str): Logging level for output messages. Default is 'INFO'.
+    - output_path (str): Path to save the output results. Default is None.
+    - item_name (str): Name of the item being processed, used for logging. Default is None.
+    - period (str): Time period for which the statistics are calculated, used for logging. Default is None.
+    - reg_id (str): Region ID for which the statistics are calculated, used for logging. Default is None.
+    Returns:
+      dataframe with the following columns:
+
+    - mean_d (float): Mean D statistic from K-S test.
+    - mean_p (float): Mean p-value from K-S test.
+    - nrmse (float): Normalized Root Mean Square Error.
+    - coverage (float): Coverage of the HDI over the observed values.
+    - overlap_hdi (float): Fraction of observations where the uncertainty range overlaps with the model
+    - HDI_covs (np.ndarray): Boolean array indicating whether each observation is within the HDI.
+    """
+    # The output is a dataframe with the following columns:
+    # mean_d, mean_p, nrmse, coverage, overlap_hdi, HDI_covs
+
+    output_df = pd.DataFrame(columns=['mean_d', 'mean_p', 'nrmse', 'coverage', 'overlap_hdi', 'HDI_covs'])
+
+
+    # Check if all inputs are provided
+    if obs_change is None or obs_unc is None or hdi_high is None or hdi_low is None or model_mean is None:
+        raise ValueError("All input arrays must be provided and not None.")
+    # Check if all inputs are numpy arrays
+    if not (isinstance(obs_change, np.ndarray) and isinstance(obs_unc, np.ndarray)
+            and isinstance(hdi_high, np.ndarray) and isinstance(hdi_low, np.ndarray)
+            and isinstance(model_mean, np.ndarray)):
+        raise TypeError("All inputs must be numpy arrays.") 
+    # Check if all input arrays have the same length
+    if not (len(obs_change) == len(obs_unc) == len(hdi_high) == len(hdi_low) == len(model_mean)):
+        raise ValueError("All input arrays must have the same length.") 
+    # Ensure inputs are 1D arrays
+    # --- (1) Compute K-S Test with Uncertainty ---
+    d_values = []
+    p_values = []
+    
+    for _ in range(n_simulations):
+        # Perturb observations within uncertainty (Gaussian noise)
+        obs_change = np.array(obs_change, dtype='float64')
+        obs_unc = np.array(obs_unc, dtype='float64')
+
+        perturbed_obs = obs_change + np.random.normal(0, obs_unc, size=len(obs_change))
+        # Sample model predictions from HDI (uniform)
+        perturbed_model = np.random.uniform(low=hdi_low, high=hdi_high, size=len(hdi_low))
+        # K-S test
+        d, p = ks_2samp(perturbed_obs, perturbed_model)
+        d_values.append(d)
+        p_values.append(p)
+    
+    mean_d = np.mean(d_values)
+    mean_p = np.mean(p_values)
+    
+    # --- (2) Compute NRMSE ---
+    nrmse = np.sqrt(np.mean((model_mean - obs_change)**2)) / np.mean(obs_unc)
+    overlap_hdi = np.sum((obs_change - obs_unc <= hdi_high) & (obs_change + obs_unc >= hdi_low)) / len(obs_change)
+    HDI_covs = (obs_change >= hdi_low) & (obs_change <= hdi_high)
+    #print("the HDI covers:",HDI_covs)
+    coverage = np.mean(HDI_covs)
+
+    # Print the results
+    if output_path is None:
+        output_path = os.path.join(pygem_prms.output_filepath, 'Calibration','Postprocessing',reg_id,'Regional_analysis','Statistics_Info')
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
+    file_path = output_path
+    file_name = 'ks_test_results.txt'
+    file_path_full = os.path.join(file_path, file_name)
+    if Loglevel in ['INFO', 'DEBUG']:
+        with open(file_path_full, 'a') as f:
+            f.write(f"============================================ {item_name} and {period}============================================ \n")
+            f.write(f"Uncertainty-Adjusted K-S Test:\nD = {mean_d:.3f}, p = {mean_p:.3f}\nNRMSE = {nrmse:.3f}\n")
+            f.write(f"Observed 10th percentile: {np.percentile(obs_change, 10)}\n")
+            f.write(f"Model 10th percentile: {np.percentile(model_mean, 10)}\n")
+            f.write(f"Observed 90th percentile: {np.percentile(obs_change, 90)}\n")
+            f.write(f"Model 90th percentile: {np.percentile(model_mean, 90)}\n")
+            f.write(f"HDI coverage: {coverage:.1%}\n")
+            f.write(f"Uncertainty-overlap coverage: {overlap_hdi:.1%}\n")
+
+
+    # Store results in the output DataFrame
+    output_df.loc[0] = [mean_d, mean_p, nrmse, coverage, overlap_hdi, HDI_covs]
+    # Return the output DataFrame
+    # Convert HDI coverage boolean array to a list for better readability
+    HDI_covs = HDI_covs.tolist()
+    output_df['HDI_covs'] = [HDI_covs]  # Store as a list in the DataFrame
+    # Convert the output DataFrame to a tuple for return
+    mean_d = output_df['mean_d'].values[0]
+    mean_p = output_df['mean_p'].values[0]
+    nrmse = output_df['nrmse'].values[0]
+    coverage = output_df['coverage'].values[0]
+    overlap_hdi = output_df['overlap_hdi'].values[0]
+    HDI_covs = output_df['HDI_covs'].values[0]
+
+    return output_df
+
+
+# Function to clip lower errors to ensure values - err >= 0
+def clip_errors(values = None,err = None,clip_lower= False):
+    """Clip lower errors to ensure values - err >= 0.
+    Parameters:
+    - err (np.ndarray): Error values, can be symmetric or asymmetric.
+    - values (np.ndarray): Corresponding values to which errors apply.
+    - clip_lower (bool): If True, clip lower errors to ensure non-negativity.
+    Returns:
+    - np.ndarray: Clipped errors.
+    """
+    if err is None:
+        return None
+    err = np.asarray(err)
+    if err.ndim == 2:  # Asymmetric errors [lower, upper]
+        lower, upper = err
+        lower_clipped = np.minimum(lower, values) if clip_lower else lower
+        return [lower_clipped, upper]
+    else:  # Symmetric errors
+        return np.minimum(err, values) if clip_lower else err
