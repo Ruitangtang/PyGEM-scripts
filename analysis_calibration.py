@@ -136,11 +136,14 @@ def main ():
     if not os.path.exists(postpro_output_fp_region):
         os.makedirs(postpro_output_fp_region)
 
-    # == Load the model output statistic info data ====
+    # get the AMIS INFO PATH
+    AMIS_statis_fp_region = os.path.join(model_output_fp,'..','Statistics_model_run',reg_id)
+
+    # == Step 1 : Load the model output statistic info data ====
     all_glac_data_stats,mean_data,sum_data = stats_t.read_extract_data_region(region_output_path = model_output_fp_region,
                                                                             region_params_path= model_param_fp_region,reg_id= reg_id,
                                                                             data_index = 'Annual')
-    # == Load the model output raw data ====
+    # == Step 2 : Load the model output raw data ====
     # the total length change over the period 2000-2020,with all glaceries in the region, for each glacier including all the emsemble members
     sum_dL_SQ_0020_raw_m = stats_t.extract_and_save_ensemble_data(sum_data, save_path = postpro_output_fp_region,
                                                                   key_value='lengthchange_dLdt_model_array_annual_myr',
@@ -169,8 +172,17 @@ def main ():
     mean_FA_0020_raw_Gta = stats_t.extract_and_save_ensemble_data(mean_data,save_path = postpro_output_fp_region,
                                                                     key_value='calving_flux_Gta_TMS_model_array_annual',
                                                                     file_name='mean_FA_0020_raw_Gta',period='2000_2020')
+    mean_FA_0020_raw_mwea = stats_t.extract_and_save_ensemble_data(mean_data,save_path = postpro_output_fp_region,
+                                                                   key_value='FA_mwea_TMS_model_array_annual',
+                                                                   file_name='mean_FA_0020_raw_mwea',period='2000_2020')
+    mean_FA_1020_raw_mwea = stats_t.extract_and_save_ensemble_data(mean_data,save_path = postpro_output_fp_region,
+                                                                   key_value='FA_mwea_TMS_model_array_annual',
+                                                                   file_name='mean_FA_1020_raw_mwea',period='2010_2020')
+    mean_FA_0010_raw_mwea = stats_t.extract_and_save_ensemble_data(mean_data,save_path = postpro_output_fp_region,
+                                                                   key_value='FA_mwea_TMS_model_array_annual',
+                                                                   file_name='mean_FA_0010_raw_mwea',period='2000_2010')
     
-    # == extract the dataframes for all keys in the all_glac_data_stats ====
+    # == Step 3: extract the dataframes for all keys in the all_glac_data_stats ====
     result_dataframes = stats_t.extract_dataframes(all_glac_data_stats)
     # Define a list of tuples containing DataFrame names and their corresponding output file names
     stats_to_extract = [
@@ -291,8 +303,12 @@ def main ():
     mean_0010_FA_Gta = Model_output_stats_dfs['mean_0010_FA_Gta']
     mean_1020_FA_Gta = Model_output_stats_dfs['mean_1020_FA_Gta']
     mean_0020_FA_Gta = Model_output_stats_dfs['mean_0020_FA_Gta']
+    # extract the mean FA mwea over the period 2000-2010/2010-2020/2000-2020,
+    mean_0010_FA_mwea = Model_output_stats_dfs['mean_0010_FA_mwea']
+    mean_1020_FA_mwea = Model_output_stats_dfs['mean_1020_FA_mwea']
+    mean_0020_FA_mwea = Model_output_stats_dfs['mean_0020_FA_mwea']
 
-    # == Load the observation data ====
+    # == Step 4: Load the observation data ====
     # list all the observation data
     # List all data
     fa_20002010_fp = os.path.join(obs_data_fp,'frontal_ablation_obs_20002010.csv')
@@ -346,6 +362,21 @@ def main ():
     mb_obs_20002020_mwea_corr ['mb_clim_mwea'] = mb_obs_20002020_corr['mb_clim_mwea']
     mb_obs_20002020_mwea_corr ['mb_clim_mwea_err'] = mb_obs_20002020_corr['mb_clim_mwea_err']
 
+    # frontal ablation with the unit m w.e. a-1
+    fa_obs_20002010_mwea = pd.DataFrame()
+    fa_obs_20002010_mwea ['rgiid']= fa_obs_20002010_gta['rgiid']
+    fa_obs_20002010_mwea ['fa_mwea_obs']= fa_obs_20002010_gta['fa_gta_obs']*1000./fa_obs_20002010['Area_km2']
+    fa_obs_20002010_mwea ['fa_mwea_obs_unc']= fa_obs_20002010_gta['fa_gta_obs_unc']*1000./fa_obs_20002010['Area_km2']
+    fa_obs_20102020_mwea = pd.DataFrame()
+    fa_obs_20102020_mwea ['rgiid']= fa_obs_20102020_gta['rgiid']
+    fa_obs_20102020_mwea ['fa_mwea_obs']= fa_obs_20102020_gta['fa_gta_obs']*1000./fa_obs_20102020['Area_km2']
+    fa_obs_20102020_mwea ['fa_mwea_obs_unc']= fa_obs_20102020_gta['fa_gta_obs_unc']*1000./fa_obs_20102020['Area_km2']
+
+    fa_obs_20002020_mwea = pd.DataFrame()
+    fa_obs_20002020_mwea ['rgiid']=  fa_obs_20002020_gta['rgiid']
+    fa_obs_20002020_mwea ['fa_mwea_obs']= fa_obs_20002020_gta['fa_gta_obs']*1000./fa_obs_20002020['Area_km2']
+    fa_obs_20002020_mwea ['fa_mwea_obs_unc']= fa_obs_20002020_gta['fa_gta_obs_unc']*1000./fa_obs_20002020['Area_km2']
+
     # generate the total length change over the period 2000-2010/2010-2020/2000-2020,
     length_change_obs = stats_t.calculate_length_change(dLdt_20002020, interval_years=10)
     # Expand into long format then split
@@ -355,7 +386,14 @@ def main ():
     exploded_0020 = length_change_obs_20002020.explode(['length_change', 'length_change_unc']).reset_index(drop=True)
     length_change_obs_20002020 = exploded_0020.iloc[0::1].reset_index(drop=True)
 
-    # == Visualization of the calibration output ==
+
+    # == Step 5: split the rgiid for good and bad AMIS ==
+    rgiid_good = stats_t.extract_rgi_ids(filepath=AMIS_statis_fp_region,filename='Good_AMIS.txt')
+    rgiid_good = rgiid_good.sort_values('rgiid')
+    rgiid_bad = stats_t.extract_rgi_ids(filepath=AMIS_statis_fp_region,filename='Bad_AMIS.txt')
+    rgiid_bad = rgiid_bad.sort_values('rgiid')
+
+    # == Step 6: Visualization of the calibration output, all AMIS together ==
     # MB_clim_20102020
     Vis_ts.plot_cdf_and_one_to_one(observed_df = mb_obs_20102020_mwea, modeled_df = mean_1020_mb_clim_mwea, modeled_df_raw= mean_MB_clim_1020_raw_mwe,
                             obs_name = 'mb_clim_mwea' , obs_unc_name = 'mb_clim_mwea_err', modeled_key = 'massbalclim_TMS_model_array_annual_mwea', item_name = 'Climatic mass balance (m w.e. a$^{-1}$)',
@@ -404,6 +442,93 @@ def main ():
                             period = '2000-2020',Xlabel = 'Frontal ablation (Gt a$^{-1}$, observed)',Ylabel = 'Frontal ablation (Gt a$^{-1}$, modeled)', 
                         Xlim = (0,0.8), Ylim = (0,0.8),subplot_label_L ='e', subplot_label_R = 'f',title= None, save_path = postpro_output_fp_region, save_name=None,legend_index = False)
     
+
+    # == Step 7: Visualization of the calibration output, all Good_Bad seperately with different colors ==
+    # MB_clim_20102020
+    Vis_ts.plot_cdf_and_one_to_one_Good_Bad_All_Inset(observed_df = mb_obs_20102020_mwea, modeled_df = mean_1020_mb_clim_mwea, modeled_df_raw= mean_MB_clim_1020_raw_mwe,
+                            obs_name = 'mb_clim_mwea' , obs_unc_name = 'mb_clim_mwea_err', modeled_key = 'massbalclim_TMS_model_array_annual_mwea', item_name = 'Climatic mass balance (m w.e. a$^{-1}$)',
+                            period = '2010-2020',reg_id = reg_id,Xlabel = 'Climatic mass balance (m w.e. a$^{-1}$, observed)',Ylabel = 'Climatic mass balance (m w.e. a$^{-1}$, modeled)', Xlim = (-3.5,4), Ylim = (-3.5,4),
+                            subplot_label_L ='c', subplot_label_R = 'd',title= None, save_path = postpro_output_fp_region, save_name=None,Good_AMIS = rgiid_good,Bad_AMIS = rgiid_bad,
+                                 legend_index = False,logx=False,logy=False,inset_zoom = False,Good_bad = True,
+                            zoom_xlim = (0,0.1), zoom_ylim = (0,0.1),zoom_position = [0.68, 0.68, 0.28, 0.28],zoom_ticklabels = True)
+    # MB_clim_20002010
+    Vis_ts.plot_cdf_and_one_to_one_Good_Bad_All_Inset(observed_df = mb_obs_20002010_mwea, modeled_df = mean_0010_mb_clim_mwea, modeled_df_raw= mean_MB_clim_0010_raw_mwe,
+                            obs_name = 'mb_clim_mwea' , obs_unc_name = 'mb_clim_mwea_err', modeled_key = 'massbalclim_TMS_model_array_annual_mwea', item_name = 'Climatic mass balance (m w.e. a$^{-1}$)',
+                            period = '2000-2010',reg_id = reg_id,Xlabel = 'Climatic mass balance (m w.e. a$^{-1}$, observed)',Ylabel = 'Climatic mass balance (m w.e. a$^{-1}$, modeled)', Xlim = (-3.5,4), Ylim = (-3.5,4),
+                            subplot_label_L ='c', subplot_label_R = 'd',title= None, save_path = postpro_output_fp_region, save_name=None,Good_AMIS = rgiid_good,Bad_AMIS = rgiid_bad,
+                                 legend_index = False,logx=False,logy=False,inset_zoom = False,Good_bad = True,
+                            zoom_xlim = (0,0.1), zoom_ylim = (0,0.1),zoom_position = [0.68, 0.68, 0.28, 0.28],zoom_ticklabels = True)
+    # MB_clim_20002020
+    Vis_ts.plot_cdf_and_one_to_one_Good_Bad_All_Inset(observed_df = mb_obs_20002020_mwea, modeled_df = mean_0020_mb_clim_mwea, modeled_df_raw= mean_MB_clim_0020_raw_mwe,
+                            obs_name = 'mb_clim_mwea' , obs_unc_name = 'mb_clim_mwea_err',
+                            modeled_key = 'massbalclim_TMS_model_array_annual_mwea', item_name = 'Climatic mass balance (m w.e. a$^{-1}$)',
+                            period = '2000-2020',reg_id = reg_id,Xlabel = 'Climatic mass balance (m w.e. a$^{-1}$, observed)',Ylabel = 'Climatic mass balance (m w.e. a$^{-1}$, modeled)', Xlim = (-3.5,4), Ylim = (-3.5,4),
+                            subplot_label_L ='c', subplot_label_R = 'd',title= None, save_path = postpro_output_fp_region, save_name=None,Good_AMIS = rgiid_good,Bad_AMIS = rgiid_bad,
+                                 legend_index = False,logx=False,logy=False,inset_zoom = False,Good_bad = True,
+                            zoom_xlim = (0,0.1), zoom_ylim = (0,0.1),zoom_position = [0.68, 0.68, 0.28, 0.28],zoom_ticklabels = True)
+    # dL 20002010
+    Vis_ts.plot_cdf_and_one_to_one_Good_Bad_All_Inset(observed_df = length_change_obs_20002010, modeled_df = sum_0010_dL_SQ_m, modeled_df_raw= sum_dL_SQ_0010_raw_m,
+                            obs_name = 'length_change' , obs_unc_name = 'length_change_unc', modeled_key = 'lengthchange_dLdt_model_array_annual_myr', item_name = 'Length change (km)',
+                            period = '2000-2010',reg_id = reg_id,Xlabel = 'Length change (km, observed)',Ylabel = 'Length change (km, modeled)', 
+                        Xlim = (-5,3), Ylim = (-5,3),subplot_label_L ='a', subplot_label_R = 'b',title= None, save_path = postpro_output_fp_region, save_name=None,Good_AMIS = rgiid_good,Bad_AMIS = rgiid_bad,
+                                 legend_index = True,logx=False,logy=False,inset_zoom = False,Good_bad = True,
+                            zoom_xlim = (0,0.1), zoom_ylim = (0,0.1),zoom_position = [0.68, 0.68, 0.28, 0.28],zoom_ticklabels = True)
+    # dL 20102020
+    Vis_ts.plot_cdf_and_one_to_one_Good_Bad_All_Inset(observed_df = length_change_obs_20102020, modeled_df = sum_1020_dL_SQ_m, modeled_df_raw= sum_dL_SQ_1020_raw_m,
+                            obs_name = 'length_change' , obs_unc_name = 'length_change_unc', modeled_key = 'lengthchange_dLdt_model_array_annual_myr', item_name = 'Length change (km)',
+                            period = '2010-2020',reg_id = reg_id,Xlabel = 'Length change (km, observed)',Ylabel = 'Length change (km, modeled)', 
+                        Xlim = (-5,3), Ylim = (-5,3),subplot_label_L ='a', subplot_label_R = 'b',title= None, save_path = postpro_output_fp_region, save_name=None,Good_AMIS = rgiid_good,Bad_AMIS = rgiid_bad,
+                                 legend_index = True,logx=False,logy=False,inset_zoom = False,Good_bad = True,
+                            zoom_xlim = (0,0.1), zoom_ylim = (0,0.1),zoom_position = [0.68, 0.68, 0.28, 0.28],zoom_ticklabels = True)
+    # dL 20002020
+    Vis_ts.plot_cdf_and_one_to_one_Good_Bad_All_Inset(observed_df = length_change_obs_20002020, modeled_df = sum_0020_dL_SQ_m, modeled_df_raw= sum_dL_SQ_0020_raw_m,
+                            obs_name = 'length_change' , obs_unc_name = 'length_change_unc', modeled_key = 'lengthchange_dLdt_model_array_annual_myr', item_name = 'Length change (km)',
+                            period = '2000-2020',reg_id = reg_id,Xlabel = 'Length change (km, observed)',Ylabel = 'Length change (km, modeled)', 
+                        Xlim = (-5.5,4), Ylim = (-5.5,4),subplot_label_L ='a', subplot_label_R = 'b',title= None, save_path = postpro_output_fp_region, save_name=None,Good_AMIS = rgiid_good,Bad_AMIS = rgiid_bad,
+                                 legend_index = True,logx=False,logy=False,inset_zoom = False,Good_bad = True,
+                            zoom_xlim = (0,0.1), zoom_ylim = (0,0.1),zoom_position = [0.68, 0.68, 0.28, 0.28],zoom_ticklabels = True)
+    # FA 20002010_mwea
+    Vis_ts.plot_cdf_and_one_to_one_Good_Bad_All_Inset(observed_df = fa_obs_20002010_mwea, modeled_df = mean_0010_FA_mwea, modeled_df_raw= mean_FA_0010_raw_mwea,
+                            obs_name = 'fa_mwea_obs' , obs_unc_name = 'fa_mwea_obs_unc', modeled_key = 'FA_mwea_TMS_model_array_annual', item_name = 'Frontal ablation (m w.e. a$^{-1}$)',
+                            period = '2000-2010',reg_id = reg_id,Xlabel = 'Frontal ablation (m w.e. a$^{-1}$, observed)',Ylabel = 'Frontal ablation (m w.e. a$^{-1}$, modeled)', 
+                        Xlim = (0,6), Ylim = (0,6),subplot_label_L ='e', subplot_label_R = 'f',title= None, save_path = postpro_output_fp_region, save_name=None,Good_AMIS = rgiid_good,Bad_AMIS = rgiid_bad,
+                                 legend_index = False,logx=False,logy=False,inset_zoom = True,Good_bad = True,
+                            zoom_xlim = (0,1), zoom_ylim = (0,1),zoom_position = [0.7, 0.7, 0.28, 0.28],zoom_ticklabels = True)
+    # FA 20102020_mwea
+    Vis_ts.plot_cdf_and_one_to_one_Good_Bad_All_Inset(observed_df = fa_obs_20102020_mwea, modeled_df = mean_1020_FA_mwea, modeled_df_raw= mean_FA_1020_raw_mwea,
+                            obs_name = 'fa_mwea_obs' , obs_unc_name = 'fa_mwea_obs_unc', modeled_key = 'FA_mwea_TMS_model_array_annual', item_name = 'Frontal ablation (m w.e. a$^{-1}$)',
+                            period = '2010-2020',reg_id = reg_id,Xlabel = 'Frontal ablation (m w.e. a$^{-1}$, observed)',Ylabel = 'Frontal ablation (m w.e. a$^{-1}$, modeled)', 
+                        Xlim = (0,6), Ylim = (0,6),subplot_label_L ='e', subplot_label_R = 'f',title= None, save_path = postpro_output_fp_region, save_name=None,Good_AMIS = rgiid_good,Bad_AMIS = rgiid_bad,
+                                 legend_index = False,logx=False,logy=False,inset_zoom = True,Good_bad = True,
+                            zoom_xlim = (0,1), zoom_ylim = (0,1),zoom_position = [0.7, 0.7, 0.28, 0.28],zoom_ticklabels = True)
+    # FA 20002020_mwea
+    Vis_ts.plot_cdf_and_one_to_one_Good_Bad_All_Inset(observed_df = fa_obs_20002020_mwea, modeled_df = mean_0020_FA_mwea, modeled_df_raw= mean_FA_0020_raw_mwea,
+                            obs_name = 'fa_mwea_obs' , obs_unc_name = 'fa_mwea_obs_unc', modeled_key = 'FA_mwea_TMS_model_array_annual', item_name = 'Frontal ablation (m w.e. a$^{-1}$)',
+                            period = '2000-2020',reg_id = reg_id,Xlabel = 'Frontal ablation (m w.e. a$^{-1}$, observed)',Ylabel = 'Frontal ablation (m w.e. a$^{-1}$, modeled)', 
+                        Xlim = (0,6), Ylim = (0,6),subplot_label_L ='e', subplot_label_R = 'f',title= None, save_path = postpro_output_fp_region, save_name=None,Good_AMIS = rgiid_good,Bad_AMIS = rgiid_bad,
+                                 legend_index = False,logx=False,logy=False,inset_zoom = True,Good_bad = True,
+                            zoom_xlim = (0,1), zoom_ylim = (0,1),zoom_position = [0.7, 0.7, 0.28, 0.28],zoom_ticklabels = True)
+    # FA 20002010_Gta
+    Vis_ts.plot_cdf_and_one_to_one_Good_Bad_All_Inset(observed_df = fa_obs_20002010_gta, modeled_df = mean_0010_FA_Gta, modeled_df_raw= mean_FA_0010_raw_Gta,
+                            obs_name = 'fa_gta_obs' , obs_unc_name = 'fa_gta_obs_unc', modeled_key = 'calving_flux_Gta_TMS_model_array_annual', item_name = 'Frontal ablation (Gt a$^{-1}$)',
+                            period = '2000-2010',reg_id = reg_id,Xlabel = 'Frontal ablation (Gt a$^{-1}$, observed)',Ylabel = 'Frontal ablation (Gt a$^{-1}$, modeled)', 
+                        Xlim = (0,0.8), Ylim = (0,0.8),subplot_label_L ='e', subplot_label_R = 'f',title= None, save_path = postpro_output_fp_region, save_name=None,Good_AMIS = rgiid_good,Bad_AMIS = rgiid_bad,
+                                 legend_index = False,logx=False,logy=False,inset_zoom = True,Good_bad = True,
+                            zoom_xlim = (0,0.1), zoom_ylim = (0,0.1),zoom_position = [0.68, 0.68, 0.28, 0.28],zoom_ticklabels = True)
+    # FA 20102020_Gta
+    Vis_ts.plot_cdf_and_one_to_one_Good_Bad_All_Inset(observed_df = fa_obs_20102020_gta, modeled_df = mean_1020_FA_Gta, modeled_df_raw= mean_FA_1020_raw_Gta,
+                            obs_name = 'fa_gta_obs' , obs_unc_name = 'fa_gta_obs_unc', modeled_key = 'calving_flux_Gta_TMS_model_array_annual', item_name = 'Frontal ablation (Gt a$^{-1}$)',
+                            period = '2010-2020',reg_id = reg_id,Xlabel = 'Frontal ablation (Gt a$^{-1}$, observed)',Ylabel = 'Frontal ablation (Gt a$^{-1}$, modeled)', 
+                        Xlim = (0,0.8), Ylim = (0,0.8),subplot_label_L ='e', subplot_label_R = 'f',title= None, save_path = postpro_output_fp_region, save_name=None,Good_AMIS = rgiid_good,Bad_AMIS = rgiid_bad,
+                                 legend_index = False,logx=False,logy=False,inset_zoom = True,Good_bad = True,
+                            zoom_xlim = (0,0.1), zoom_ylim = (0,0.1),zoom_position = [0.68, 0.68, 0.28, 0.28],zoom_ticklabels = True)
+    # FA 20002020_Gta
+    Vis_ts.plot_cdf_and_one_to_one_Good_Bad_All_Inset(observed_df = fa_obs_20002020_gta, modeled_df = mean_0020_FA_Gta, modeled_df_raw= mean_FA_0020_raw_Gta,
+                            obs_name = 'fa_gta_obs' , obs_unc_name = 'fa_gta_obs_unc', modeled_key = 'calving_flux_Gta_TMS_model_array_annual', item_name = 'Frontal ablation (Gt a$^{-1}$)',
+                            period = '2000-2020',reg_id = reg_id,Xlabel = 'Frontal ablation (Gt a$^{-1}$, observed)',Ylabel = 'Frontal ablation (Gt a$^{-1}$, modeled)', 
+                        Xlim = (0,0.8), Ylim = (0,0.8),subplot_label_L ='e', subplot_label_R = 'f',title= None, save_path = postpro_output_fp_region, save_name=None,Good_AMIS = rgiid_good,Bad_AMIS = rgiid_bad,
+                                 legend_index = False,logx=False,logy=False,inset_zoom = True,Good_bad = True,
+                            zoom_xlim = (0,0.1), zoom_ylim = (0,0.1),zoom_position = [0.68, 0.68, 0.28, 0.28],zoom_ticklabels = True)
 
 
 if __name__ == "__main__":
