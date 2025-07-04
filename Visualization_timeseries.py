@@ -27,11 +27,9 @@ import matplotlib.colors as mcolors
 from matplotlib.colors import Normalize
 from matplotlib.colorbar import ColorbarBase
 import matplotlib.lines as mlines  # Import for custom legend handling
-
 import json
-
-
 import pygem_input as pygem_prms
+import statistic_tool as stats_t
 # Load the data
 
 
@@ -1912,3 +1910,596 @@ def plot_cdf_and_one_to_one(observed_df = None, modeled_df = None, modeled_df_ra
     #print(f"Figure saved to {save_file}")
 
     #plt.show()
+
+
+# Function to get statistics comparing observed and modeled data for good and bad AMIS, Regional analysis, with the option to use uncertainty-adjusted K-S test,
+# this function is used in the plot_cdf_and_one_to_one_Good_Bad function, add the option to do the log transformation, and the option to inset zoom in the plot
+def plot_cdf_and_one_to_one_Good_Bad_All_Inset (observed_df = None, modeled_df = None, modeled_df_raw= None,
+                            obs_name = None, obs_unc_name = None, modeled_key = None, item_name = None,
+                            period = None, reg_id = None,Xlabel = None, Ylabel = None,Xlim = None, Ylim = None,
+                            subplot_label_L = 'a', subplot_label_R = 'b',title= None, save_path=None, save_name=None,
+                            legend_index = True,Good_AMIS = None,Bad_AMIS = None,logx = False,logy= False,inset_zoom = False,Good_bad = True,
+                            zoom_xlim = None, zoom_ylim = None,zoom_position = None,zoom_ticklabels = None):
+    """
+    Plots the CDF for observed and modeled values,
+    and a one-to-one comparison with box plots for modeled results and error bars for observations.
+    Parameters:
+    - observed_df (pd.DataFrame): DataFrame containing observed values with columns e.g. 'rgiid', 'length_change', 'length_change_unc'.
+    - modeled_df (pd.DataFrame): DataFrame containing modeled values with columns 'rgiid', 'mean', 'hdi_95_low', 'hdi_95_high'.
+    - modeled_df_raw (pd.DataFrame): DataFrame containing raw modeled values for box plots, with 'rgiid' and 'lengthchange_dLdt_model_array_annual_myr' columns.
+    - obs_name (str): Name of the observed length change column in observed_df, e.g. 'length_change'.
+    - obs_unc_name (str): Name of the observed length change uncertainty column in observed_df, e.g. 'length_change_unc'.
+    - modeled_key (str): Key for the modeled values in modeled_df, e.g. 'lengthchange_dLdt_model_array_annual_myr'.
+    - item_name (str): Name of the item to be compare, e.g. 'Length Change'.
+    - period (str): Period for the data, e.g. '2000-2010'.
+    - reg_id (str): Region ID for the data, e.g. '07'.
+    - Xlabel (str): Label for the x-axis. e.g. 'Length Change (m, observed)', 'Climatic Mass Balance (m w.e. a$^{-1}$, observed)'.
+    - Ylabel (str): Label for the y-axis. e.g. 'Length Change (m, modeled)', 'Climatic Mass Balance (m w.e. a$^{-1}$, modeled)''.
+    - Xlim (tuple): Limits for the x-axis, e.g. (0, 1000).
+    - Ylim (tuple): Limits for the y-axis, e.g. (0, 1000).
+    - subplot_label_L (str): Label for the left subplot, e.g. 'a)'.
+    - subplot_label_R (str): Label for the right subplot, e.g. 'b)'.
+    - title (str): Title for the plot.
+    - save_path (str): Path to save the plot.
+    - save_name (str): Name to save the plot file.
+    - Good_AMIS (df): List of good AMIS rgiid to highlight in the plot.
+    - Bad_AMIS (df): List of bad AMIS rgiid to highlight in the plot.
+    - logx (bool): If True, apply logarithmic scale to x-axis.
+    - logy (bool): If True, apply logarithmic scale to y-axis.
+    - inset_zoom (bool): If True, add an inset zoom to the plot.
+    - Good_bad (bool): If True, plot good and bad AMIS separately, otherwise plot all together.
+    - zoom_xlim (tuple): Limits for the x-axis of the inset zoom, e.g. (0, 100).
+    - zoom_ylim (tuple): Limits for the y-axis of the inset zoom, e.g. (0, 100).
+    - zoom_position (array): Specifies the position and size of the inset zoom in the plot, given as [x, y, width, height], where [0.6, 0.6, 0.25, 0.25] means that the inset zoom is located at (0.6, 0.6) in the coordinate system, with a width and height of 0.25.
+    - zoom_ticklabels (bool): If True, show tick labels in the inset zoom, otherwise hide them, and  show the connection lines between the inset zoom and the main plot.
+    Returns:
+    - None: Displays the plot and saves it to the specified path.
+    - The function also computes K-S statistics comparing observed and modeled data for good and bad AMIS.
+    - The function also handles the case where the modeled_key column is not present in the raw DataFrame.
+    - The function also handles the case where the observed_df and modeled_df do not have the same 'rgiid' values.
+    - The function also handles the case where the observed_df and modeled_df have different lengths, ensuring that the merge operation does not fail.
+    - The function also handles the case where the observed_df and modeled_df have different columns, ensuring that the specified obs_name and obs_unc_name are present in the observed_df.
+    - The function also handles the case where the modeled_df does not have the 'mean', 'hdi_95_low', and 'hdi_95_high' columns, ensuring that the merge operation does not fail.
+    - The function also handles the case where the modeled_df_raw does not have the modeled_key column, ensuring that the box plots are created correctly.
+    """
+    # Merge DataFrames
+    merged_df = pd.merge(observed_df, modeled_df, left_on='rgiid', right_on='rgiid', how='inner')
+
+    #=============================================
+    # Split the merged_df into two parts: one for good AMIS and one for bad AMIS
+    if Good_AMIS is not None:
+        merged_df_good = merged_df[merged_df['rgiid'].isin(Good_AMIS['rgiid'])]
+        merged_df_raw_good = modeled_df_raw[modeled_df_raw['rgiid'].isin(Good_AMIS['rgiid'])]
+        # Ensure the modeled_key column exists in the raw DataFrame
+    else:
+        merged_df_good = pd.DataFrame()
+        merged_df_raw_good = pd.DataFrame()
+    if Bad_AMIS is not None:
+        merged_df_bad = merged_df[merged_df['rgiid'].isin(Bad_AMIS['rgiid'])]
+        merged_df_raw_bad = modeled_df_raw[modeled_df_raw['rgiid'].isin(Bad_AMIS['rgiid'])]
+    else:
+        merged_df_bad = pd.DataFrame()
+        merged_df_raw_bad = pd.DataFrame()
+    # if just show the good
+    #merged_df = merged_df_good
+    #modeled_df_raw = modeled_df_raw[modeled_df_raw['rgiid'].isin(Good_AMIS['rgiid'])]
+
+    #print('good_AMIS:',merged_df_good)
+    #print('merged_df_raw_good:', merged_df_raw_good.shape)
+    #print('merged_df_raw_bad:', merged_df_raw_bad.shape)
+    #=============================================
+
+    # Extract data
+    # scale the length change from m to km
+    # clip, to make sure the value of varibles are non-negative
+    if obs_name == 'length_change':
+        scale_v = 0.001  # Changed from 0.0001 to properly convert m to km
+        clip_lower = False
+    elif obs_name in ['fa_gta_obs', 'fa_mwea_obs']:
+        scale_v =1
+        clip_lower = True
+    else:
+        scale_v = 1
+        clip_lower = False
+    #  obs and obs_unc for good and bad AMIS
+    obs_change_good = merged_df_good[obs_name].values * scale_v
+    obs_unc_good = merged_df_good[obs_unc_name].values * scale_v
+    obs_change_bad = merged_df_bad[obs_name].values * scale_v
+    obs_unc_bad = merged_df_bad[obs_unc_name].values * scale_v
+    #  modeled values for good and bad AMIS
+    model_mean_good = merged_df_good['mean'].values * scale_v
+    hdi_low_good, hdi_high_good = merged_df_good['hdi_95_low'].values * scale_v, merged_df_good['hdi_95_high'].values * scale_v
+    model_mean_bad = merged_df_bad['mean'].values * scale_v
+    hdi_low_bad, hdi_high_bad = merged_df_bad['hdi_95_low'].values * scale_v, merged_df_bad['hdi_95_high'].values * scale_v
+
+    #  modeled values for raw data
+    obs_change = merged_df[obs_name].values * scale_v
+    obs_unc = merged_df[obs_unc_name].values * scale_v
+    model_mean = merged_df['mean'].values * scale_v
+    hdi_low, hdi_high = merged_df['hdi_95_low'].values * scale_v, merged_df['hdi_95_high'].values * scale_v
+
+    # 
+    #===================================================
+    # --- (1) Compute K-S Test with Uncertainty ---
+    statis_compare_good =stats_t.get_statistics_compare(obs_change=obs_change_good, obs_unc=obs_unc_good, hdi_high=hdi_high_good,
+                           hdi_low=hdi_low_good, model_mean=model_mean_good,n_simulations=1000,item_name = item_name,period = period,reg_id =reg_id)
+    statis_compare_bad =stats_t.get_statistics_compare(obs_change=obs_change_bad, obs_unc=obs_unc_bad, hdi_high=hdi_high_bad,
+                           hdi_low=hdi_low_bad, model_mean=model_mean_bad,n_simulations=1000,item_name = item_name,period = period,reg_id =reg_id)
+    statis_compare_all =stats_t.get_statistics_compare(obs_change=obs_change, obs_unc=obs_unc, hdi_high=hdi_high,
+                        hdi_low=hdi_low, model_mean=model_mean,n_simulations=1000,item_name = item_name,period = period,reg_id =reg_id)
+    #===================================================
+    # Create figure with proper layout management
+    fig = plt.figure(figsize=(10, 5), constrained_layout=True)
+    #fig.suptitle(title, fontsize=18, y=1.02)
+
+    # Create gridspec with adjusted margins
+    gs = GridSpec(1, 2, figure=fig, width_ratios=[1, 1], height_ratios=[1], wspace=0.17, 
+                  left=0.04, right=0.86, bottom=0.15, top=0.9)
+    
+
+    ###### ============================================ subplot 1  ============================================
+    # --- One-to-One Plot with Boxplots (left subplot) ---
+    ax1 = fig.add_subplot(gs[0])
+
+    # Create boxplot data for each RGI ID using ensemble results, for good and bad AMIS
+    box_data = []
+    box_data_bad = []
+    box_data_good = []
+    for _, row in modeled_df_raw.iterrows():
+        # Convert string representation to numpy array if needed
+        if isinstance(row[modeled_key], str):
+            # More robust string to array conversion
+            ensemble_members = np.array([float(x) for x in row[modeled_key].strip('[]').split()]) * scale_v
+        else:
+            ensemble_members = np.array(row[modeled_key]) * scale_v
+        box_data.append(ensemble_members)  # THIS WAS MISSING IN ORIGINAL CODE
+    for _, row in merged_df_raw_good.iterrows():
+        # Convert string representation to numpy array if needed
+        if isinstance(row[modeled_key], str):
+            # More robust string to array conversion
+            ensemble_members = np.array([float(x) for x in row[modeled_key].strip('[]').split()]) * scale_v
+        else:
+            ensemble_members = np.array(row[modeled_key]) * scale_v
+        box_data_good.append(ensemble_members)
+    for _, row in merged_df_raw_bad.iterrows():
+        # Convert string representation to numpy array if needed
+        if isinstance(row[modeled_key], str):
+            # More robust string to array conversion
+            ensemble_members = np.array([float(x) for x in row[modeled_key].strip('[]').split()]) * scale_v
+        else:
+            ensemble_members = np.array(row[modeled_key]) * scale_v
+        box_data_bad.append(ensemble_members)
+    
+
+    # Calculate default limits if not provided
+    if Xlim is None:
+        all_box_values = np.concatenate(box_data)
+        Xlim = (min(obs_change.min(), all_box_values.min()), 
+                max(obs_change.max(), all_box_values.max()))
+    if Ylim is None:
+        Ylim = Xlim  # Use same limits for y-axis
+
+    # Position boxes at observed value positions
+    box_positions = obs_change
+    box_widths = 0.05 * (Xlim[1] - Xlim[0])  # 5% of total x-range
+
+    boxprops = dict(facecolor='orange', alpha=0.3, edgecolor='orange', linewidth=1.5)
+    whiskerprops = dict(color='orange', alpha=0.8)
+    medianprops = dict(color='orange', linewidth=1.5)
+    capprops = dict(color='orange', linewidth=1.5)
+
+    # Position boxes for good and bad AMIS
+    box_colors_good = "#FA7507"
+    box_colors_bad = "#F8C0D7F8" 
+
+    box_positions_good = obs_change_good
+    box_positions_bad = obs_change_bad
+    box_widths_good = 0.05 * (Xlim[1] - Xlim[0])  # 5% of total x-range
+    box_widths_bad = 0.05 * (Xlim[1] - Xlim[0])  # 5% of total x-range
+
+    # Styling properties for good boxes
+    boxprops_good = dict(facecolor=box_colors_good, alpha=0.5, edgecolor=box_colors_good, linewidth=1.5)
+    whiskerprops_good = dict(color=box_colors_good, alpha=0.5)
+    medianprops_good = dict(color=box_colors_good, alpha=0.5, linewidth=1.5)
+    capprops_good = dict(color=box_colors_good,  alpha=0.5,linewidth=1.5)
+
+    # Styling properties for bad boxes
+    boxprops_bad = dict(facecolor= box_colors_bad, edgecolor=box_colors_bad,alpha=0.5, linewidth=1.5)
+    whiskerprops_bad = dict(color=box_colors_bad, alpha=0.5)
+    medianprops_bad = dict(color=box_colors_bad, alpha=0.5,linewidth=1.5)
+    capprops_bad = dict(color=box_colors_bad, alpha=0.5, linewidth=1.5)
+
+
+    # ============================================ plot the boxplots and error bars
+    # Check the lengths of box_data and box_positions
+    if len(box_data) != len(box_positions):
+        raise ValueError(f"Length mismatch for all boxes: box_data ({len(box_data)}) != box_positions ({len(box_positions)})")
+    if len(box_data_good) != len(box_positions_good):
+        raise ValueError(f"Length mismatch for good boxes: box_data_good ({len(box_data_good)}) != box_positions_good ({len(box_positions_good)})")
+    if len(box_data_bad) != len(box_positions_bad):
+        raise ValueError(f"Length mismatch for bad boxes: box_data_bad ({len(box_data_bad)}) != box_positions_bad ({len(box_positions_bad)})")
+    
+    if Good_bad:
+        # plot good 
+        ax1.boxplot(box_data_good,
+                positions=box_positions_good,
+                widths=box_widths_good,
+                patch_artist=True,
+                boxprops=boxprops_good,
+                whiskerprops=whiskerprops_good,
+                medianprops=medianprops_good,
+                capprops=capprops_good,
+                showfliers=False,
+                manage_ticks=False)
+
+        # Plot bad boxes
+        ax1.boxplot(box_data_bad,
+                positions=box_positions_bad,
+                widths=box_widths_bad,
+                patch_artist=True,
+                boxprops=boxprops_bad,
+                whiskerprops=whiskerprops_bad,
+                medianprops=medianprops_bad,
+                capprops=capprops_bad,
+                showfliers=False,
+                manage_ticks=False)
+
+        # Create proxy artists for the legend
+        good_box_legend = plt.Line2D([0], [0], color=box_colors_good, alpha=0.5, lw=5, label=' Modeled (converged)')
+        bad_box_legend = plt.Line2D([0], [0], color=box_colors_bad, alpha=0.5, lw=5, label='Modeled (unconverged)')
+
+        # plot error bars for good AMIS
+        errorbar_color_good =  "#031CF8"  # Color for error bars for good AMIS
+        errorbar_color_bad = "#5A91F8"  # Color for error bars for bad AMIS
+        # Plot good AMIS points with circle markers
+        # Clip the errors to ensure non-negativity
+        if not merged_df_good.empty:
+            good_obs_change = merged_df_good[obs_name].values * scale_v
+            good_obs_unc = merged_df_good[obs_unc_name].values * scale_v
+            good_model_mean = merged_df_good['mean'].values * scale_v
+            xerr_good_clipped = stats_t.clip_errors(good_obs_change,good_obs_unc,clip_lower)
+            # print('good_obs_change is :',good_obs_change)
+            # print('xerr (origianl unc) is:',good_obs_unc)
+            # print("==========================")
+            # print('xerr_clipped is:',xerr_good_clipped)
+                
+            ax1.errorbar(good_obs_change, good_model_mean,
+                    xerr=xerr_good_clipped, markersize=3,
+                    fmt='o', color=errorbar_color_good, alpha=0.7,
+                    label='Observed (converged)',mfc=errorbar_color_good, capsize=3)
+        # Plot bad AMIS points with square markers
+        if not merged_df_bad.empty:
+            bad_obs_change = merged_df_bad[obs_name].values * scale_v
+            bad_obs_unc = merged_df_bad[obs_unc_name].values * scale_v
+            bad_model_mean = merged_df_bad['mean'].values * scale_v
+            xerr_bad_clipped = stats_t.clip_errors(bad_obs_change,bad_obs_unc,clip_lower)
+            # print('bad_obs_change is :',bad_obs_change)
+            # print('xerr (origianl unc) is:',bad_obs_unc)
+            # print("==========================")
+            # print('xerr_clipped is:',xerr_bad_clipped)
+            ax1.errorbar(bad_obs_change, bad_model_mean,
+                    xerr=xerr_bad_clipped, markersize=3,
+                    fmt='o', color=errorbar_color_bad, alpha=0.7,
+                    label='Observed (unconverged)',mfc= 'none',  capsize=3)
+    else:
+        # Plot all boxes together
+        ax1.boxplot(box_data,
+                positions=box_positions,
+                widths=box_widths,
+                patch_artist=True,
+                boxprops=boxprops,
+                whiskerprops=whiskerprops,
+                medianprops=medianprops,
+                capprops=capprops,
+                showfliers=False,
+                manage_ticks=False)
+        # Create a proxy artist for the legend
+        box_legend = plt.Line2D([0], [0], color='orange', alpha=0.5, lw=5, label='Modeled')
+
+        # plot the error bars for all AMIS
+        # Clip the errors to ensure non-negativity
+        xerr_clipped = stats_t.clip_errors(obs_change, obs_unc, clip_lower)
+            # Plot values with error bars
+        ax1.errorbar(obs_change, model_mean,
+                  xerr=xerr_clipped, markersize=4,
+                 fmt='o', color='blue', alpha=0.7,
+                 label='Observed', capsize=3)
+
+
+    # =========================================plot the one-to-one line
+    ax1.plot(Xlim, Xlim, 'k--', label='')
+
+    # Configure plot
+    # Update labels based on log flags
+    xlabel = f"log₁₀({Xlabel})" if logx else Xlabel
+    ylabel = f"log₁₀({Ylabel})" if logy else Ylabel
+    ax1.set(xlabel=xlabel,ylabel=ylabel,aspect='equal')
+
+    # ============================================scale the xaxis,yaxis
+    # Set log scales if needed
+    if logx: 
+        ax1.set_xscale('log')
+    if logy:
+        ax1.set_yscale('log')
+    
+    # Get min/max values (handling log scales)
+    x_valid = obs_change[obs_change > 0] if logx else obs_change
+    y_valid = np.concatenate([x for x in box_data if x is not None])
+    if logy: 
+        y_valid = y_valid[y_valid > 0]
+
+    if logx and logy:
+        # Set equal limits with 10% padding
+        lim_min = min(np.min(x_valid), np.min(y_valid)) * (0.9 if logx or logy else 1)
+        lim_max = max(np.max(x_valid), np.max(y_valid)) * (1.1 if logx or logy else 1)
+        ax1.set_xlim(lim_min, lim_max)
+        ax1.set_ylim(lim_min, lim_max) 
+        # Force square plot
+        ax1.set_aspect('equal', adjustable='box')
+    else:
+        # Set limits based on provided Xlim and Ylim
+        ax1.set_xlim(Xlim)
+        ax1.set_ylim(Ylim)
+    
+    #ax1.legend(handles=ax1.get_legend_handles_labels()[0] + [box_legend])
+    # ============================================ set the grid
+    ax1.grid(linestyle='--')
+
+    # ============================================ set legend
+    if legend_index:
+        # Get existing handles and labels
+        handles, labels = ax1.get_legend_handles_labels()
+        if Good_bad:
+            # Create proxy artists for both boxplot types
+            good_box_legend = plt.Line2D([0], [0], color=box_colors_good, alpha=0.5, lw=5, label='Modeled (converged)')
+            bad_box_legend = plt.Line2D([0], [0], color=box_colors_bad, alpha=0.5, lw=5, label='Modeled (unconverged)')
+            
+            # Add the boxplot legends to existing handles/labels
+            handles.extend([good_box_legend, bad_box_legend])
+            labels.extend(['Modeled (converged)', 'Modeled (unconverged)'])
+        else:
+            # Create a proxy artist for the boxplot
+            box_legend = plt.Line2D([0], [0], color='orange', alpha=0.5, lw=5, label='Modeled')
+            
+            # Add the boxplot legend to existing handles/labels
+            handles.append(box_legend)
+            labels.append('Modeled')
+        
+        # Update the legend with all handles and labels
+        # Set legend with shorter lines and tighter spacing
+        ax1.legend(handles=handles, labels=labels, 
+                handlelength=1,   # shorter line length
+                handletextpad=0.8, # less space between line and text
+                frameon=False,
+                loc='lower right',
+                bbox_to_anchor=(1.02, -0.02))
+
+    else:
+        # If legend_index is False, hide the legend completely
+        ax1.legend().set_visible(False)
+
+    # ============================================ add the title and labels
+    if title is not None:
+        ax1.set_title(title, fontsize=16, pad=10)
+    # Add 'a)' label outside top-left
+    ax1.annotate(subplot_label_L, xy=(-0.13, 0.96), xycoords='axes fraction',
+                fontsize=18, weight='normal', ha='left', va='bottom',
+                bbox=dict(facecolor='white', edgecolor='none', pad=0))
+    
+    # ============================================ add zoom in inset
+    if inset_zoom:
+        # Ensure zoom_xlim and zoom_ylim are provided or set defaults
+        if zoom_xlim is None:
+            zoom_xlim = (0, 1)
+        if zoom_ylim is None:
+            zoom_ylim = (0, 1)
+        # Ensure the zoom limits are within the main plot limits
+        zoom_xlim = (max(zoom_xlim[0], Xlim[0]), min(zoom_xlim[1], Xlim[1]))
+        zoom_ylim = (max(zoom_ylim[0], Ylim[0]), min(zoom_ylim[1], Ylim[1]))
+    
+        # Create inset axes in the lower left corner
+        axins = ax1.inset_axes(zoom_position)  # [x, y, width, height] in axes coordinates[0.7, 0.7, 0.28, 0.28]
+        
+        # Replot the main content in the inset
+        if Good_bad:
+            # Plot good and bad seperately   
+            if not merged_df_good.empty:
+                axins.errorbar(good_obs_change, good_model_mean,
+                            xerr=xerr_good_clipped, markersize=2,
+                            fmt='o', color=errorbar_color_good, alpha=0.7,
+                            mfc=errorbar_color_good, capsize=2)
+                
+            if not merged_df_bad.empty:
+                axins.errorbar(bad_obs_change, bad_model_mean,
+                            xerr=xerr_bad_clipped, markersize=2,
+                            fmt='o', color=errorbar_color_bad, alpha=0.7,
+                            mfc='none', capsize=2)
+            
+            # Plot boxes in inset (with smaller widths)
+            box_widths_zoom = 0.03 * (zoom_xlim[1] - zoom_xlim[0])
+            
+            if len(box_data_good) > 0:
+                axins.boxplot(box_data_good,
+                            positions=box_positions_good,
+                            widths=box_widths_zoom,
+                            patch_artist=True,
+                            boxprops=boxprops_good,
+                            whiskerprops=whiskerprops_good,
+                            medianprops=medianprops_good,
+                            capprops=capprops_good,
+                            showfliers=False,
+                            manage_ticks=False)
+            
+            if len(box_data_bad) > 0:
+                axins.boxplot(box_data_bad,
+                            positions=box_positions_bad,
+                            widths=box_widths_zoom,
+                            patch_artist=True,
+                            boxprops=boxprops_bad,
+                            whiskerprops=whiskerprops_bad,
+                            medianprops=medianprops_bad,
+                            capprops=capprops_bad,
+                            showfliers=False,
+                            manage_ticks=False)
+        else:
+            # Plot all together
+            axins.errorbar(obs_change, model_mean,
+                        xerr=xerr_clipped, markersize=2,
+                        fmt='o', color='blue', alpha=0.7,
+                        label='Observed', capsize=2)
+            # Plot boxes in inset (with smaller widths)
+            box_widths_zoom = 0.03 * (zoom_xlim[1] - zoom_xlim[0])
+            axins.boxplot(box_data,
+                        positions=box_positions,
+                        widths=box_widths_zoom,
+                        patch_artist=True,
+                        boxprops=boxprops,
+                        whiskerprops=whiskerprops,
+                        medianprops=medianprops,
+                        capprops=capprops,
+                        showfliers=False,
+                        manage_ticks=False)
+        # Configure the inset
+        axins.plot(zoom_xlim, zoom_xlim, 'k--', linewidth=0.5)
+        axins.set_xlim(zoom_xlim)
+        axins.set_ylim(zoom_ylim)
+
+        # set the tick labels
+        if zoom_ticklabels:
+            # Customize tick labels - smaller font size, fewer ticks
+            axins.set_xticks(np.linspace(zoom_xlim[0], zoom_xlim[1], 3))  # 3 ticks for x-axis
+            axins.set_yticks(np.linspace(zoom_ylim[0], zoom_ylim[1], 3))  # 3 ticks for y-axis
+            # Format tick labels - adjust fontsize as needed
+            axins.tick_params(axis='both', which='major', labelsize=6)  # Smaller font for inset
+        else:
+            axins.set_xticklabels([])
+            axins.set_yticklabels([])
+            # Connect the inset to the main plot
+            axins.indicate_inset_zoom(ax1, edgecolor='black', alpha=0.3)
+            # Add connection lines
+        # add the grid for axins
+        axins.grid(True, linestyle=':', alpha=0.3)
+    
+
+    ###### =========================================== subplot 2 =================================
+    # --- CDF Plot (right subplot) ---
+    ax2 = fig.add_subplot(gs[1])
+    
+    if Good_bad:
+        # In the CDF plot section:
+        if not merged_df_bad.empty:
+            # Plot CDF for bad AMIS observed values
+            sns.ecdfplot(bad_obs_change, ax=ax2, label='Observed (unconverged)', color= errorbar_color_bad, linestyle='--')
+            lower_obs_bad = bad_obs_change - bad_obs_unc
+            upper_obs_bad = bad_obs_change + bad_obs_unc
+            x_obs_bad = np.linspace(lower_obs_bad.min(), upper_obs_bad.max(), 1000)
+            cdf_lower_bad = np.searchsorted(np.sort(lower_obs_bad), x_obs_bad, side='right') / len(lower_obs_bad)
+            cdf_upper_bad = np.searchsorted(np.sort(upper_obs_bad), x_obs_bad, side='right') / len(upper_obs_bad)
+            ax2.fill_between(x_obs_bad, cdf_lower_bad, cdf_upper_bad, color= errorbar_color_bad, alpha=0.3, label='')
+            # Plot CDF for bad AMIS modeled values
+            sns.ecdfplot(model_mean_bad, ax=ax2, label='Modeled (unconverged)', color= box_colors_bad, linestyle='--')
+            x_model_bad = np.linspace(hdi_low_bad.min(), hdi_high_bad.max(), 1000)
+            cdf_hdi_low_bad = np.searchsorted(np.sort(hdi_low_bad), x_model_bad, side='right') / len(hdi_low_bad)
+            cdf_hdi_high_bad = np.searchsorted(np.sort(hdi_high_bad), x_model_bad, side='right') / len(hdi_high_bad)
+            ax2.fill_between(x_model_bad, cdf_hdi_low_bad, cdf_hdi_high_bad, color=box_colors_bad, alpha=0.3, label='')   
+        if not merged_df_good.empty:
+            # Plot CDF for good AMIS observed values
+            sns.ecdfplot(good_obs_change, ax=ax2, label='Observed (converged)', color= errorbar_color_good,linestyle='-')
+            lower_obs_good = good_obs_change - good_obs_unc
+            upper_obs_good = good_obs_change + good_obs_unc
+            x_obs_good = np.linspace(lower_obs_good.min(), upper_obs_good.max(), 1000)
+            cdf_lower_good = np.searchsorted(np.sort(lower_obs_good), x_obs_good, side='right') / len(lower_obs_good)
+            cdf_upper_good = np.searchsorted(np.sort(upper_obs_good), x_obs_good, side='right') / len(upper_obs_good)
+            ax2.fill_between(x_obs_good, cdf_lower_good, cdf_upper_good, color= errorbar_color_good, alpha=0.3, label='')
+            sns.ecdfplot(model_mean_good, ax=ax2, label='Modeled (converged)', color=box_colors_good, linestyle='-')
+            # Plot CDF for good AMIS modeled values
+            x_model_good = np.linspace(hdi_low_good.min(), hdi_high_good.max(), 1000)
+            cdf_hdi_low_good = np.searchsorted(np.sort(hdi_low_good), x_model_good, side='right') / len(hdi_low_good)
+            cdf_hdi_high_good = np.searchsorted(np.sort(hdi_high_good), x_model_good, side='right') / len(hdi_high_good)
+            ax2.fill_between(x_model_good, cdf_hdi_low_good, cdf_hdi_high_good, color=box_colors_good, alpha=0.3, label='')     
+    else:
+        # Plot observed CDF and uncertainty for all AMIS
+        sns.ecdfplot(obs_change, ax=ax2, label='Observed', color='blue')
+        # Calculate and plot observed uncertainty band
+        lower_obs = obs_change - obs_unc
+        upper_obs = obs_change + obs_unc
+        x_obs = np.linspace(lower_obs.min(), upper_obs.max(), 1000)
+        cdf_lower = np.searchsorted(np.sort(lower_obs), x_obs, side='right') / len(lower_obs)
+        cdf_upper = np.searchsorted(np.sort(upper_obs), x_obs, side='right') / len(upper_obs)
+        ax2.fill_between(x_obs, cdf_lower, cdf_upper, color='blue', alpha=0.3, label='Observed Uncertainty')
+
+        # Plot modeled CDF and HDI
+        sns.ecdfplot(model_mean, ax=ax2, label='Modeled', color='orange')
+        x_model = np.linspace(hdi_low.min(), hdi_high.max(), 1000)
+        cdf_hdi_low = np.searchsorted(np.sort(hdi_low), x_model, side='right') / len(hdi_low)
+        cdf_hdi_high = np.searchsorted(np.sort(hdi_high), x_model, side='right') / len(hdi_high)
+        ax2.fill_between(x_model, cdf_hdi_low, cdf_hdi_high, color='orange', alpha=0.3, label='Modeled Uncertainty')
+    
+    # Set x-label and y-label
+    if logx:
+        xlabel = f"log₁₀({item_name})"
+    else:
+        xlabel = item_name
+    ax2.set_xlabel(xlabel)
+    ax2.set_ylabel('Cumulative Probability')
+
+    # Set x-axis scaling and limits based on conditions
+    if logx:
+        ax2.set_xscale('log')
+        valid_vals = obs_change[obs_change > 0]
+        if len(valid_vals) > 0:
+            min_value = valid_vals.min() * 0.5
+            ax2.set_xlim(left=min(min_value, lim_min), right=lim_max)
+        else:
+            ax2.set_xlim(left=lim_min, right=lim_max)
+    elif clip_lower:
+        ax2.set_xlim(left=0, right=Xlim[1])
+    else:
+        ax2.set_xlim(Xlim)
+
+
+    # ============================================= set grid and legend
+    # set the grid
+    ax2.grid(linestyle='--')
+    #set the legend
+    if legend_index:
+        # If legend_index is True, show the legend including existing handles
+        handles = ax2.get_legend_handles_labels()[0]
+        ax2.legend(handles=handles, frameon=False)
+    else:
+        # If legend_index is False, do not show the legend at all
+        ax2.legend().set_visible(False)
+
+    # ============================================= add the annotation and title
+    # Add 'b)' label outside top-left
+    ax2.annotate(subplot_label_R, xy=(-0.14, 0.96), xycoords='axes fraction',
+                fontsize=18, weight='normal', ha='left', va='bottom',
+                bbox=dict(facecolor='white', edgecolor='none', pad=0))
+
+    ###### ============================================ adjust the layout and save the figure
+    # Adjust layout and save
+    plt.tight_layout()
+    # Save the figure
+    if save_path is None:
+        save_path = os.path.join(pygem_prms.output_filepath,'Calibration','Postprocessing',reg_id,'Regional_analysis/figures/')
+    else:
+        save_path = os.path.join(save_path, 'Regional_analysis', 'figures')
+    os.makedirs(save_path, exist_ok=True)
+    if save_name is None:
+        if Good_bad and inset_zoom:
+            save_name = f'{item_name.replace(" ", "_")}_{period.replace("-", "_")}_cdf_comparison_GOOD_BAD_inset_zoom'
+        elif Good_bad:
+            save_name = f'{item_name.replace(" ", "_")}_{period.replace("-", "_")}_cdf_comparison_GOOD_BAD'
+        elif inset_zoom:
+            save_name = f'{item_name.replace(" ", "_")}_{period.replace("-", "_")}_cdf_comparison_inset_zoom'
+        else:
+            save_name = f'{item_name.replace(" ", "_")}_{period.replace("-", "_")}_cdf_comparison'
+
+        # add the logx and logy to the save name
+        if logx:
+            save_name += '_log'
+
+    save_file = os.path.join(save_path, f"{save_name}.png")
+    plt.savefig(save_file, bbox_inches='tight', dpi=300)
+    #plt.show()
+    plt.close(fig)  # or plt.close('all') if you want to close all open figures
