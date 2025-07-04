@@ -539,4 +539,4 @@ if __name__ == "__main__":
 
 
 #%% Running example
-# python analysis_calibration --region_id 7 --data_index 'Annual'
+# python analysis_calibration.py --region_id 7 --data_index 'Annual'
