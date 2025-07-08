@@ -22,6 +22,8 @@ import pygem_input as pygem_prms
 
 import Visualization_timeseries as Vis_ts
 import statistic_tool as stats_t
+# debug lib
+import pdb
 
 
 
@@ -143,6 +145,7 @@ def main ():
     all_glac_data_stats,mean_data,sum_data = stats_t.read_extract_data_region(region_output_path = model_output_fp_region,
                                                                             region_params_path= model_param_fp_region,reg_id= reg_id,
                                                                             data_index = 'Annual')
+    #pdb.set_trace()
     # == Step 2 : Load the model output raw data ====
     # the total length change over the period 2000-2020,with all glaceries in the region, for each glacier including all the emsemble members
     sum_dL_SQ_0020_raw_m = stats_t.extract_and_save_ensemble_data(sum_data, save_path = postpro_output_fp_region,
@@ -164,13 +167,13 @@ def main ():
                                                                        key_value='massbalclim_TMS_model_array_annual_mwea',
                                                                        file_name='mean_MB_clim_0010_raw_mwea',period='2000_2010')
     mean_MB_clim_1020_raw_gta = stats_t.extract_and_save_ensemble_data(mean_data,save_path = postpro_output_fp_region,
-                                                                       key_value='massbalclim_TMS_model_array_annual_Gta',
+                                                                       key_value='massbalclim_TMS_model_array_annual_gta',
                                                                        file_name='mean_MB_clim_1020_raw_gta',period='2010_2020')
     mean_MB_clim_0020_raw_gta = stats_t.extract_and_save_ensemble_data(mean_data,save_path = postpro_output_fp_region,
-                                                                       key_value='massbalclim_TMS_model_array_annual_Gta',
+                                                                       key_value='massbalclim_TMS_model_array_annual_gta',
                                                                        file_name='mean_MB_clim_0020_raw_gta',period='2000_2020')
     mean_MB_clim_0010_raw_gta = stats_t.extract_and_save_ensemble_data(mean_data,save_path = postpro_output_fp_region,
-                                                                       key_value='massbalclim_TMS_model_array_annual_Gta',
+                                                                       key_value='massbalclim_TMS_model_array_annual_gta',
                                                                        file_name='mean_MB_clim_0010_raw_gta',period='2000_2010')
     mean_MB_total_1020_raw_mwea = stats_t.extract_and_save_ensemble_data(mean_data,save_path = postpro_output_fp_region,
                                                                        key_value='massbaltotal_TMS_model_array_annual_mwea',
@@ -182,13 +185,13 @@ def main ():
                                                                        key_value='massbaltotal_TMS_model_array_annual_mwea',
                                                                        file_name='mean_MB_total_0010_raw_mwea',period='2000_2010')
     mean_MB_total_1020_raw_gta = stats_t.extract_and_save_ensemble_data(mean_data,save_path = postpro_output_fp_region,
-                                                                       key_value='massbaltotal_TMS_model_array_annual_Gta',
+                                                                       key_value='massbaltotal_TMS_model_array_annual_gta',
                                                                        file_name='mean_MB_total_1020_raw_gta',period='2010_2020')
     mean_MB_total_0020_raw_gta = stats_t.extract_and_save_ensemble_data(mean_data,save_path = postpro_output_fp_region,
-                                                                       key_value='massbaltotal_TMS_model_array_annual_Gta',
+                                                                       key_value='massbaltotal_TMS_model_array_annual_gta',
                                                                        file_name='mean_MB_total_0020_raw_gta',period='2000_2020')
     mean_MB_total_0010_raw_gta = stats_t.extract_and_save_ensemble_data(mean_data,save_path = postpro_output_fp_region,
-                                                                       key_value='massbaltotal_TMS_model_array_annual_Gta',
+                                                                       key_value='massbaltotal_TMS_model_array_annual_gta',
                                                                        file_name='mean_MB_total_0010_raw_gta',period='2000_2010')
     mean_FA_1020_raw_Gta = stats_t.extract_and_save_ensemble_data(mean_data,save_path = postpro_output_fp_region,
                                                                   key_value='calving_flux_Gta_TMS_model_array_annual',
@@ -264,22 +267,22 @@ def main ():
         ('sum_stats_20002020_massbaltotal_TMS_model_array_annual_mwea', 'sum_0020_mb_total_mwe'),
 
         # Mean mass balance clim GTA statistics
-        ('mean_stats_20002010_massbalclim_TMS_model_array_annual_Gta', 'mean_0010_mb_clim_Gta'),
-        ('mean_stats_20102020_massbalclim_TMS_model_array_annual_Gta', 'mean_1020_mb_clim_Gta'),
-        ('mean_stats_20002020_massbalclim_TMS_model_array_annual_Gta', 'mean_0020_mb_clim_Gta'),
+        ('mean_stats_20002010_massbalclim_TMS_model_array_annual_gta', 'mean_0010_mb_clim_Gta'),
+        ('mean_stats_20102020_massbalclim_TMS_model_array_annual_gta', 'mean_1020_mb_clim_Gta'),
+        ('mean_stats_20002020_massbalclim_TMS_model_array_annual_gta', 'mean_0020_mb_clim_Gta'),
         # Sum of mass balance clim GTA statistics
-        ('sum_stats_20002010_massbalclim_TMS_model_array_annual_Gta', 'sum_0010_mb_clim_Gt'),
-        ('sum_stats_20102020_massbalclim_TMS_model_array_annual_Gta', 'sum_1020_mb_clim_Gt'),
-        ('sum_stats_20002020_massbalclim_TMS_model_array_annual_Gta', 'sum_0020_mb_clim_Gt'),
+        ('sum_stats_20002010_massbalclim_TMS_model_array_annual_gta', 'sum_0010_mb_clim_Gt'),
+        ('sum_stats_20102020_massbalclim_TMS_model_array_annual_gta', 'sum_1020_mb_clim_Gt'),
+        ('sum_stats_20002020_massbalclim_TMS_model_array_annual_gta', 'sum_0020_mb_clim_Gt'),
 
         # Mean mass balance total GTA statistics
-        ('mean_stats_20002010_massbaltotal_TMS_model_array_annual_Gta', 'mean_0010_mb_total_Gta'),
-        ('mean_stats_20102020_massbaltotal_TMS_model_array_annual_Gta', 'mean_1020_mb_total_Gta'),
-        ('mean_stats_20002020_massbaltotal_TMS_model_array_ annual_Gta', 'mean_0020_mb_total_Gta'),
+        ('mean_stats_20002010_massbaltotal_TMS_model_array_annual_gta', 'mean_0010_mb_total_Gta'),
+        ('mean_stats_20102020_massbaltotal_TMS_model_array_annual_gta', 'mean_1020_mb_total_Gta'),
+        ('mean_stats_20002020_massbaltotal_TMS_model_array_annual_gta', 'mean_0020_mb_total_Gta'),
         # Sum of mass balance total GTA statistics
-        ('sum_stats_20002010_massbaltotal_TMS_model_array_annual_Gta', 'sum_0010_mb_total_Gt'),
-        ('sum_stats_20102020_massbaltotal_TMS_model_array_annual_Gta', 'sum_1020_mb_total_Gt'),
-        ('sum_stats_20002020_massbaltotal_TMS_model_array_annual_Gta', 'sum_0020_mb_total_Gt'),
+        ('sum_stats_20002010_massbaltotal_TMS_model_array_annual_gta', 'sum_0010_mb_total_Gt'),
+        ('sum_stats_20102020_massbaltotal_TMS_model_array_annual_gta', 'sum_1020_mb_total_Gt'),
+        ('sum_stats_20002020_massbaltotal_TMS_model_array_annual_gta', 'sum_0020_mb_total_Gt'),
 
         # Mean FA statistics
         ('mean_stats_20002010_FA_mwea_TMS_model_array_annual', 'mean_0010_FA_mwea'),
@@ -437,16 +440,16 @@ def main ():
     # mass balance with the unit gt a-1
     mb_obs_20002010_gta = pd.DataFrame()
     mb_obs_20002010_gta ['rgiid']= mb_obs_20002010_mwea['rgiid']
-    mb_obs_20002010_gta ['mb_clim_gt'] = mb_obs_20002010_mwea['mb_clim_mwea']/1000.*mb_obs_20002010['area']
-    mb_obs_20002010_gta ['mb_clim_gt_err'] = mb_obs_20002010_mwea['mb_clim_mwea_err']/1000.*mb_obs_20002010['area']
+    mb_obs_20002010_gta ['mb_clim_gta'] = mb_obs_20002010_mwea['mb_clim_mwea']/1000.*mb_obs_20002010['area']
+    mb_obs_20002010_gta ['mb_clim_gta_err'] = mb_obs_20002010_mwea['mb_clim_mwea_err']/1000.*mb_obs_20002010['area']
     mb_obs_20102020_gta = pd.DataFrame()
     mb_obs_20102020_gta ['rgiid']= mb_obs_20102020_mwea['rgiid']
-    mb_obs_20102020_gta ['mb_clim_gt'] = mb_obs_20102020_mwea['mb_clim_mwea']/1000.*mb_obs_20102020['area']
-    mb_obs_20102020_gta ['mb_clim_gt_err'] = mb_obs_20102020_mwea['mb_clim_mwea_err']/1000.*mb_obs_20102020['area']
+    mb_obs_20102020_gta ['mb_clim_gta'] = mb_obs_20102020_mwea['mb_clim_mwea']/1000.*mb_obs_20102020['area']
+    mb_obs_20102020_gta ['mb_clim_gta_err'] = mb_obs_20102020_mwea['mb_clim_mwea_err']/1000.*mb_obs_20102020['area']
     mb_obs_20002020_gta = pd.DataFrame()
     mb_obs_20002020_gta ['rgiid']= mb_obs_20002020_mwea['rgiid']
-    mb_obs_20002020_gta ['mb_clim_gt'] = mb_obs_20002020_mwea['mb_clim_mwea']/1000.*mb_obs_20002020['area']
-    mb_obs_20002020_gta ['mb_clim_gt_err'] = mb_obs_20002020_mwea['mb_clim_mwea_err']/1000.*mb_obs_20002020['area']
+    mb_obs_20002020_gta ['mb_clim_gta'] = mb_obs_20002020_mwea['mb_clim_mwea']/1000.*mb_obs_20002020['area']
+    mb_obs_20002020_gta ['mb_clim_gta_err'] = mb_obs_20002020_mwea['mb_clim_mwea_err']/1000.*mb_obs_20002020['area']
 
     # generate the total length change over the period 2000-2010/2010-2020/2000-2020,
     length_change_obs = stats_t.calculate_length_change(dLdt_20002020, interval_years=10)
@@ -460,9 +463,11 @@ def main ():
 
     # == Step 5: split the rgiid for good and bad AMIS ==
     rgiid_good = stats_t.extract_rgi_ids(filepath=AMIS_statis_fp_region,filename='Good_AMIS.txt')
-    rgiid_good = rgiid_good.sort_values('rgiid')
+    if rgiid_good is not None and not rgiid_good.empty:
+        rgiid_good = rgiid_good.sort_values('rgiid')
     rgiid_bad = stats_t.extract_rgi_ids(filepath=AMIS_statis_fp_region,filename='Bad_AMIS.txt')
-    rgiid_bad = rgiid_bad.sort_values('rgiid')
+    if rgiid_bad is not None and not rgiid_bad.empty:
+        rgiid_bad = rgiid_bad.sort_values('rgiid')
 
     # == Step 6: Visualization of the calibration output, all AMIS together ==
     # MB_clim_20102020
@@ -539,21 +544,21 @@ def main ():
                             zoom_xlim = (0,0.1), zoom_ylim = (0,0.1),zoom_position = [0.68, 0.68, 0.28, 0.28],zoom_ticklabels = True)
     # MB_clim_20102020 gta
     Vis_ts.plot_cdf_and_one_to_one_Good_Bad_All_Inset(observed_df = mb_obs_20102020_gta, modeled_df = mean_1020_mb_clim_Gta, modeled_df_raw= mean_MB_clim_1020_raw_gta,
-                            obs_name = 'mb_clim_gt' , obs_unc_name = 'mb_clim_gt_err', modeled_key = 'massbalclim_Gta_TMS_model_array_annual', item_name = 'Climatic mass balance (Gt a$^{-1}$)',
+                            obs_name = 'mb_clim_gta' , obs_unc_name = 'mb_clim_gta_err', modeled_key = 'massbalclim_TMS_model_array_annual_gta', item_name = 'Climatic mass balance (Gt a$^{-1}$)',
                             period = '2010-2020',reg_id = reg_id,Xlabel = 'Climatic mass balance (Gt a$^{-1}$, observed)',Ylabel = 'Climatic mass balance (Gt a$^{-1}$, modeled)', Xlim = (-3.5,4), Ylim = (-3.5,4),
                             subplot_label_L ='c', subplot_label_R = 'd',title= None, save_path = postpro_output_fp_region, save_name=None,Good_AMIS = rgiid_good,Bad_AMIS = rgiid_bad,
                                  legend_index = False,logx=False,logy=False,inset_zoom = False,Good_bad = True,
                             zoom_xlim = (0,0.1), zoom_ylim = (0,0.1),zoom_position = [0.68, 0.68, 0.28, 0.28],zoom_ticklabels = True)
     # MB_clim_20002010 gta
     Vis_ts.plot_cdf_and_one_to_one_Good_Bad_All_Inset(observed_df = mb_obs_20002010_gta, modeled_df = mean_0010_mb_clim_Gta, modeled_df_raw= mean_MB_clim_0010_raw_gta,
-                            obs_name = 'mb_clim_gt' , obs_unc_name = 'mb_clim_gt_err', modeled_key = 'massbalclim_Gta_TMS_model_array_annual', item_name = 'Climatic mass balance (Gt a$^{-1}$)',
+                            obs_name = 'mb_clim_gta' , obs_unc_name = 'mb_clim_gta_err', modeled_key = 'massbalclim_TMS_model_array_annual_gta', item_name = 'Climatic mass balance (Gt a$^{-1}$)',
                             period = '2000-2010',reg_id = reg_id,Xlabel = 'Climatic mass balance (Gt a$^{-1}$, observed)',Ylabel = 'Climatic mass balance (Gt a$^{-1}$, modeled)', Xlim = (-3.5,4), Ylim = (-3.5,4),
                             subplot_label_L ='c', subplot_label_R = 'd',title= None, save_path = postpro_output_fp_region, save_name=None,Good_AMIS = rgiid_good,Bad_AMIS = rgiid_bad,
                                  legend_index = False,logx=False,logy=False,inset_zoom = False,Good_bad = True,
                             zoom_xlim = (0,0.1), zoom_ylim = (0,0.1),zoom_position = [0.68, 0.68, 0.28, 0.28],zoom_ticklabels = True)
     # MB_clim_20002020 gta
     Vis_ts.plot_cdf_and_one_to_one_Good_Bad_All_Inset(observed_df = mb_obs_20002020_gta, modeled_df = mean_0020_mb_clim_Gta, modeled_df_raw= mean_MB_clim_0020_raw_gta,
-                            obs_name = 'mb_clim_gt' , obs_unc_name = 'mb_clim_gt_err', modeled_key = 'massbalclim_Gta_TMS_model_array_annual', item_name = 'Climatic mass balance (Gt a$^{-1}$)',
+                            obs_name = 'mb_clim_gta' , obs_unc_name = 'mb_clim_gta_err', modeled_key = 'massbalclim_TMS_model_array_annual_gta', item_name = 'Climatic mass balance (Gt a$^{-1}$)',
                             period = '2000-2020',reg_id = reg_id,Xlabel = 'Climatic mass balance (Gt a$^{-1}$, observed)',Ylabel = 'Climatic mass balance (Gt a$^{-1}$, modeled)', Xlim = (-3.5,4), Ylim = (-3.5,4),
                             subplot_label_L ='c', subplot_label_R = 'd',title= None, save_path = postpro_output_fp_region, save_name=None,Good_AMIS = rgiid_good,Bad_AMIS = rgiid_bad,
                                  legend_index = False,logx=False,logy=False,inset_zoom = False,Good_bad = True,
