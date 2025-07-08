@@ -1277,7 +1277,7 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                                 row['area_km2_timeseries'] = area_km2_timeseries
                                 row['massbal_clim_Gta'] = massbal_clim_Gta
                                 row['massbal_total_Gta'] = massbal_total_Gta
-                                row['massbal_clim_Gta_timeseries'] = massbal_clim_Gta
+                                row['massbal_clim_Gta_timeseries'] = massbal_clim_Gta_timeseries
                                 row['massbal_total_Gta_timeseries'] = massbal_total_Gta_timeseries
                             return row
                         
@@ -1438,8 +1438,8 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                                      'thickness_at_calvingfront_m','width_at_calvingfront_m','massbal_clim_mwea','massbal_total_mwea',
                                      'massbal_clim_mwea_timeseries','massbal_total_mwea_timeseries','volume_bsl_m3','volume_bwl_m3',
                                      'frontal_ablation_mwea','frontal_ablation_mwea_timeseries','area_km2_timeseries',
-                                     'massbal_clim_gta','massbal_total_gta','massbal_clim_gta_timeseries',
-                                     'massbal_total_gta_timeseries']] = (np.nan, np.nan, np.nan, 0,np.nan,np.nan,np.nan,np.nan,np.nan,
+                                     'massbal_clim_Gta','massbal_total_Gta','massbal_clim_Gta_timeseries',
+                                     'massbal_total_Gta_timeseries']] = (np.nan, np.nan, np.nan, 0,np.nan,np.nan,np.nan,np.nan,np.nan,
                                                                          np.nan,np.nan,np.nan,np.nan,np.nan,np.nan,np.nan,np.nan,np.nan,
                                                                          np.nan,np.nan,np.nan,np.nan,np.nan)
                 
@@ -1507,8 +1507,8 @@ def processing_parameters(model_function,kwargs,modelprms_MB_FA):
                     'calving_flux_Gta_timeseries':output_df['calving_flux_Gta_timeseries'].tolist(),
                     'massbal_clim_mwea': output_df['massbal_clim_mwea'].tolist(),
                     'massbal_total_mwea': output_df['massbal_total_mwea'].tolist(),
-                    'massbal_clim_gta': output_df['massbal_clim_Gta'].tolist(),
-                    'massbal_total_gta': output_df['massbal_total_Gta'].tolist(),
+                    'massbal_clim_Gta': output_df['massbal_clim_Gta'].tolist(),
+                    'massbal_total_Gta': output_df['massbal_total_Gta'].tolist(),
                     'massbal_clim_mwea_timeseries': output_df['massbal_clim_mwea_timeseries'].tolist(),
                     'massbal_total_mwea_timeseries': output_df['massbal_total_mwea_timeseries'].tolist(),
                     'massbal_clim_Gta_timeseries': output_df['massbal_clim_Gta_timeseries'].tolist(),
@@ -1867,12 +1867,12 @@ def Model_MB_FA_RT(model_function = reg_calving_flux,parameters_dict= None,rgiid
         massbaltotal_TMS_model_array_annual = [[np.mean(sublist[i:i + 12]) for i in range(0, len(sublist), 12)] for sublist in massbaltotal_TMS_model_array_monthly]
 
         massbalclim_Gta_TMS_model_array_flattened = [sublist[0] for sublist in massbalclim_Gta_TMS_model_array]
-        massbalclim_Gta_TMS_model_array_monthly =  massbalclim_Gta_TMS_model_array_flattened
-        massbalclim_Gta_TMS_model_array_annual = [[np.mean(sublist[i:i + 12]) for i in range(0, len(sublist), 12)] for sublist in massbalclim_Gta_TMS_model_array_monthly]
+        massbalclim_TMS_model_array_monthly_gta =  massbalclim_Gta_TMS_model_array_flattened
+        massbalclim_TMS_model_array_annual_gta = [[np.mean(sublist[i:i + 12]) for i in range(0, len(sublist), 12)] for sublist in massbalclim_TMS_model_array_monthly_gta]
 
         massbaltotal_Gta_TMS_model_array_flattened = [sublist[0] for sublist in massbaltotal_Gta_TMS_model_array]
-        massbaltotal_Gta_TMS_model_array_monthly =  massbaltotal_Gta_TMS_model_array_flattened
-        massbaltotal_Gta_TMS_model_array_annual = [[np.mean(sublist[i:i + 12]) for i in range(0, len(sublist), 12)] for sublist in massbaltotal_Gta_TMS_model_array_monthly]
+        massbaltotal_TMS_model_array_monthly_gta =  massbaltotal_Gta_TMS_model_array_flattened
+        massbaltotal_TMS_model_array_annual_gta = [[np.mean(sublist[i:i + 12]) for i in range(0, len(sublist), 12)] for sublist in massbaltotal_TMS_model_array_monthly_gta]
 
         FA_mwea_TMS_model_array_flattened = [sublist[0] for sublist in FA_mwea_TMS_model_array]
         FA_mwea_TMS_model_array_monthly =  FA_mwea_TMS_model_array_flattened
@@ -1915,8 +1915,8 @@ def Model_MB_FA_RT(model_function = reg_calving_flux,parameters_dict= None,rgiid
         calving_flux_Gta_TMS_model_array_annual = calving_flux_Gta_TMS_model_array
         massbalclim_TMS_model_array_annual = massbalclim_TMS_model_array
         massbaltotal_TMS_model_array_annual = massbaltotal_TMS_model_array
-        massbalclim_Gta_TMS_model_array_annual = massbalclim_Gta_TMS_model_array
-        massbaltotal_Gta_TMS_model_array_annual = massbaltotal_Gta_TMS_model_array
+        massbalclim_TMS_model_array_annual_gta = massbalclim_Gta_TMS_model_array
+        massbaltotal_TMS_model_array_annual_gta = massbaltotal_Gta_TMS_model_array
         FA_mwea_TMS_model_array_annual = FA_mwea_TMS_model_array
         area_km2_TMS_model_array_annual = area_km2_TMS_model_array
         velocity_at_calvingfront_model_array_annual = velocity_at_calvingfront_model_array
@@ -1957,15 +1957,15 @@ def Model_MB_FA_RT(model_function = reg_calving_flux,parameters_dict= None,rgiid
     if massbaltotal_TMS_model_array_annual.ndim == 2:
         massbaltotal_TMS_model_array_annual = massbaltotal_TMS_model_array_annual.T
 
-    # # ----Convert and transpose massbalclim_Gta_TMS_model_array_annual if necessary
-    massbalclim_Gta_TMS_model_array_annual = np.asarray(massbalclim_Gta_TMS_model_array_annual)
-    if massbalclim_Gta_TMS_model_array_annual.ndim == 2:
-        massbalclim_Gta_TMS_model_array_annual = massbalclim_Gta_TMS_model_array_annual.T
+    # # ----Convert and transpose massbalclim_TMS_model_array_annual_gta if necessary
+    massbalclim_TMS_model_array_annual_gta = np.asarray(massbalclim_TMS_model_array_annual_gta)
+    if massbalclim_TMS_model_array_annual_gta.ndim == 2:
+        massbalclim_TMS_model_array_annual_gta = massbalclim_TMS_model_array_annual_gta.T
 
-    # # ----Convert and transpose massbaltotal_Gta_TMS_model_array_annual if necessary
-    massbaltotal_Gta_TMS_model_array_annual = np.asarray(massbaltotal_Gta_TMS_model_array_annual)
-    if massbaltotal_Gta_TMS_model_array_annual.ndim == 2:
-        massbaltotal_Gta_TMS_model_array_annual = massbaltotal_Gta_TMS_model_array_annual.T
+    # # ----Convert and transpose massbaltotal_TMS_model_array_annual_gta if necessary
+    massbaltotal_TMS_model_array_annual_gta = np.asarray(massbaltotal_TMS_model_array_annual_gta)
+    if massbaltotal_TMS_model_array_annual_gta.ndim == 2:
+        massbaltotal_TMS_model_array_annual_gta = massbaltotal_TMS_model_array_annual_gta.T
 
     #---- Convert and transpose FA_mwea_TMS_model_array_annual if necessary
     FA_mwea_TMS_model_array_annual = np.asarray(FA_mwea_TMS_model_array_annual)
@@ -2027,8 +2027,8 @@ def Model_MB_FA_RT(model_function = reg_calving_flux,parameters_dict= None,rgiid
             volume_bwl_model_array_monthly = np.array(volume_bwl_model_array_monthly)
             massbalclim_TMS_model_array_monthly = np.array(massbalclim_TMS_model_array_monthly)
             massbaltotal_TMS_model_array_monthly =np.array( massbaltotal_TMS_model_array_monthly)
-            massbalclim_Gta_TMS_model_array_monthly = np.array(massbalclim_Gta_TMS_model_array_monthly)
-            massbaltotal_Gta_TMS_model_array_monthly = np.array(massbaltotal_Gta_TMS_model_array_monthly)
+            massbalclim_TMS_model_array_monthly_gta = np.array(massbalclim_TMS_model_array_monthly_gta)
+            massbaltotal_TMS_model_array_monthly_gta = np.array(massbaltotal_TMS_model_array_monthly_gta)
 
             # Dictionary to store dataset names and corresponding data arrays
             output_data_dict_monthly = {
@@ -2051,8 +2051,8 @@ def Model_MB_FA_RT(model_function = reg_calving_flux,parameters_dict= None,rgiid
                 'volume_bwl_model_array_monthly': volume_bwl_model_array_monthly,
                 'massbalclim_TMS_model_array_monthly': massbalclim_TMS_model_array_monthly,
                 'massbaltotal_TMS_model_array_monthly': massbaltotal_TMS_model_array_monthly,
-                'massbalclim_Gta_TMS_model_array_monthly': massbalclim_Gta_TMS_model_array_monthly,
-                'massbaltotal_Gta_TMS_model_array_monthly': massbaltotal_Gta_TMS_model_array_monthly
+                'massbalclim_TMS_model_array_monthly_gta': massbalclim_TMS_model_array_monthly_gta,
+                'massbaltotal_TMS_model_array_monthly_gta': massbaltotal_TMS_model_array_monthly_gta
             }
 
             # store the monthly results in json
@@ -2073,8 +2073,8 @@ def Model_MB_FA_RT(model_function = reg_calving_flux,parameters_dict= None,rgiid
                                 'calving_flux_Gta_TMS_model_array_annual': calving_flux_Gta_TMS_model_array_annual,
                                 'massbalclim_TMS_model_array_annual_mwea': massbalclim_TMS_model_array_annual,
                                 'massbaltotal_TMS_model_array_annual_mwea': massbaltotal_TMS_model_array_annual,
-                                'massbalclim_TMS_model_array_annual_Gta': massbalclim_Gta_TMS_model_array_annual,
-                                'massbaltotal_TMS_model_array_annual_Gta': massbaltotal_Gta_TMS_model_array_annual,
+                                'massbalclim_TMS_model_array_annual_gta': massbalclim_TMS_model_array_annual_gta,
+                                'massbaltotal_TMS_model_array_annual_gta': massbaltotal_TMS_model_array_annual_gta,
                                 'FA_mwea_TMS_model_array_annual': FA_mwea_TMS_model_array_annual,
                                 'area_km2_timeseries_model_array_annual': area_km2_TMS_model_array_annual,
                                 'velocity_at_calvingfront_model_array_annual_myr': velocity_at_calvingfront_model_array_annual,
@@ -2105,7 +2105,7 @@ def Model_MB_FA_RT(model_function = reg_calving_flux,parameters_dict= None,rgiid
         return (
             lengthchange_dLdt_model_array_annual,lengthchange_m_TMS_model_array_annual,calving_flux_Gta_TMS_model_array_annual,
             massbalclim_TMS_model_array_annual,massbaltotal_TMS_model_array_annual,
-            massbalclim_Gta_TMS_model_array_annual,massbaltotal_Gta_TMS_model_array_annual,FA_mwea_TMS_model_array_annual,
+            massbalclim_TMS_model_array_annual_gta,massbaltotal_TMS_model_array_annual_gta,FA_mwea_TMS_model_array_annual,
             area_km2_TMS_model_array_annual,velocity_at_calvingfront_model_array_annual,thickness_at_calvingfront_model_array_annual,
             width_at_calvingfront_model_array_annual,volume_bsl_model_array_annual,volume_bwl_model_array_annual,
             calving_flux_Gta_average_model_array,calving_thickness_model_array, massbalclim_model_array,massbaltotal_model_array,
