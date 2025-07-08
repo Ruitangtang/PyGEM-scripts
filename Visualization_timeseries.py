@@ -2002,15 +2002,31 @@ def plot_cdf_and_one_to_one_Good_Bad_All_Inset (observed_df = None, modeled_df =
         scale_v = 1
         clip_lower = False
     #  obs and obs_unc for good and bad AMIS
-    obs_change_good = merged_df_good[obs_name].values * scale_v
-    obs_unc_good = merged_df_good[obs_unc_name].values * scale_v
-    obs_change_bad = merged_df_bad[obs_name].values * scale_v
-    obs_unc_bad = merged_df_bad[obs_unc_name].values * scale_v
-    #  modeled values for good and bad AMIS
-    model_mean_good = merged_df_good['mean'].values * scale_v
-    hdi_low_good, hdi_high_good = merged_df_good['hdi_95_low'].values * scale_v, merged_df_good['hdi_95_high'].values * scale_v
-    model_mean_bad = merged_df_bad['mean'].values * scale_v
-    hdi_low_bad, hdi_high_bad = merged_df_bad['hdi_95_low'].values * scale_v, merged_df_bad['hdi_95_high'].values * scale_v
+    if merged_df_good.empty:
+        obs_change_good = np.array([])
+        obs_unc_good = np.array([])
+    else:
+        obs_change_good = merged_df_good[obs_name].values * scale_v
+        obs_unc_good = merged_df_good[obs_unc_name].values * scale_v
+            #  modeled values for good and bad AMIS
+        model_mean_good = merged_df_good['mean'].values * scale_v
+        hdi_low_good, hdi_high_good = merged_df_good['hdi_95_low'].values * scale_v, merged_df_good['hdi_95_high'].values * scale_v
+        # --- (1) Compute K-S Test with Uncertainty ---
+        statis_compare_good =stats_t.get_statistics_compare(obs_change=obs_change_good, obs_unc=obs_unc_good, hdi_high=hdi_high_good,
+                           hdi_low=hdi_low_good, model_mean=model_mean_good,n_simulations=1000,item_name = item_name,period = period,reg_id =reg_id)
+    
+    if merged_df_bad.empty:
+        obs_change_bad = np.array([])
+        obs_unc_bad = np.array([])
+    else:
+        obs_change_bad = merged_df_bad[obs_name].values * scale_v
+        obs_unc_bad = merged_df_bad[obs_unc_name].values * scale_v
+        model_mean_bad = merged_df_bad['mean'].values * scale_v
+        hdi_low_bad, hdi_high_bad = merged_df_bad['hdi_95_low'].values * scale_v, merged_df_bad['hdi_95_high'].values * scale_v
+        # --- (1) Compute K-S Test with Uncertainty ---
+        statis_compare_bad =stats_t.get_statistics_compare(obs_change=obs_change_bad, obs_unc=obs_unc_bad, hdi_high=hdi_high_bad,
+                           hdi_low=hdi_low_bad, model_mean=model_mean_bad,n_simulations=1000,item_name = item_name,period = period,reg_id =reg_id)
+
 
     #  modeled values for raw data
     obs_change = merged_df[obs_name].values * scale_v
@@ -2021,10 +2037,6 @@ def plot_cdf_and_one_to_one_Good_Bad_All_Inset (observed_df = None, modeled_df =
     # 
     #===================================================
     # --- (1) Compute K-S Test with Uncertainty ---
-    statis_compare_good =stats_t.get_statistics_compare(obs_change=obs_change_good, obs_unc=obs_unc_good, hdi_high=hdi_high_good,
-                           hdi_low=hdi_low_good, model_mean=model_mean_good,n_simulations=1000,item_name = item_name,period = period,reg_id =reg_id)
-    statis_compare_bad =stats_t.get_statistics_compare(obs_change=obs_change_bad, obs_unc=obs_unc_bad, hdi_high=hdi_high_bad,
-                           hdi_low=hdi_low_bad, model_mean=model_mean_bad,n_simulations=1000,item_name = item_name,period = period,reg_id =reg_id)
     statis_compare_all =stats_t.get_statistics_compare(obs_change=obs_change, obs_unc=obs_unc, hdi_high=hdi_high,
                         hdi_low=hdi_low, model_mean=model_mean,n_simulations=1000,item_name = item_name,period = period,reg_id =reg_id)
     #===================================================
@@ -2120,29 +2132,31 @@ def plot_cdf_and_one_to_one_Good_Bad_All_Inset (observed_df = None, modeled_df =
         raise ValueError(f"Length mismatch for bad boxes: box_data_bad ({len(box_data_bad)}) != box_positions_bad ({len(box_positions_bad)})")
     
     if Good_bad:
-        # plot good 
-        ax1.boxplot(box_data_good,
-                positions=box_positions_good,
-                widths=box_widths_good,
-                patch_artist=True,
-                boxprops=boxprops_good,
-                whiskerprops=whiskerprops_good,
-                medianprops=medianprops_good,
-                capprops=capprops_good,
-                showfliers=False,
-                manage_ticks=False)
+        # plot good
+        if not merged_df_good.empty: 
+            ax1.boxplot(box_data_good,
+                    positions=box_positions_good,
+                    widths=box_widths_good,
+                    patch_artist=True,
+                    boxprops=boxprops_good,
+                    whiskerprops=whiskerprops_good,
+                    medianprops=medianprops_good,
+                    capprops=capprops_good,
+                    showfliers=False,
+                    manage_ticks=False)
 
         # Plot bad boxes
-        ax1.boxplot(box_data_bad,
-                positions=box_positions_bad,
-                widths=box_widths_bad,
-                patch_artist=True,
-                boxprops=boxprops_bad,
-                whiskerprops=whiskerprops_bad,
-                medianprops=medianprops_bad,
-                capprops=capprops_bad,
-                showfliers=False,
-                manage_ticks=False)
+        if not merged_df_bad.empty:
+            ax1.boxplot(box_data_bad,
+                    positions=box_positions_bad,
+                    widths=box_widths_bad,
+                    patch_artist=True,
+                    boxprops=boxprops_bad,
+                    whiskerprops=whiskerprops_bad,
+                    medianprops=medianprops_bad,
+                    capprops=capprops_bad,
+                    showfliers=False,
+                    manage_ticks=False)
 
         # Create proxy artists for the legend
         good_box_legend = plt.Line2D([0], [0], color=box_colors_good, alpha=0.5, lw=5, label=' Modeled (converged)')
