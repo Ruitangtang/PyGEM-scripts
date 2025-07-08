@@ -465,8 +465,8 @@ def read_extract_data_region(region_output_path = None, region_params_path= None
             
             # Process data
             data = read_extract_data_individual(file_path=file_path, file_name=file, unique_path=unique_path)
-            mean_10yrs, sum_10yrs = compute_fixed_interval_stats(data, interval_years=10, key_indices=(0, 11))
-            mean_20yrs, sum_20yrs = compute_fixed_interval_stats(data, interval_years=20, key_indices=(0, 11))
+            mean_10yrs, sum_10yrs = compute_fixed_interval_stats(data, interval_years=10, key_indices=(0, 14)) #TODO should be flexible as customize (0,11) for the first 11 keys, to exclude the multiyear averaged values
+            mean_20yrs, sum_20yrs = compute_fixed_interval_stats(data, interval_years=20, key_indices=(0, 14))
             
             # Split stats
             mean_2000_2010, mean_2010_2020 = split_dict_flexible(mean_10yrs, split_dimension=1)
@@ -935,7 +935,8 @@ def extract_rgi_ids(filepath = None,filename = None):
     # The full file path and check if the file exists
     full_path = os.path.join(filepath, filename)
     if not os.path.exists(full_path):
-        raise FileNotFoundError(f"The file {full_path} does not exist.")
+        print(f"Warning: The file '{full_path}' does not exist.")  # Warning message
+        return None  # Return None if the file does not exist
 
     with open(full_path, 'r') as file:
         content = file.read()
