@@ -69,6 +69,8 @@ def getparse():
         Region ID for the analysis.
     data_index : str
         Data index for the analysis. e.g., 'Annual', 'Monthly', etc.
+    log_level : str
+        Logging level for the analysis. Default is 'INFO', e.g., 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'.
     Returns
     -------
     Object containing the parsed arguments.
@@ -86,6 +88,8 @@ def getparse():
                         help='Region ID for the analysis.')
     parser.add_argument('--data_index', type=str, required=True,
                         help='Data index for the analysis. e.g., "Annual", "Monthly", etc.')
+    parser.add_argument('--log_level', type=str, default='INFO',
+                        help='Logging level for the analysis. Default is "INFO". e.g., "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL".')
     return parser.parse_args()
 
 
@@ -99,6 +103,8 @@ def main ():
         args.region_id = int(input("Please enter the Region ID: e.g., 7 for Svalbard: "))
     if args.data_index is None:
         args.data_index = input("Please enter the Data Index (e.g., 'Annual', 'Monthly'): ")
+    # Set the logging level based on the argument
+    log_level = args.log_level.upper()
 
     # extract the region ID from the arguments
     region_id = args.region_id
@@ -140,6 +146,10 @@ def main ():
 
     # get the AMIS INFO PATH
     AMIS_statis_fp_region = os.path.join(model_output_fp,'..','Statistics_model_run',reg_id)
+
+    # Get the path of AMIS Info of each iteration
+    model_AMIS_fp = os.path.join(model_output_fp,'..','AMIS_info')
+    model_AMIS_fp_region = os.path.join(model_AMIS_fp,reg_id)
 
     # == Step 1 : Load the model output statistic info data ====
     all_glac_data_stats,mean_data,sum_data = stats_t.read_extract_data_region(region_output_path = model_output_fp_region,
@@ -369,87 +379,12 @@ def main ():
     mean_0020_FA_mwea = Model_output_stats_dfs['mean_0020_FA_mwea']
 
     # == Step 4: Load the observation data ====
-    # list all the observation data
-    # List all data
-    fa_20002010_fp = os.path.join(obs_data_fp,'frontal_ablation_obs_20002010.csv')
-    fa_20102020_fp = os.path.join(obs_data_fp,'frontal_ablation_obs_20102020.csv')
-    fa_20002020_fp = os.path.join(obs_data_fp,'frontal_ablation_obs_20002020.csv')
-    dLdt_20002020_fp = os.path.join(obs_data_fp,'lengthchange_annual_rgi_region01_7_20002020.csv')
-    mb_20002010_fp  = os.path.join(obs_data_fp,'mass_balance_obs_20002010.csv')
-    mb_20102020_fp  = os.path.join(obs_data_fp,'mass_balance_obs_20102020.csv')
-    mb_20002020_fp  = os.path.join(obs_data_fp,'mass_balance_obs_20002020.csv')
-    mb_20002020_corr_fp  = os.path.join(obs_data_fp,'mass_balance_obs_20002020_corr.csv')
-    fa_obs_20002010 = stats_t.read_data_from_file(fa_20002010_fp)
-    fa_obs_20102020 = stats_t.read_data_from_file(fa_20102020_fp)
-    fa_obs_20002020 = stats_t.read_data_from_file(fa_20002020_fp)
-    mb_obs_20002010 = stats_t.read_data_from_file(mb_20002010_fp)
-    mb_obs_20102020 = stats_t.read_data_from_file(mb_20102020_fp)
-    mb_obs_20002020 = stats_t.read_data_from_file(mb_20002020_fp)
-    mb_obs_20002020_corr = stats_t.read_data_from_file(mb_20002020_corr_fp)
-    dLdt_20002020 = stats_t.read_data_from_file(dLdt_20002020_fp)
-    # Create the new DataFrame from selected columns
-    fa_obs_20002010_gta = pd.DataFrame()
-    fa_obs_20002010_gta ['rgiid']= [ f"{int(x.split('-')[1].split('.')[0])}.{x.split('-')[1].split('.')[1]}" for x in fa_obs_20002010.RGIId.values]
-    fa_obs_20002010_gta ['fa_gta_obs']= fa_obs_20002010['fa_gta_obs']
-    fa_obs_20002010_gta ['fa_gta_obs_unc']= fa_obs_20002010['fa_gta_obs_unc']
-    fa_obs_20102020_gta = pd.DataFrame()
-    fa_obs_20102020_gta ['rgiid']= [ f"{int(x.split('-')[1].split('.')[0])}.{x.split('-')[1].split('.')[1]}" for x in fa_obs_20102020.RGIId.values]
-    fa_obs_20102020_gta ['fa_gta_obs']= fa_obs_20102020['fa_gta_obs']
-    fa_obs_20102020_gta ['fa_gta_obs_unc']= fa_obs_20102020['fa_gta_obs_unc']
-
-    fa_obs_20002020_gta = pd.DataFrame()
-    fa_obs_20002020_gta ['rgiid']= [ f"{int(x.split('-')[1].split('.')[0])}.{x.split('-')[1].split('.')[1]}" for x in fa_obs_20002020.RGIId.values]
-    fa_obs_20002020_gta ['fa_gta_obs']= fa_obs_20002020['fa_gta_obs']
-    fa_obs_20002020_gta ['fa_gta_obs_unc']= fa_obs_20002020['fa_gta_obs_unc']
-
-    mb_obs_20002010_mwea = pd.DataFrame()
-    mb_obs_20002010_mwea ['rgiid']= [ f"{int(x.split('-')[1].split('.')[0])}.{x.split('-')[1].split('.')[1]}" for x in mb_obs_20002010.RGIId.values]
-    mb_obs_20002010_mwea ['mb_clim_mwea'] = mb_obs_20002010['mb_clim_mwea']
-    mb_obs_20002010_mwea ['mb_clim_mwea_err'] = mb_obs_20002010['mb_clim_mwea_err']
-
-    mb_obs_20102020_mwea = pd.DataFrame()
-    mb_obs_20102020_mwea ['rgiid']= [ f"{int(x.split('-')[1].split('.')[0])}.{x.split('-')[1].split('.')[1]}" for x in mb_obs_20102020.RGIId.values]
-    mb_obs_20102020_mwea ['mb_clim_mwea'] = mb_obs_20102020['mb_clim_mwea']
-    mb_obs_20102020_mwea ['mb_clim_mwea_err'] = mb_obs_20102020['mb_clim_mwea_err']
-
-    mb_obs_20002020_mwea = pd.DataFrame()
-    mb_obs_20002020_mwea ['rgiid']= [ f"{int(x.split('-')[1].split('.')[0])}.{x.split('-')[1].split('.')[1]}" for x in mb_obs_20002020.RGIId.values]
-    mb_obs_20002020_mwea ['mb_clim_mwea'] = mb_obs_20002020['mb_clim_mwea']
-    mb_obs_20002020_mwea ['mb_clim_mwea_err'] = mb_obs_20002020['mb_clim_mwea_err']
-
-    mb_obs_20002020_mwea_corr = pd.DataFrame()
-    mb_obs_20002020_mwea_corr ['rgiid']= [ f"{int(x.split('-')[1].split('.')[0])}.{x.split('-')[1].split('.')[1]}" for x in mb_obs_20002020_corr.RGIId.values]
-    mb_obs_20002020_mwea_corr ['mb_clim_mwea'] = mb_obs_20002020_corr['mb_clim_mwea']
-    mb_obs_20002020_mwea_corr ['mb_clim_mwea_err'] = mb_obs_20002020_corr['mb_clim_mwea_err']
-
-    # frontal ablation with the unit m w.e. a-1
-    fa_obs_20002010_mwea = pd.DataFrame()
-    fa_obs_20002010_mwea ['rgiid']= fa_obs_20002010_gta['rgiid']
-    fa_obs_20002010_mwea ['fa_mwea_obs']= fa_obs_20002010_gta['fa_gta_obs']*1000./fa_obs_20002010['Area_km2']
-    fa_obs_20002010_mwea ['fa_mwea_obs_unc']= fa_obs_20002010_gta['fa_gta_obs_unc']*1000./fa_obs_20002010['Area_km2']
-    fa_obs_20102020_mwea = pd.DataFrame()
-    fa_obs_20102020_mwea ['rgiid']= fa_obs_20102020_gta['rgiid']
-    fa_obs_20102020_mwea ['fa_mwea_obs']= fa_obs_20102020_gta['fa_gta_obs']*1000./fa_obs_20102020['Area_km2']
-    fa_obs_20102020_mwea ['fa_mwea_obs_unc']= fa_obs_20102020_gta['fa_gta_obs_unc']*1000./fa_obs_20102020['Area_km2']
-
-    fa_obs_20002020_mwea = pd.DataFrame()
-    fa_obs_20002020_mwea ['rgiid']=  fa_obs_20002020_gta['rgiid']
-    fa_obs_20002020_mwea ['fa_mwea_obs']= fa_obs_20002020_gta['fa_gta_obs']*1000./fa_obs_20002020['Area_km2']
-    fa_obs_20002020_mwea ['fa_mwea_obs_unc']= fa_obs_20002020_gta['fa_gta_obs_unc']*1000./fa_obs_20002020['Area_km2']
-
-    # mass balance with the unit gt a-1
-    mb_obs_20002010_gta = pd.DataFrame()
-    mb_obs_20002010_gta ['rgiid']= mb_obs_20002010_mwea['rgiid']
-    mb_obs_20002010_gta ['mb_clim_gta'] = mb_obs_20002010_mwea['mb_clim_mwea']/1000.*mb_obs_20002010['area']
-    mb_obs_20002010_gta ['mb_clim_gta_err'] = mb_obs_20002010_mwea['mb_clim_mwea_err']/1000.*mb_obs_20002010['area']
-    mb_obs_20102020_gta = pd.DataFrame()
-    mb_obs_20102020_gta ['rgiid']= mb_obs_20102020_mwea['rgiid']
-    mb_obs_20102020_gta ['mb_clim_gta'] = mb_obs_20102020_mwea['mb_clim_mwea']/1000.*mb_obs_20102020['area']
-    mb_obs_20102020_gta ['mb_clim_gta_err'] = mb_obs_20102020_mwea['mb_clim_mwea_err']/1000.*mb_obs_20102020['area']
-    mb_obs_20002020_gta = pd.DataFrame()
-    mb_obs_20002020_gta ['rgiid']= mb_obs_20002020_mwea['rgiid']
-    mb_obs_20002020_gta ['mb_clim_gta'] = mb_obs_20002020_mwea['mb_clim_mwea']/1000.*mb_obs_20002020['area']
-    mb_obs_20002020_gta ['mb_clim_gta_err'] = mb_obs_20002020_mwea['mb_clim_mwea_err']/1000.*mb_obs_20002020['area']
+    # read the observation data from the file, based on the fucntion in the statistic_tool.py
+    (fa_obs_20002010_gta, fa_obs_20102020_gta, fa_obs_20002020_gta,
+     mb_obs_20002010_gta, mb_obs_20102020_gta, mb_obs_20002020_gta,
+     fa_obs_20002010_mwea, fa_obs_20102020_mwea, fa_obs_20002020_mwea,
+     mb_obs_20002010_mwea, mb_obs_20102020_mwea, mb_obs_20002020_mwea,
+     mb_obs_20002020_mwea_corr, dLdt_20002020) = stats_t.read_load_obs_unc(obs_data_fp)
 
     # generate the total length change over the period 2000-2010/2010-2020/2000-2020,
     length_change_obs = stats_t.calculate_length_change(dLdt_20002020, interval_years=10)
@@ -626,6 +561,230 @@ def main ():
                         Xlim = (0,0.8), Ylim = (0,0.8),subplot_label_L ='e', subplot_label_R = 'f',title= None, save_path = postpro_output_fp_region, save_name=None,Good_AMIS = rgiid_good,Bad_AMIS = rgiid_bad,
                                  legend_index = False,logx=False,logy=False,inset_zoom = True,Good_bad = True,
                             zoom_xlim = (0,0.1), zoom_ylim = (0,0.1),zoom_position = [0.68, 0.68, 0.28, 0.28],zoom_ticklabels = True)
+
+
+    # == Step 8: load the obs and prior and posterior weighted model output,calculate RMSE/DELTA RMSE of modeled and obs between posterior and prior  ==
+    # Initialize the obs dLdt 
+    Obs_dLdt = {'rgiid': [],'dLdt_myr_obs': [],'dLdt_myr_unc_obs': []}
+    # Iterate through the DataFrame rows
+    for _, row in dLdt_20002020.iterrows():
+        # Process RGIId
+        rgiid_parts = row['RGIId'].split('-')[1].split('.')
+        rgiid = f"{int(rgiid_parts[0])}.{rgiid_parts[1]}"
+        try:
+            # Safely convert string lists to numpy arrays
+            dLdt = np.array(ast.literal_eval(row['dLdt_m_per_yr']), dtype=np.float64)
+            dLdt_unc = np.array(ast.literal_eval(row['dLdt_m_per_yr_unc']), dtype=np.float64)
+        except (ValueError, SyntaxError) as e:
+            print(f"Error processing row {row['RGIId']}: {e}")
+            continue  # Skip to the next iteration if conversion fails
+
+        # Fill the observation lists
+        Obs_dLdt['rgiid'].append(rgiid)
+        Obs_dLdt['dLdt_myr_obs'].append(dLdt)
+        Obs_dLdt['dLdt_myr_unc_obs'].append(dLdt_unc)
+    Obs_dLdt_df = pd.DataFrame(Obs_dLdt)
+
+    # read the prior weighted model output
+    Prior_weighted = stats_t.read_prior_compute_weighted_save_region(model_output_region_fp=model_output_fp_region, AMIS_fp = model_AMIS_fp_region, data_index='Annual',
+                                            file_name=None, file_format='json')
+    # print the keys in Prior_weighted
+    if log_level == 'DEBUG':
+        print("Keys in Prior_weighted:", Prior_weighted.keys())
+    Prior_weighted_df = pd.DataFrame(Prior_weighted)
+    Prior_weighted_df = Prior_weighted_df.sort_values(by='rgiid').reset_index(drop=True)
+    # dLdt annual weighted prior
+    dLdt_annual_weighted_Prior = pd.DataFrame()
+    dLdt_annual_weighted_Prior ['rgiid'] =Prior_weighted_df['rgiid']
+    dLdt_annual_weighted_Prior ['dLdt_annual_myr_prior'] =Prior_weighted_df['lengthchange_dLdt_model_array_annual_myr_weighted']
+    # MB_Clim_mwea prior
+    MB_clim_annual_weighted_Prior = pd.DataFrame()
+    MB_clim_annual_weighted_Prior['rgiid'] = Prior_weighted_df['rgiid']
+    MB_clim_annual_weighted_Prior['mb_annul_mwea_prior'] = Prior_weighted_df['massbalclim_TMS_model_array_annual_mwea_weighted']
+    # FA_gta prior
+    FA_annual_weighted_Prior = pd.DataFrame()
+    FA_annual_weighted_Prior['rgiid'] = Prior_weighted_df['rgiid']
+    FA_annual_weighted_Prior['fa_annual_gta_prior'] = Prior_weighted_df['calving_flux_Gta_TMS_model_array_annual_weighted']
+
+    # read the posterior weighted model output
+    Poster_weighted = stats_t.load_posterior_weighted_region(model_output_fp_region=model_output_fp_region)
+    Poster_weighted_df =pd.DataFrame(Poster_weighted)
+    Poster_weighted_df = Poster_weighted_df.sort_values(by='rgiid').reset_index(drop=True)
+    if log_level == 'DEBUG':
+        print("Keys in Poster_weighted:", Poster_weighted_df.keys())
+    # dLdt annual weighted posterior
+    dLdt_annual_weighted_Poster = pd.DataFrame()
+    dLdt_annual_weighted_Poster ['rgiid'] =Poster_weighted_df['rgiid']
+    dLdt_annual_weighted_Poster ['dLdt_annual_myr_poster'] =Poster_weighted_df['lengthchange_dLdt_model_annual_weighted_myr']
+    # MB_Clim_mwea prior
+    MB_clim_annual_weighted_Poster = pd.DataFrame()
+    MB_clim_annual_weighted_Poster['rgiid'] = Poster_weighted_df['rgiid']
+    MB_clim_annual_weighted_Poster['mb_annul_mwea_poster'] = Poster_weighted_df['massbalclim_TMS_model_annual_weighted_mwea']
+    # FA_gta prior
+    FA_annual_weighted_Poster = pd.DataFrame()
+    FA_annual_weighted_Poster['rgiid'] = Poster_weighted_df['rgiid']
+    FA_annual_weighted_Poster['fa_annual_gta_poster'] = Poster_weighted_df['calving_flux_Gta_TMS_model_annual_weighted']
+
+    # Merge the DataFrames
+    # dLdt annual weighted prior and posterior and obs
+    dLdt_annual_weighted_poster_prior = pd.merge(dLdt_annual_weighted_Prior, dLdt_annual_weighted_Poster, on='rgiid', how='inner')
+    dLdt_annual_weighted_obs_poster_prior = pd.merge(dLdt_annual_weighted_poster_prior, Obs_dLdt_df, on='rgiid', how='inner')
+
+    # TODO MB_clim annual weighted prior and posterior and obs
+    # first need to get the 10-years average of the annual data for posterior and prior
+    # Then merge the DataFrames
+
+    # TODO FA annual weighted prior and posterior and obs
+    # first need to get the 10-years average of the annual data for posterior and prior
+    # Then merge the DataFrames
+
+    # Merge the DataFrames based on the good and bad AMIS (converged and unconverged)
+    # dLdt annual weighted prior and posterior and obs
+    if rgiid_good is not None:
+        dLdt_annual_merged_good = pd.merge(dLdt_annual_weighted_obs_poster_prior, rgiid_good, on='rgiid', how='inner')
+        # Extract the df for dLdt annual weighted prior and posterior and obs
+        dLdt_prior_df_good = dLdt_annual_merged_good ['dLdt_annual_myr_prior']
+        dLdt_poster_df_good = dLdt_annual_merged_good ['dLdt_annual_myr_poster']
+        dLdt_obs_df_good = dLdt_annual_merged_good ['dLdt_myr_obs']
+        dLdt_obs_unc_df_good = dLdt_annual_merged_good ['dLdt_myr_unc_obs']
+        dLdt_prior_rmse_good = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([dLdt_obs_df_good[i]]),
+                                                            model_values= np.array([dLdt_prior_df_good[i]]),
+                                                            obs_uncertainty=np.array([dLdt_obs_unc_df_good[i]]),
+                                                            adjust_uncertainty=True) for i in range(len(dLdt_obs_df_good))])
+        dLdt_prior_0010_rmse_good = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([dLdt_obs_df_good[i][0:10]]),
+                                                                model_values= np.array([dLdt_prior_df_good[i][0:10]]),
+                                                                obs_uncertainty=np.array([dLdt_obs_unc_df_good[i][0:10]]),
+                                                                adjust_uncertainty=True) for i in range(len(dLdt_obs_df_good))])
+        dLdt_prior_1020_rmse_good = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([dLdt_obs_df_good[i][10:20]]),
+                                                                model_values= np.array([dLdt_prior_df_good[i][10:20]]),
+                                                                obs_uncertainty=np.array([dLdt_obs_unc_df_good[i][10:20]]),
+                                                                adjust_uncertainty=True) for i in range(len(dLdt_obs_df_good))])
+        dLdt_poster_rmse_good = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([dLdt_obs_df_good[i]]),
+                                                                model_values= np.array([dLdt_poster_df_good[i]]),
+                                                                obs_uncertainty=np.array([dLdt_obs_unc_df_good[i]]),
+                                                                adjust_uncertainty=True) for i in range(len(dLdt_obs_df_good))])
+        dLdt_poster_0010_rmse_good = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([dLdt_obs_df_good[i][0:10]]),
+                                                                model_values= np.array([dLdt_poster_df_good[i][0:10]]),
+                                                                obs_uncertainty=np.array([dLdt_obs_unc_df_good[i][0:10]]),
+                                                                adjust_uncertainty=True) for i in range(len(dLdt_obs_df_good))])
+        dLdt_poster_1020_rmse_good = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([dLdt_obs_df_good[i][10:20]]),
+                                                                model_values= np.array([dLdt_poster_df_good[i][10:20]]),
+                                                                obs_uncertainty=np.array([dLdt_obs_unc_df_good[i][10:20]]),
+                                                                adjust_uncertainty=True) for i in range(len(dLdt_obs_df_good))])
+        # calculate the delta RMSE
+        dLdt_delta_rmse_good = dLdt_poster_rmse_good - dLdt_prior_rmse_good
+        dLdt_delta_0010_rmse_good = dLdt_poster_0010_rmse_good - dLdt_prior_0010_rmse_good
+        dLdt_delta_1020_rmse_good = dLdt_poster_1020_rmse_good - dLdt_prior_1020_rmse_good
+    else:
+        dLdt_prior_df_good = None
+        dLdt_poster_df_good = None
+        dLdt_obs_df_good = None
+        dLdt_obs_unc_df_good = None
+        dLdt_prior_rmse_good = None
+        dLdt_prior_0010_rmse_good = None
+        dLdt_prior_1020_rmse_good = None
+        dLdt_poster_rmse_good = None
+        dLdt_poster_0010_rmse_good = None
+        dLdt_poster_1020_rmse_good = None
+        dLdt_delta_rmse_good = None
+        dLdt_delta_0010_rmse_good = None
+        dLdt_delta_1020_rmse_good = None
+
+    if rgiid_bad is not None:
+        dLdt_annual_merged_bad = pd.merge(dLdt_annual_weighted_obs_poster_prior, rgiid_bad, on='rgiid', how='inner')
+        dLdt_prior_df_bad = dLdt_annual_merged_bad ['dLdt_annual_myr_prior']
+        dLdt_poster_df_bad = dLdt_annual_merged_bad ['dLdt_annual_myr_poster']
+        dLdt_obs_df_bad = dLdt_annual_merged_bad ['dLdt_myr_obs']
+        dLdt_obs_unc_df_bad = dLdt_annual_merged_bad ['dLdt_myr_unc_obs']
+        dLdt_prior_rmse_bad = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([dLdt_obs_df_bad[i]]),
+                                                              model_values= np.array([dLdt_prior_df_bad[i]]),
+                                                              obs_uncertainty=np.array([dLdt_obs_unc_df_bad[i]]),
+                                                              adjust_uncertainty=True) for i in range(len(dLdt_obs_df_bad))])
+        dLdt_prior_0010_rmse_bad = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([dLdt_obs_df_bad[i][0:10]]),
+                                                               model_values= np.array([dLdt_prior_df_bad[i][0:10]]),
+                                                               obs_uncertainty=np.array([dLdt_obs_unc_df_bad[i][0:10]]),
+                                                               adjust_uncertainty=True) for i in range(len(dLdt_obs_df_bad))])
+        dLdt_prior_1020_rmse_bad = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([dLdt_obs_df_bad[i][10:20]]),
+                                                              model_values= np.array([dLdt_prior_df_bad[i][10:20]]),
+                                                              obs_uncertainty=np.array([dLdt_obs_unc_df_bad[i][10:20]]),
+                                                              adjust_uncertainty=True) for i in range(len(dLdt_obs_df_bad))])
+        dLdt_poster_rmse_bad = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([dLdt_obs_df_bad[i]]),
+                                                              model_values= np.array([dLdt_poster_df_bad[i]]),
+                                                              obs_uncertainty=np.array([dLdt_obs_unc_df_bad[i]]),
+                                                              adjust_uncertainty=True) for i in range(len(dLdt_obs_df_bad))])
+        dLdt_poster_0010_rmse_bad = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([dLdt_obs_df_bad[i][0:10]]),
+                                                                model_values= np.array([dLdt_poster_df_bad[i][0:10]]),
+                                                                obs_uncertainty=np.array([dLdt_obs_unc_df_bad[i][0:10]]),
+                                                                adjust_uncertainty=True) for i in range(len(dLdt_obs_df_bad))])
+        dLdt_poster_1020_rmse_bad = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([dLdt_obs_df_bad[i][10:20]]),
+                                                               model_values= np.array([dLdt_poster_df_bad[i][10:20]]),
+                                                               obs_uncertainty=np.array([dLdt_obs_unc_df_bad[i][10:20]]),
+                                                               adjust_uncertainty=True) for i in range(len(dLdt_obs_df_bad))])
+        # calculate the delta RMSE
+        dLdt_delta_rmse_bad = dLdt_poster_rmse_bad - dLdt_prior_rmse_bad
+        dLdt_delta_0010_rmse_bad = dLdt_poster_0010_rmse_bad - dLdt_prior_0010_rmse_bad
+        dLdt_delta_1020_rmse_bad = dLdt_poster_1020_rmse_bad - dLdt_prior_1020_rmse_bad
+    else:
+        dLdt_prior_df_bad = None
+        dLdt_poster_df_bad = None
+        dLdt_obs_df_bad = None
+        dLdt_obs_unc_df_bad = None
+        dLdt_prior_rmse_bad = None
+        dLdt_prior_0010_rmse_bad = None
+        dLdt_prior_1020_rmse_bad = None
+        dLdt_poster_rmse_bad = None
+        dLdt_poster_0010_rmse_bad = None
+        dLdt_poster_1020_rmse_bad = None
+        dLdt_delta_rmse_bad = None
+        dLdt_delta_0010_rmse_bad = None
+        dLdt_delta_1020_rmse_bad = None
+    
+    # TODO MB_clim annual weighted prior and posterior and obs,GOOD and BAD
+    # TODO FA annual weighted prior and posterior and obs, GOOD and BAD
+
+
+
+    # TODO MB_clim annual weighted prior and posterior and obs,GOOD and BAD
+    # TODO FA annual weighted prior and posterior and obs, GOOD and BAD
+
+
+    # == Step 9 visulize the RMSE/DELTA RMSE of modeled and obs between posterior and prior ==
+    # the period is 2000-2010
+    Vis_ts.plot_delta_rmse_histograms(delta_rmse_good= dLdt_delta_0010_rmse_good, delta_rmse_bad= dLdt_delta_0010_rmse_bad, breaks_index = True,
+                               bin_width= 0.3,xlim_left =(-50,-42),xlim_right =(-10,1),x_breaks = -10,
+                               save_path=postpro_output_fp_region, save_name=None,item_name='dLdt_myr', period='2000-2010')
+    # the period is 2010-2020
+    Vis_ts.plot_delta_rmse_histograms(delta_rmse_good= dLdt_delta_1020_rmse_good, delta_rmse_bad= dLdt_delta_1020_rmse_bad, breaks_index = True,
+                               bin_width= 0.3,xlim_left =(-60,-51),xlim_right =(-25,20),x_breaks = -25,
+                               save_path=postpro_output_fp_region, save_name=None,item_name='dLdt_myr', period='2010-2020')
+    # the period is 2000-2020
+    Vis_ts.plot_delta_rmse_histograms(delta_rmse_good= dLdt_delta_rmse_good, delta_rmse_bad= dLdt_delta_rmse_bad, breaks_index = True,
+                               bin_width= 0.3,xlim_left =(-60,-51),xlim_right =(-25,20),x_breaks = -25,
+                               save_path=postpro_output_fp_region, save_name=None,item_name='dLdt_myr', period='2000-2020')
+    # TODO MB_clim annual weighted prior and posterior and obs,GOOD and BAD
+    # TODO FA annual weighted prior and posterior and obs, GOOD and BAD
+
+
+
+    # == Step 10: Visulize the RMSE between modeled and obs for both posterior and prior, and converged and unconverged ==
+    # dLdt annual weighted prior and posterior and obs
+    # the period is 2000-2010
+    Vis_ts.plot_rmse_histograms(rmse_good_prior=dLdt_prior_0010_rmse_good,rmse_good_poster=dLdt_poster_0010_rmse_good,
+                                rmse_bad_prior=dLdt_prior_0010_rmse_bad,rmse_bad_poster=dLdt_poster_0010_rmse_bad, bins_width = 0.5,
+                         save_path=postpro_output_fp_region, save_name=None, item_name='dLdt_myr', period='2000-2010')
+    # the period is 2010-2020
+    Vis_ts.plot_rmse_histograms(rmse_good_prior=dLdt_prior_1020_rmse_good,rmse_good_poster=dLdt_poster_1020_rmse_good,
+                                rmse_bad_prior=dLdt_prior_1020_rmse_bad,rmse_bad_poster=dLdt_poster_1020_rmse_bad, bins_width = 0.5,
+                         save_path=postpro_output_fp_region, save_name=None, item_name='dLdt_myr', period='2010-2020')
+    # the period is 2000-2020
+    Vis_ts.plot_rmse_histograms(rmse_good_prior=dLdt_prior_rmse_good,rmse_good_poster=dLdt_poster_rmse_good,
+                                rmse_bad_prior=dLdt_prior_rmse_bad,rmse_bad_poster=dLdt_poster_rmse_bad, bins_width = 0.5,
+                         save_path=postpro_output_fp_region, save_name=None, item_name='dLdt_myr', period='2000-2020')
+    # TODO MB_clim annual weighted prior and posterior and obs,GOOD and BAD
+    # TODO FA annual weighted prior and posterior and obs, GOOD and BAD
+    
+
+    
 
 
 if __name__ == "__main__":
