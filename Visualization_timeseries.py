@@ -11,6 +11,7 @@ import pickle
 import ast
 import math
 import matplotlib
+from scipy import stats
 from matplotlib.gridspec import GridSpec
 # matplotlib.use('TkAgg',force=True)
 import matplotlib.pyplot as plt
@@ -2517,3 +2518,332 @@ def plot_cdf_and_one_to_one_Good_Bad_All_Inset (observed_df = None, modeled_df =
     plt.savefig(save_file, bbox_inches='tight', dpi=300)
     #plt.show()
     plt.close(fig)  # or plt.close('all') if you want to close all open figures
+
+
+# Function to visulize the delta rmse of the AMIS Prior and Posterior
+def plot_delta_rmse_histograms(delta_rmse_good= None, delta_rmse_bad= None, breaks_index = True,
+                               bin_width= 0.3,xlim_left =None,xlim_right =None,x_breaks = None,
+                               save_path=None, save_name=None,item_name='dLdt', period='2000-2010'):
+    """    Plots histograms of delta RMSE for good and bad AMIS, with two subplots
+    Args:
+        delta_rmse_good (array-like): Delta RMSE values for good AMIS.
+        delta_rmse_bad (array-like): Delta RMSE values for bad AMIS.
+        breaks_index (bool): If True, plot the histograms with breaks at specified x_breaks, and plot the main cluster on the right, and the outlier part on the left.
+        bin_width (float): Width of the bins for the histograms.
+        xlim_left (tuple): x-axis limits for the left plot (outlier part).
+        xlim_right (tuple): x-axis limits for the right plot (main cluster).
+        x_breaks (int/float): Custom x-axis breaks for the histograms.
+        save_path (str): Path to save the figure.
+        save_name (str): Name of the saved figure file.
+        item_name (str): Name of the item being analyzed, used in the title and save name.
+        period (str): Period of analysis, used in the title and save name.
+    """
+    # Convert data to numpy arrays
+    # Convert inputs to NumPy arrays, handling None and empty cases
+    delta_rmse_good = np.array(delta_rmse_good) if delta_rmse_good is not None else np.array([])
+    delta_rmse_bad = np.array(delta_rmse_bad) if delta_rmse_bad is not None else np.array([])
+
+    # Check if both inputs are empty
+    if delta_rmse_good.size == 0 and delta_rmse_bad.size == 0:
+        raise ValueError("Both delta_rmse_good and delta_rmse_bad cannot be empty.")
+    
+    # Combine non-empty arrays
+    combined = np.concatenate([arr for arr in [delta_rmse_good, delta_rmse_bad] if arr.size > 0])
+
+    bin_width = bin_width
+    min_edge = np.floor(combined.min() / bin_width) * bin_width
+    max_edge = np.ceil(combined.max() / bin_width) * bin_width
+    bins = np.arange(min_edge, max_edge + bin_width, bin_width)
+    #print("min_edge, max_edge, bins:", min_edge, max_edge, bins)
+    if 0 not in bins:
+        bins = np.sort(np.append(bins, 0.0))
+
+    # Calculate means and t-tests
+    mean_good = np.mean(delta_rmse_good)
+    t_stat_good, p_val_good = stats.ttest_1samp(delta_rmse_good, 0)
+    mean_bad = np.mean(delta_rmse_bad)
+    t_stat_bad, p_val_bad = stats.ttest_1samp(delta_rmse_bad, 0)
+
+    # Create subplots
+
+    if breaks_index:
+        fig, (ax_left, ax_right) = plt.subplots(1, 2, sharey=True, figsize=(6, 4),
+                                                gridspec_kw={'width_ratios': [1, 5], 'wspace': 0.025})
+
+        # ==  Right plot: main cluster (-10 to 1)
+        ax_right.grid(True, linestyle='--', alpha=1, linewidth=0.5,zorder=1)
+        ax_right.axvline(mean_good, color='blue', linestyle='--', linewidth=0.8,zorder=2)
+        ax_right.axvline(mean_bad, color='red', linestyle='--', linewidth=0.8,zorder=2)
+        sns.histplot(delta_rmse_good[(delta_rmse_good > x_breaks)], bins=bins,
+                     fill=False, kde=False, color='blue', edgecolor='blue', ax=ax_right,zorder=3)
+        sns.histplot(delta_rmse_bad[(delta_rmse_bad > x_breaks)], bins=bins,
+                     fill=False, kde=False, color='red', edgecolor='red', ax=ax_right,zorder=3)
+
+        ax_right.set_xlim(xlim_right if xlim_right is not None else (-10, 1))
+        # Hide the spines between plots
+        ax_right.spines['left'].set_visible(False)
+        ax_right.yaxis.tick_right()
+        
+        # == Left plot: outlier part (all data <= -10)
+        ax_left.grid(True, linestyle='--', alpha=1, linewidth=0.5,zorder=1)
+        sns.histplot(delta_rmse_good[delta_rmse_good <= x_breaks], bins=bins, fill=False, kde=False,
+                     color='blue', edgecolor='blue', ax=ax_left,zorder=3)
+        sns.histplot(delta_rmse_bad[delta_rmse_bad <= x_breaks], bins=bins, fill=False, kde=False,
+                     color='red', edgecolor='red', ax=ax_left,zorder=3)
+
+        ax_left.set_xlim(xlim_left if xlim_left is not None else (-50, -10))
+        ax_left.set_ylabel('Count', fontsize=12)
+        ax_left.axvline(mean_good, color='blue', linestyle='--')
+        ax_left.axvline(mean_bad, color='red', linestyle='--')
+            # Hide the spines between plots
+        ax_left.spines['right'].set_visible(False)
+        ax_left.yaxis.tick_left()
+        ax_left.tick_params(labelright=False)
+ 
+        #  == Add double slashes (//) on the right edge of the left plot’s x-axis line
+        d = .015  # length of slashes in axes fraction
+        gap = .02  # gap between the two slashes
+
+        kwargs = dict(transform=ax_left.transAxes, color='k', clip_on=False, linewidth=1)
+
+        ax_left.plot([1 - d - gap, 1 + d - gap], [-d, +d], **kwargs)  # first slash
+        ax_left.plot([1 - d + gap, 1 + d + gap], [-d, +d], **kwargs)  # second slash
+        ax_left.plot([1 - d - gap, 1 + d - gap], [1 - d, 1 + d], **kwargs)  # top right //
+        ax_left.plot([1 - d + gap, 1 + d + gap], [1 - d, 1 + d], **kwargs)  # second top right //
+
+        # == Annotations (on right plot)
+        ax_right.text(ax_right.get_xlim()[0] - 0.2 * (ax_right.get_xlim()[1] - ax_right.get_xlim()[0]),
+                      ax_right.get_ylim()[1] * 0.85,
+                      f'Converged:\nt = {t_stat_good:.2f}, p = {p_val_good:.3f}',
+                      fontsize=10, color='blue')
+
+        ax_right.text(ax_right.get_xlim()[0] - 0.2 * (ax_right.get_xlim()[1] - ax_right.get_xlim()[0]),
+                      ax_right.get_ylim()[1] * 0.7,
+                      f'Unconverged:\nt = {t_stat_bad:.2f}, p = {p_val_bad:.3f}',
+                      fontsize=10, color='red')
+        # Set labels for the whole figure
+        fig.text(0.5, 0.01, 'Δ Normalized RMSE (Posterior − Prior)', ha='center', fontsize=12)
+    else:
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.grid(True, linestyle='--', alpha=1, linewidth=0.5,zorder=1)
+        sns.histplot(delta_rmse_good, bins=bins, fill=False, kde=False,
+                     color='blue', edgecolor='blue', ax=ax, label='Converged',zorder=3)
+        sns.histplot(delta_rmse_bad, bins=bins, fill=False, kde=False,
+                     color='red', edgecolor='red', ax=ax, label='Unconverged',zorder=3)
+
+        ax.axvline(mean_good, color='blue', linestyle='--', linewidth=0.8,zorder=2)
+        ax.axvline(mean_bad, color='red', linestyle='--', linewidth=0.8,zorder=2)
+
+        # ==  Annotations
+        ax.text(ax.get_xlim()[0] + 0.2 * (ax.get_xlim()[1] - ax.get_xlim()[0]),
+                ax.get_ylim()[1] * 0.85,
+                f'Converged:\nt = {t_stat_good:.2f}, p = {p_val_good:.3f}',
+                fontsize=10, color='blue')
+        ax.text(ax.get_xlim()[0] + 0.2 * (ax.get_xlim()[1] - ax.get_xlim()[0]),
+                ax.get_ylim()[1] * 0.7,
+                f'Unconverged:\nt = {t_stat_bad:.2f}, p = {p_val_bad:.3f}',
+                fontsize=10, color='red')
+
+        #ax.set_xlim(xlim_left if xlim_left is not None else (-50, 1))
+        ax.set_ylabel('Count', fontsize=12)
+        ax.set_xlabel('Δ Normalized RMSE (Posterior − Prior)', fontsize=12)
+        #ax.legend()  
+    plt.tight_layout()
+    # Save the figure
+    if save_path is None:
+        save_path = 'Regional_analysis/figures/DA_performance/'
+    else:
+        save_path = os.path.join(save_path, 'Regional_analysis', 'figures', 'DA_performance')
+    os.makedirs(save_path, exist_ok=True)
+    if save_name is None:
+        save_name = f'Delta_rmse_histograms_{item_name.replace(" ", "_")}_{period.replace("-", "_")}'
+    save_file = os.path.join(save_path, f"{save_name}.png")
+    plt.savefig(save_file, bbox_inches='tight', dpi=300)
+    #plt.show()
+    plt.close(fig)
+
+
+# Function to visualize the rmse of the AMIS Prior and Posterior
+def plot_rmse_histograms(rmse_good_prior=None,rmse_good_poster=None,rmse_bad_prior=None,rmse_bad_poster=None, bins_width = 0.3,
+                         save_path=None, save_name=None, item_name='dLdt', period='2000-2010'):
+        """Plots histograms of RMSE for posterior and prior for good and bad AMIS, with statistical analysis,with two subplots,
+        one is for good AMIS, and the other is for bad AMIS.
+        Args:
+            rmse_good_prior (array-like): RMSE values for good AMIS prior.
+            rmse_good_poster (array-like): RMSE values for good AMIS posterior.
+            rmse_bad_prior (array-like): RMSE values for bad AMIS prior.
+            rmse_bad_poster (array-like): RMSE values for bad AMIS posterior.
+            bins_width (float): Width of the bins for the histograms.
+            save_path (str): Path to save the figure.
+            save_name (str): Name of the saved figure file.
+            item_name (str): Name of the item being analyzed, used in the title and save name.
+            period (str): Period of analysis, used in the title and save name.
+        """
+        # Convert data to numpy arrays
+        # Convert inputs to NumPy arrays, handling None and empty cases
+        rmse_good_prior = np.array(rmse_good_prior) if rmse_good_prior is not None else np.array([])
+        rmse_good_poster = np.array(rmse_good_poster) if rmse_good_poster is not None else np.array([])
+        rmse_bad_prior = np.array(rmse_bad_prior) if rmse_bad_prior is not None else np.array([])
+        rmse_bad_poster = np.array(rmse_bad_poster) if rmse_bad_poster is not None else np.array([])
+    
+        # Check if both inputs are empty, and combine non-empty arrays
+        if rmse_good_prior.size == 0 and rmse_good_poster.size == 0 and rmse_bad_prior.size == 0 and rmse_bad_poster.size == 0:
+            raise ValueError("All RMSE inputs cannot be empty.")
+        # Combine good and bad RMSE arrays
+        # Ensure that rmse_good and rmse_bad are not empty before concatenation
+        if rmse_good_prior.size == 0 and rmse_good_poster.size == 0:
+            rmse_good = np.array([])
+        else:
+            rmse_good = np.concatenate((rmse_good_prior, rmse_good_poster)) if rmse_good_prior.size > 0 and rmse_good_poster.size > 0 else np.array(rmse_good_prior) if rmse_good_prior.size > 0 else np.array(rmse_good_poster)
+        if rmse_bad_prior.size == 0 and rmse_bad_poster.size == 0:
+            rmse_bad = np.array([])
+        else:
+            rmse_bad = np.concatenate((rmse_bad_prior, rmse_bad_poster)) if rmse_bad_prior.size > 0 and rmse_bad_poster.size > 0 else np.array(rmse_bad_prior) if rmse_bad_prior.size > 0 else np.array(rmse_bad_poster)
+        
+        # Combine non-empty arrays
+        combined = np.concatenate([arr for arr in [rmse_good, rmse_bad] if arr.size > 0])
+    
+        bins_width = bins_width
+        min_edge = np.floor(combined.min() / bins_width) * bins_width
+        max_edge = np.ceil(combined.max() / bins_width) * bins_width
+        bins = np.arange(min_edge, max_edge + bins_width, bins_width)
+        #print("min_edge, max_edge, bins:", min_edge, max_edge, bins)
+        if 0 not in bins:
+            bins = np.sort(np.append(bins, 0.0))
+    
+        # Calculate means and t-tests
+        mean_good_prior = np.mean(rmse_good_prior)
+        t_stat_good_prior, p_val_good_prior = stats.ttest_1samp(rmse_good_prior, 0)
+        mean_good_poster = np.mean(rmse_good_poster)
+        t_stat_good_poster, p_val_good_poster = stats.ttest_1samp(rmse_good_poster, 0)
+        mean_bad_prior = np.mean(rmse_bad_prior)
+        t_stat_bad_prior, p_val_bad_prior = stats.ttest_1samp(rmse_bad_prior, 0)
+        mean_bad_poster = np.mean(rmse_bad_poster)
+        t_stat_bad_poster, p_val_bad_poster = stats.ttest_1samp(rmse_bad_poster, 0)     
+
+        # plot the histograms
+        if rmse_good.size == 0 and rmse_bad.size == 0:
+            raise ValueError("Both rmse_good and rmse_bad cannot be empty.")
+        if rmse_good.size > 0 and rmse_bad.size > 0:
+            fig, (ax_good, ax_bad) = plt.subplots(2, 1, sharey=True, figsize=(5, 6),constrained_layout= True)
+            # == Good AMIS subplot
+            ax_good.grid(True, linestyle='--', alpha=1, linewidth=0.5,zorder=1)
+            sns.histplot(rmse_good_prior, bins=bins, fill=False, kde=False,
+                         color='blue', edgecolor='blue', ax=ax_good, label='Prior',zorder=3)
+            sns.histplot(rmse_good_poster, bins=bins, fill=False, kde=False,
+                         color='orange', edgecolor='orange', ax=ax_good, label='Posterior',zorder=3)
+            ax_good.axvline(mean_good_prior, color='blue', linestyle='--', linewidth=0.8,zorder=2)
+            ax_good.axvline(mean_good_poster, color='orange', linestyle='--', linewidth=0.8,zorder=2)
+            # Annotations
+            ax_good.text(ax_good.get_xlim()[1] - 0.3 * (ax_good.get_xlim()[1] - ax_good.get_xlim()[0]),
+                         ax_good.get_ylim()[1] * 0.85,
+                         'Converged\n',
+                         fontsize=10, color='black')
+            ax_good.text(ax_good.get_xlim()[1] - 0.3 * (ax_good.get_xlim()[1] - ax_good.get_xlim()[0]),
+                         ax_good.get_ylim()[1] * 0.6,
+                         f'Prior:\n t = {t_stat_good_prior:.2f}\n p = {p_val_good_prior:.3f}\n',
+                         fontsize=10, color='blue')
+            ax_good.text(ax_good.get_xlim()[1] - 0.3 * (ax_good.get_xlim()[1] - ax_good.get_xlim()[0]),
+                         ax_good.get_ylim()[1] * 0.45,
+                         f'Posterior:\n t = {t_stat_good_poster:.2f}\n p = {p_val_good_poster:.3f}',
+                         fontsize=10, color='orange')
+            ax_good.set_xlim(left=min_edge, right=max_edge)
+            ax_good.set_ylabel('Count', fontsize=12)
+            #ax_good.set_xlabel('RMSE (normalized by uncertainty)', fontsize=12)
+
+            # == Bad AMIS subplot
+            ax_bad.grid(True, linestyle='--', alpha=1, linewidth=0.5,zorder=1)
+            sns.histplot(rmse_bad_prior, bins=bins, fill=False, kde=False,
+                         color='blue', edgecolor='blue', ax=ax_bad, label='Prior',zorder=3)
+            sns.histplot(rmse_bad_poster, bins=bins, fill=False, kde=False,
+                         color='orange', edgecolor='orange', ax=ax_bad, label='Posterior',zorder=3)
+            ax_bad.axvline(mean_bad_prior, color='blue', linestyle='--', linewidth=0.8,zorder=2)
+            ax_bad.axvline(mean_bad_poster, color='orange', linestyle='--', linewidth=0.8,zorder=2)
+            # Annotations
+            ax_bad.text(ax_bad.get_xlim()[1] - 0.3 * (ax_bad.get_xlim()[1] - ax_bad.get_xlim()[0]),
+                        ax_bad.get_ylim()[1] * 0.85,
+                        'Unconverged\n',
+                        fontsize=10, color='black')
+            ax_bad.text(ax_bad.get_xlim()[1] - 0.3 * (ax_bad.get_xlim()[1] - ax_bad.get_xlim()[0]),
+                        ax_bad.get_ylim()[1] * 0.65,
+                        f'Prior:\n t = {t_stat_bad_prior:.2f}\n p = {p_val_bad_prior:.3f}',
+                        fontsize=10, color='blue')
+            ax_bad.text(ax_bad.get_xlim()[1] - 0.3 * (ax_bad.get_xlim()[1] - ax_bad.get_xlim()[0]),
+                        ax_bad.get_ylim()[1] * 0.45,
+                        f'Posterior:\n t = {t_stat_bad_poster:.2f}\n p = {p_val_bad_poster:.3f}',
+                        fontsize=10, color='orange')
+            ax_bad.set_xlim(left=min_edge, right=max_edge)
+            ax_bad.set_xlabel('Normalized RMSE', fontsize=12)
+            fig.text(0.01, 0.98, 'a', fontsize=14, ha='left', va='top')
+            fig.text(0.01, 0.50, 'b', fontsize=14, ha='left', va='top')
+        else:
+            # If only one of the good or bad RMSE arrays is non-empty, plot a single plot but with both prior and posterior histogram
+            if rmse_good.size > 0:
+                
+                fig, ax = plt.subplots(figsize=(6, 4))
+                ax.grid(True, linestyle='--', alpha=1, linewidth=0.5,zorder=1)
+
+                sns.histplot(rmse_good_prior, bins=bins, fill=False, kde=False,
+                             color='blue', edgecolor='blue', ax=ax, label='Prior',zorder=3)
+                sns.histplot(rmse_good_poster, bins=bins, fill=False, kde=False,
+                             color='orange', edgecolor='orange', ax=ax, label='Posterior',zorder=3)
+                ax.axvline(np.mean(rmse_good_prior), color='blue', linestyle='--', linewidth=0.8,zorder=2)
+                ax.axvline(np.mean(rmse_good_poster), color='orange', linestyle='--', linewidth=0.8,zorder=2)
+                # Annotations
+                ax.text(ax.get_xlim()[0] + 0.2 * (ax.get_xlim()[1] - ax.get_xlim()[0]),
+                        ax.get_ylim()[1] * 0.85,
+                        'Converged\n',
+                        fontsize=10, color='black')
+                ax.text(ax.get_xlim()[0] + 0.2 * (ax.get_xlim()[1] - ax.get_xlim()[0]),
+                        ax.get_ylim()[1] * 0.7,
+                        f'Prior:\nt = {t_stat_good_prior:.2f}, p = {p_val_good_prior:.3f}',
+                        fontsize=10, color='blue')
+                ax.text(ax.get_xlim()[0] + 0.2 * (ax.get_xlim()[1] - ax.get_xlim()[0]),
+                        ax.get_ylim()[1] * 0.6,
+                        f'Posterior:\nt = {t_stat_good_poster:.2f}, p = {p_val_good_poster:.3f}',
+                        fontsize=10, color='orange')
+                ax.set_xlim(left=min_edge, right=max_edge)
+                ax.set_ylabel('Count', fontsize=12)
+                ax.set_xlabel('Normalized RMSE', fontsize=12)
+            elif rmse_bad.size > 0:
+                fig, ax = plt.subplots(figsize=(6, 4))
+                ax.grid(True, linestyle='--', alpha=1, linewidth=0.5,zorder=1)
+
+                sns.histplot(rmse_bad_prior, bins=bins, fill=False, kde=False,
+                             color='blue', edgecolor='blue', ax=ax, label='Prior',zorder=3)
+                sns.histplot(rmse_bad_poster, bins=bins, fill=False, kde=False,
+                             color='orange', edgecolor='orange', ax=ax, label='Posterior',zorder=3)
+                ax.axvline(np.mean(rmse_bad_prior), color='blue', linestyle='--', linewidth=0.8,zorder=2)
+                ax.axvline(np.mean(rmse_bad_poster), color='orange', linestyle='--', linewidth=0.8,zorder=2)
+                # Annotations
+                ax.text(ax.get_xlim()[0] + 0.2 * (ax.get_xlim()[1] - ax.get_xlim()[0]),
+                        ax.get_ylim()[1] * 0.85,
+                        'Unconverged:\n',
+                        fontsize=10, color='black')
+                ax.text(ax.get_xlim()[0] + 0.2 * (ax.get_xlim()[1] - ax.get_xlim()[0]),
+                        ax.get_ylim()[1] * 0.7,
+                        f'Prior:\nt = {t_stat_bad_prior:.2f}, p = {p_val_bad_prior:.3f}',
+                        fontsize=10, color='blue')
+                ax.text(ax.get_xlim()[0] + 0.2 * (ax.get_xlim()[1] - ax.get_xlim()[0]),
+                        ax.get_ylim()[1] * 0.6,
+                        f'Posterior:\nt = {t_stat_bad_poster:.2f}, p = {p_val_bad_poster:.3f}',
+                        fontsize=10, color='orange')
+                ax.set_xlim(left=min_edge, right=max_edge)
+                ax.set_ylabel('Count', fontsize=12)
+                ax.set_xlabel('Normalized RMSE', fontsize=12)
+        
+        # save the figure
+        # Set the title
+        #ax.set_title(f"RMSE Histogram for {item_name} ({period})", fontsize=14)
+        # Save the figure
+        if save_path is None:
+            save_path = 'Regional_analysis/figures/DA_performance/'
+        else:
+            save_path = os.path.join(save_path, 'Regional_analysis', 'figures', 'DA_performance')
+        os.makedirs(save_path, exist_ok=True)
+        if save_name is None:
+            save_name = f'RMSE_histograms_{item_name.replace(" ", "_")}_{period.replace("-", "_")}'
+        save_file = os.path.join(save_path, f"{save_name}.png")
+        plt.savefig(save_file, bbox_inches='tight', dpi=300)
+        #plt.show()
+        plt.close(fig)  # or plt.close('all') if you want to close all open figures
