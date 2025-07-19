@@ -1084,3 +1084,387 @@ def clip_errors(values = None,err = None,clip_lower= False):
         return [lower_clipped, upper]
     else:  # Symmetric errors
         return np.minimum(err, values) if clip_lower else err
+    
+
+# Function to read and load the observed data from csv files
+def read_load_obs_unc(obs_data_fp=None):
+    """Read and load observed data and uncertainties from a CSV file.
+    
+    Parameters:
+    - obs_data_fp (str): Path to the CSV file containing observed data and uncertainties.
+    
+    Returns:
+    - return a tube including all pd.df.
+    """
+    if not os.path.exists(obs_data_fp):
+        raise FileNotFoundError(f"The file {obs_data_fp} does not exist.")
+    
+        # Define file paths and keys for data loading
+    file_keys = {
+        'fa_20002010': 'frontal_ablation_obs_20002010.csv',
+        'fa_20102020': 'frontal_ablation_obs_20102020.csv',
+        'fa_20002020': 'frontal_ablation_obs_20002020.csv',
+        'dLdt_20002020': 'lengthchange_annual_rgi_region01_7_20002020.csv',
+        'mb_20002010': 'mass_balance_obs_20002010.csv',
+        'mb_20102020': 'mass_balance_obs_20102020.csv',
+        'mb_20002020': 'mass_balance_obs_20002020.csv',
+        'mb_20002020_corr': 'mass_balance_obs_20002020_corr.csv'
+    }
+    
+    # Load the data using stats_t
+    data_frames = {key: read_data_from_file(os.path.join(obs_data_fp, filename))
+                   for key, filename in file_keys.items()}
+    
+    # Function to create DataFrames with common transformations
+    def create_gta_df(obs_data):
+        rgiid = [f"{int(x.split('-')[1].split('.')[0])}.{x.split('-')[1].split('.')[1]}" for x in obs_data.RGIId.values]
+        return pd.DataFrame({
+            'rgiid': rgiid,
+            'fa_gta_obs': obs_data['fa_gta_obs'],
+            'fa_gta_obs_unc': obs_data['fa_gta_obs_unc']
+        })
+    # Create frontal ablation DataFrames
+    fa_obs_gta = {key: create_gta_df(data_frames[key]) for key in ['fa_20002010', 'fa_20102020', 'fa_20002020']}
+
+    # Convert to m w.e. a-1 for frontal ablation
+    def convert_fa_to_mwea(fa_df, area):
+        return pd.DataFrame({
+            'rgiid': fa_df['rgiid'],
+            'fa_mwea_obs': fa_df['fa_gta_obs'] * 1000. / area,
+            'fa_mwea_obs_unc': fa_df['fa_gta_obs_unc'] * 1000. / area
+        })
+
+    fa_obs_mwea = {key: convert_fa_to_mwea(fa_obs_gta[key], data_frames[key]['Area_km2']) for key in fa_obs_gta.keys()}
+
+    # Function to create mass balance DataFrames
+    def create_mwea_df(obs_data):
+        rgiid = [f"{int(x.split('-')[1].split('.')[0])}.{x.split('-')[1].split('.')[1]}" for x in obs_data.RGIId.values]
+        return pd.DataFrame({
+            'rgiid': rgiid,
+            'mb_clim_mwea': obs_data['mb_clim_mwea'],
+            'mb_clim_mwea_err': obs_data['mb_clim_mwea_err']
+        })
+    # Create mass balance DataFrames
+    mb_obs_mwea = {key: create_mwea_df(data_frames[key]) for key in ['mb_20002010', 'mb_20102020', 'mb_20002020', 'mb_20002020_corr']}
+
+    # For mass balance convert to gt a-1
+    def convert_mb_to_gta(mwea_df, observation_df):
+        return pd.DataFrame({
+            'rgiid': mwea_df['rgiid'],
+            'mb_clim_gta': mwea_df['mb_clim_mwea'] / 1000. * observation_df['area'],
+            'mb_clim_gta_err': mwea_df['mb_clim_mwea_err'] / 1000. * observation_df['area']
+        })
+    
+    mb_obs_gta = {key: convert_mb_to_gta(mb_obs_mwea[key], data_frames[key]) for key in mb_obs_mwea.keys()}
+
+    # Return the DataFrames directly
+    return (fa_obs_gta['fa_20002010'], fa_obs_gta['fa_20102020'], fa_obs_gta['fa_20002020'],
+            mb_obs_gta['mb_20002010'], mb_obs_gta['mb_20102020'], mb_obs_gta['mb_20002020'],
+            fa_obs_mwea['fa_20002010'], fa_obs_mwea['fa_20102020'], fa_obs_mwea['fa_20002020'],
+            mb_obs_mwea['mb_20002010'], mb_obs_mwea['mb_20102020'], mb_obs_mwea['mb_20002020'],
+            mb_obs_mwea['mb_20002020_corr'], data_frames['dLdt_20002020'])
+
+
+# Function to read the AMIS information and model output data for the prior simulation, to get the weighted prior model output of individual glaciers
+def read_prior_compute_weighted_save_ind(AMIS_fp=None, model_output_fp=None,rgiid = None,save_path=None, data_index='Prior',
+                            file_name= None, file_format='json'):
+    """
+    Reads AMIS information and model output data for the prior simulation, and saves the weighted prior model output.
+    Parameters:
+    - AMIS_fp (str): File path to the AMIS information file.
+    - model_output_fp (str): File path to the model output data file.
+    - rgiid (str): RGI ID for the glacier, used to format the output file name.
+    - save_path (str): Directory to save the weighted prior model output.
+    - data_index (str): Identifier for the data type ('Annual', 'Monthly', 'Poster', 'Prior').
+    - file_name (str): Base name for the output file.
+    - file_format (str): Format to save the output file ('json', 'csv', 'xlsx').
+    Returns:
+    - pd.DataFrame: DataFrame containing the weighted prior model output.
+    """
+    # == The full RGIID
+    if rgiid is not None:
+        # Ensure the RGI ID is formatted correctly, e.g., 'RGI60-07.00029', based on '7.00029', 'RGI60-10.00029', based on '10.00029
+        RGIID = f"RGI60-{str(int(float(rgiid.split('.')[0]))).zfill(2)}.{rgiid.split('.')[1]}" # Remove 'RGI60-' prefix if present
+
+    #== read the AMIS information file
+    if not os.path.exists(AMIS_fp):
+        raise FileNotFoundError(f"The file {AMIS_fp} does not exist.")
+    AMIS_fn = 'calibration_model_AMIS_Info_' + RGIID + '_0.json'
+    AMIS_fp_full = os.path.join(AMIS_fp, AMIS_fn)  # Assuming the AMIS info file is named 'AMIS_info.json'
+    amis_info = pd.read_json(AMIS_fp_full)
+    # get the weights
+    weights = np.asarray(amis_info ['weights_array'])
+
+    #== read the model output data file
+    if not os.path.exists(model_output_fp):
+        raise FileNotFoundError(f"The file {model_output_fp} does not exist.")
+    if model_output_fp.endswith('_0.json'):
+        with open(model_output_fp, 'r') as model_output_fp:
+            model_output_data = json.load(model_output_fp)
+    
+    
+    #print(" the type of model output data is:", type(model_output_data))
+    
+    #== compute the weighted prior model output
+    prior_weighted = compute_weighted_average_and_save(
+        data_dict=model_output_data,
+        weights=weights,
+        rgiid=rgiid,  # RGI ID is not provided in this context
+        data_index=data_index,
+        save_path=save_path,
+        save_name=file_name,
+        file_format=file_format
+    ) 
+
+    #== return the prior weighted model output
+    return prior_weighted
+
+
+# Function to compute the weighted average and save as json, return the Dictionary of weighted averages
+def compute_weighted_average_and_save(data_dict=None, weights=None,rgiid =None, data_index = 'Prior',
+                                       save_path=None,save_name=None, file_format='json'):
+    """
+    Computes the weighted average of a DataFrame and saves the result to a specified file format.
+    
+    Parameters:
+    - data_dict (dict): Dictionary containing the data to compute the weighted average.
+    - weights (list or np.ndarray): Weights for each row in the DataFrame.
+    - rgiid (str): RGI ID for the glacier, used in the output file name.
+    - data_index (str): Identifier for the data type ('Annual', 'Monthly', 'Poster', 'Prior').
+    - save_path (str): Directory to save the output file.
+    - save_name (str): Base name for the output file.
+    - file_format (str): Format to save the output file ('json', 'csv', 'xlsx').
+    
+    Returns:
+    - dictionary: Dict containing the weighted averages.
+    """
+    # Validate inputs
+    if data_dict is None or weights is None:
+        raise ValueError("data_df and weights must be provided.")
+    
+    if not isinstance(data_dict, dict):
+        raise TypeError("data_df must be a dictionary.")
+    
+    if not isinstance(weights, (list, np.ndarray)):
+        raise TypeError("weights must be a list or numpy array.")
+    
+    # Convert weights to a NumPy array if it isn't already
+    weights = np.asarray(weights)
+    
+    # Dictionary to store weighted results
+    dataset_dict_weighted = {}
+    #print("the keys in the data_dict are:", data_dict.keys())
+    # Iterate through the keys in the output_dict
+    for key in data_dict.keys():
+        data_array = data_dict[key]
+
+        # Convert non-NumPy arrays to NumPy arrays
+        if not isinstance(data_array, np.ndarray):
+            data_array = np.asarray(data_array)
+
+        # Check the shape of the array to decide on flattening/axis
+        if data_array.ndim == 1:
+            if len(weights) != data_array.size:
+                raise ValueError(f"Weight size {len(weights)} does not match data array size {data_array.size} for key '{key}'.")
+            weighted_average = np.average(data_array, weights=weights)
+        elif data_array.ndim == 2:
+            shape = data_array.shape
+            
+            if (shape[0] == 1 and len(weights) == shape[1]) or (shape[1] == 1 and len(weights) == shape[0]):
+                # If one dimension is 1, weights must match the other dimension
+                weighted_average = np.average(data_array, weights=weights, axis=1 if shape[0] == 1 else 0)
+            elif shape[0] > 1 and shape[1] > 1:
+                # If both dimensions are greater than 1, use shape[1] for averaging across columns
+                if len(weights) != shape[1]:
+                    raise ValueError(f"Weight size {len(weights)} does not match number of columns {shape[1]} in data array for key '{key}'.")
+                weighted_average = np.average(data_array, axis=1, weights=weights)
+            else:
+                raise ValueError(f"Invalid conditions for weights and shapes for array with shape {shape} for key '{key}'.")
+        else:
+            print("Unexpected data array shape:", data_array.shape,"the key is : ",key,"data_array is:", data_array)
+            raise ValueError(f"Unexpected array shape for key '{key}': {data_array.shape}")
+
+        # Store the weighted average result in the dictionary
+        weighted_key = f"{key}_weighted"
+        dataset_dict_weighted[weighted_key] = weighted_average
+
+    # outputpath
+    if save_path is None:
+        print("No save path provided, using current working directory.")
+        save_path = os.getcwd()  # Use current working directory if no path is provided
+    else:
+        save_path = os.path.join(save_path,rgiid,data_index,'Weighted')# Ensure the save path exists
+        os.makedirs(save_path, exist_ok=True)
+    # Construct the full file name
+    if rgiid is not None:
+        # Ensure the RGI ID is formatted correctly, e.g., 'RGI60-07.00029', based on '7.00029', 'RGI60-10.00029', based on '10.00029
+        rgiid = f"RGI60-{str(int(float(rgiid.split('.')[0]))).zfill(2)}.{rgiid.split('.')[1]}" # Remove 'RGI60-' prefix if present
+    if save_name is None:
+        save_name = 'calibration_weighted_output_'+ rgiid+ f"_{data_index}".lower()
+    file_name = f"{save_name}.{file_format}"
+    file_full_path = os.path.join(save_path, file_name)
+     
+    # Save the weighted averages to a file
+    if file_format == 'json':
+        import json
+        # Convert the dictionary to a JSON serializable format
+        dataset_dict_weighted = {k: v.tolist() if isinstance(v, np.ndarray) else v for k, v in dataset_dict_weighted.items()}
+        # Save to a JSON file
+        with open(file_full_path, 'w') as json_file:
+            json.dump(dataset_dict_weighted, json_file, indent=4)
+        #print(f"Weighted averages saved to {file_full_path}")
+        return dataset_dict_weighted
+    elif file_format == 'csv':
+        # Convert the dictionary to a DataFrame and save as CSV
+        dataset_df = pd.DataFrame(dataset_dict_weighted)
+        dataset_df.to_csv(file_full_path, index=False)
+        #print(f"Weighted averages saved to {file_full_path}")
+        return dataset_df
+    elif file_format == 'xlsx':
+        # Convert the dictionary to a DataFrame and save as Excel
+        dataset_df = pd.DataFrame(dataset_dict_weighted)
+        dataset_df.to_excel(file_full_path, index=False)
+        #print(f"Weighted averages saved to {file_full_path}")
+        return dataset_df
+    else:
+        raise ValueError("Unsupported file format. Please use 'json', 'csv', or 'xlsx'.")
+
+
+# Function to read the AMIS information and model output data for the prior simulation, to get the weighted prior model output of regional glaciers
+def read_prior_compute_weighted_save_region(model_output_region_fp=None, AMIS_fp = None, data_index='Annual',
+                                            file_name=None, file_format='json'):
+    """    Reads AMIS information and model output data for the prior simulation, and saves the weighted prior model output.
+    returns a dictionary of prior weighted model output for each glacier in the region, for all the keys and the key 'rgiid')
+    Parameters:
+    - model_output_fp (str): File path to the model output data file.
+    - AMIS_fp (str): File path to the AMIS information file.
+    - data_index (str): Identifier for the data type ('Annual', 'Monthly', 'Poster', 'Prior').
+    - file_name (str): Base name for the output file.
+    - file_format (str): Format to save the output file ('json', 'csv', 'xlsx').
+    returns:
+    - Prior_weighted_allghted (dict): Dictionary containing the weighted prior model output for each glacier in the region.
+
+    """
+    # return  the weighted prior model output of regional glaciers
+    Prior_weighted_all = {'rgiid': [],}
+
+    for glacier in os.listdir(model_output_region_fp):
+        glacier_path = os.path.join(model_output_region_fp, glacier, data_index)
+        amis_path = os.path.join(AMIS_fp, glacier)
+
+        if not (os.path.isdir(glacier_path) and data_index in ['Annual', 'Poster']):
+            print(f"Invalid or missing glacier path: {glacier_path}")
+            continue
+        rgiid = glacier
+        #print("rgiid is:", rgiid)
+        # print("amis_path is:", amis_path) 
+        for file in os.listdir(glacier_path):
+            if not file.endswith('_0.json'):
+                continue
+
+            file_path = os.path.join(glacier_path, file)
+
+            # Read the prior model output and compute the weighted average
+            prior_weighted = read_prior_compute_weighted_save_ind(
+                AMIS_fp=amis_path,
+                model_output_fp=file_path,
+                rgiid=rgiid,
+                save_path=model_output_region_fp,
+                data_index='Prior',
+                file_name=file_name,
+                file_format=file_format
+            )
+            # add the rgiid to the prior weighted model output
+            Prior_weighted_all['rgiid'].append(rgiid)   
+            # Iterate over the keys in each glacier data, excluding 'rgiid'
+            for key, value in prior_weighted.items():
+                if key != 'rgiid':  # Exclude the 'rgiid' since it's already handled
+                    if key not in Prior_weighted_all:
+                        Prior_weighted_all[key] = []  # Initialize the list if the key doesn't exist
+                    Prior_weighted_all[key].append(value)  # Append the value to the corresponding list
+    # Return the dictionary of prior weighted model output
+    return Prior_weighted_all
+
+
+# Function to calculate the RMSE between observed and modeled values, with optional uncertainty adjustment
+def calculate_rmse_with_unc(obs_values=None, model_values=None, obs_uncertainty=None, adjust_uncertainty=False):
+    """    Calculates the Root Mean Square Error (RMSE) between observed and modeled values, with optional uncertainty adjustment.
+    Parameters:
+    - obs_values (np.ndarray): Observed values.
+    - model_values (np.ndarray): Modeled values.
+    - obs_uncertainty (np.ndarray): Uncertainty in observed values, used for adjustment.
+    - adjust_uncertainty (bool): If True, adjusts the RMSE calculation using the observed uncertainty.
+    Returns:
+    - float: The calculated RMSE value.
+    """
+    # Check if all inputs are provided
+    if obs_values is None or model_values is None:
+        raise ValueError("Both observed and modeled values must be provided.")
+    
+    # Check if all inputs are numpy arrays
+    if not (isinstance(obs_values, np.ndarray) and isinstance(model_values, np.ndarray)):
+        raise TypeError("Observed and modeled values must be numpy arrays.")
+    
+    # Ensure the input arrays have the same length
+    if len(obs_values) != len(model_values):
+        raise ValueError("Observed and modeled values must have the same length.")
+    
+    # If uncertainty adjustment is requested, check if uncertainty is provided
+    if adjust_uncertainty:
+        if obs_uncertainty is None:
+            raise ValueError("Observed uncertainty must be provided for adjustment.")
+        if not isinstance(obs_uncertainty, np.ndarray):
+            raise TypeError("Observed uncertainty must be a numpy array.")
+        if len(obs_uncertainty) != len(obs_values):
+            raise ValueError("Observed uncertainty must have the same length as observed values.")
+
+        # Adjust the RMSE calculation using the observed uncertainty
+        rmse = np.sqrt(np.mean(((obs_values - model_values) / obs_uncertainty) ** 2))
+    else:
+        # Calculate RMSE without uncertainty adjustment
+        rmse = np.sqrt(np.mean((obs_values - model_values) ** 2))
+    
+    return rmse
+
+
+# Function to load the weighted posterior model output for regional glaciers
+def load_posterior_weighted_region(model_output_fp_region=None):
+    """    Loads the weighted posterior model output for regional glaciers.
+    Parameters:
+    - model_output_fp_region (str): File path to the model output data for the region
+    Returns:
+    - Poster_weighted (dict): Dictionary containing the weighted posterior model output for each glacier in the region.
+    """
+
+    # Initialize the weighted posterior model output dictionary
+    Poster_weighted = {'rgiid': []}
+
+    # Iterate over each glacier directory in the specified path
+    for glacier in os.listdir(model_output_fp_region):
+        # Read the posterior weighted file path
+        glacier_path = os.path.join(model_output_fp_region, glacier, 'Poster', 'Weighted')
+        rgiid = glacier
+        RGIID = f"RGI60-{str(int(float(rgiid.split('.')[0]))).zfill(2)}.{rgiid.split('.')[1]}"
+        poster_file_name = f'calibration_weighted_output_{RGIID}_poster.json'  # use lowercase for filename
+        output_file_path_poster = os.path.join(glacier_path, poster_file_name)
+
+        # Check if the posterior file exists
+        if not os.path.exists(output_file_path_poster):
+            print(f"File {output_file_path_poster} does not exist. Continuing to the next glacier.")
+            continue  # Skip to the next iteration if the file does not exist
+
+        # Load the JSON file
+        with open(output_file_path_poster, 'r') as f:
+            output_poster = json.load(f)
+
+        # Add the rgiid to the Poster_weighted dictionary
+        Poster_weighted['rgiid'].append(rgiid)
+
+        # Iterate over the keys in each glacier data, excluding 'rgiid'
+        for key, value in output_poster.items():
+            if key != 'rgiid':  # Exclude the 'rgiid' since it's already handled
+                if key not in Poster_weighted:
+                    Poster_weighted[key] = []  # Initialize the list if the key doesn't exist
+                Poster_weighted[key].append(value)  # Append the value to the corresponding list
+    
+    return Poster_weighted
