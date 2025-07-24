@@ -630,17 +630,68 @@ def main ():
     dLdt_annual_weighted_poster_prior = pd.merge(dLdt_annual_weighted_Prior, dLdt_annual_weighted_Poster, on='rgiid', how='inner')
     dLdt_annual_weighted_obs_poster_prior = pd.merge(dLdt_annual_weighted_poster_prior, Obs_dLdt_df, on='rgiid', how='inner')
 
-    # TODO MB_clim annual weighted prior and posterior and obs
+    # MB_clim annual weighted prior and posterior and obs
     # first need to get the 10-years average of the annual data for posterior and prior
     # Then merge the DataFrames
-
-    # TODO FA annual weighted prior and posterior and obs
-    # first need to get the 10-years average of the annual data for posterior and prior
-    # Then merge the DataFrames
+    # Prior annual weighted prior and posterior and obs
+    MB_clim_annual_weighted_Prior_20002010 = pd.DataFrame()
+    MB_clim_annual_weighted_Prior_20002010['rgiid'] = MB_clim_annual_weighted_Prior['rgiid']
+    MB_clim_annual_weighted_Prior_20002010['mb_annul_mwea_prior'] = MB_clim_annual_weighted_Prior['mb_annul_mwea_prior'].apply(lambda x: sum(x[:10]) / 10)   
+    MB_clim_annual_weighted_Prior_20102020 = pd.DataFrame()
+    MB_clim_annual_weighted_Prior_20102020['rgiid'] = MB_clim_annual_weighted_Prior['rgiid']
+    MB_clim_annual_weighted_Prior_20102020['mb_annul_mwea_prior'] = MB_clim_annual_weighted_Prior['mb_annul_mwea_prior'].apply(lambda x: sum(x[10:20]) / 10)
+    MB_clim_annual_weighted_Prior_20002020 = pd.DataFrame()
+    MB_clim_annual_weighted_Prior_20002020['rgiid'] = MB_clim_annual_weighted_Prior['rgiid']    
+    MB_clim_annual_weighted_Prior_20002020['mb_annul_mwea_prior'] = MB_clim_annual_weighted_Prior['mb_annul_mwea_prior'].apply(lambda x: sum(x[:20]) / 20)
+    # Posterior annual weighted mb_clim
+    MB_clim_annual_weighted_Poster_20002010 = pd.DataFrame()
+    MB_clim_annual_weighted_Poster_20002010['rgiid'] = MB_clim_annual_weighted_Poster['rgiid']
+    MB_clim_annual_weighted_Poster_20002010['mb_annul_mwea_poster'] = MB_clim_annual_weighted_Poster['mb_annul_mwea_poster'].apply(lambda x: sum(x[:10]) / 10)
+    MB_clim_annual_weighted_Poster_20102020 = pd.DataFrame()
+    MB_clim_annual_weighted_Poster_20102020['rgiid'] = MB_clim_annual_weighted_Poster['rgiid']
+    MB_clim_annual_weighted_Poster_20102020['mb_annul_mwea_poster'] = MB_clim_annual_weighted_Poster['mb_annul_mwea_poster'].apply(lambda x: sum(x[10:20]) / 10)
+    MB_clim_annual_weighted_Poster_20002020 = pd.DataFrame()
+    MB_clim_annual_weighted_Poster_20002020['rgiid'] = MB_clim_annual_weighted_Poster['rgiid']
+    MB_clim_annual_weighted_Poster_20002020['mb_annul_mwea_poster'] = MB_clim_annual_weighted_Poster['mb_annul_mwea_poster'].apply(lambda x: sum(x[:20]) / 20)
+    # Merege the 10-years average DataFrames weighted prior and posterior and obs
+    MB_clim_annual_weighted_poster_prior_20002010 = pd.merge(MB_clim_annual_weighted_Prior_20002010, MB_clim_annual_weighted_Poster_20002010, on='rgiid', how='inner')
+    MB_clim_annual_weighted_poster_prior_20102020 = pd.merge(MB_clim_annual_weighted_Prior_20102020, MB_clim_annual_weighted_Poster_20102020, on='rgiid', how='inner')
+    MB_clim_annual_weighted_poster_prior_20002020 = pd.merge(MB_clim_annual_weighted_Prior_20002020, MB_clim_annual_weighted_Poster_20002020, on='rgiid', how='inner')
+    MB_clim_annual_weighted_obs_poster_prior_20002010 = pd.merge(MB_clim_annual_weighted_poster_prior_20002010, mb_obs_20002010_mwea, on='rgiid', how='inner')
+    MB_clim_annual_weighted_obs_poster_prior_20102020 = pd.merge(MB_clim_annual_weighted_poster_prior_20102020, mb_obs_20102020_mwea, on='rgiid', how='inner')
+    MB_clim_annual_weighted_obs_poster_prior_20002020 = pd.merge(MB_clim_annual_weighted_poster_prior_20002020, mb_obs_20002020_mwea, on='rgiid', how='inner')
+    # FA annual weighted prior and posterior and obs
+    FA_annual_weighted_Prior_20002010 = pd.DataFrame()
+    FA_annual_weighted_Prior_20002010['rgiid'] = FA_annual_weighted_Prior['rgiid']
+    FA_annual_weighted_Prior_20002010['fa_annual_gta_prior'] = FA_annual_weighted_Prior['fa_annual_gta_prior'].apply(lambda x: sum(x[:10]) / 10)
+    FA_annual_weighted_Prior_20102020 = pd.DataFrame()
+    FA_annual_weighted_Prior_20102020['rgiid'] = FA_annual_weighted_Prior['rgiid']
+    FA_annual_weighted_Prior_20102020['fa_annual_gta_prior'] = FA_annual_weighted_Prior['fa_annual_gta_prior'].apply(lambda x: sum(x[10:20]) / 10)
+    FA_annual_weighted_Prior_20002020 = pd.DataFrame()
+    FA_annual_weighted_Prior_20002020['rgiid'] = FA_annual_weighted_Prior['rgiid']
+    FA_annual_weighted_Prior_20002020['fa_annual_gta_prior'] = FA_annual_weighted_Prior['fa_annual_gta_prior'].apply(lambda x: sum(x[:20]) / 20)
+    # FA annual weighted posterior and obs
+    FA_annual_weighted_Poster_20002010 = pd.DataFrame()
+    FA_annual_weighted_Poster_20002010['rgiid'] = FA_annual_weighted_Poster['rgiid']
+    FA_annual_weighted_Poster_20002010['fa_annual_gta_poster'] = FA_annual_weighted_Poster['fa_annual_gta_poster'].apply(lambda x: sum(x[:10]) / 10)
+    FA_annual_weighted_Poster_20102020 = pd.DataFrame()
+    FA_annual_weighted_Poster_20102020['rgiid'] = FA_annual_weighted_Poster['rgiid']
+    FA_annual_weighted_Poster_20102020['fa_annual_gta_poster'] = FA_annual_weighted_Poster['fa_annual_gta_poster'].apply(lambda x: sum(x[10:20]) / 10)
+    FA_annual_weighted_Poster_20002020 = pd.DataFrame()
+    FA_annual_weighted_Poster_20002020['rgiid'] = FA_annual_weighted_Poster['rgiid']
+    FA_annual_weighted_Poster_20002020['fa_annual_gta_poster'] = FA_annual_weighted_Poster['fa_annual_gta_poster'].apply(lambda x: sum(x[:20]) / 20)
+    # Merege the 10-years average DataFrames weighted prior and posterior and obs
+    FA_annual_weighted_poster_prior_20002010 = pd.merge(FA_annual_weighted_Prior_20002010, FA_annual_weighted_Poster_20002010, on='rgiid', how='inner')
+    FA_annual_weighted_poster_prior_20102020 = pd.merge(FA_annual_weighted_Prior_20102020, FA_annual_weighted_Poster_20102020, on='rgiid', how='inner')
+    FA_annual_weighted_poster_prior_20002020 = pd.merge(FA_annual_weighted_Prior_20002020, FA_annual_weighted_Poster_20002020, on='rgiid', how='inner')
+    FA_annual_weighted_obs_poster_prior_20002010 = pd.merge(FA_annual_weighted_poster_prior_20002010, fa_obs_20002010_gta, on='rgiid', how='inner')
+    FA_annual_weighted_obs_poster_prior_20102020 = pd.merge(FA_annual_weighted_poster_prior_20102020, fa_obs_20102020_gta, on='rgiid', how='inner')
+    FA_annual_weighted_obs_poster_prior_20002020 = pd.merge(FA_annual_weighted_poster_prior_20002020, fa_obs_20002020_gta, on='rgiid', how='inner')
 
     # Merge the DataFrames based on the good and bad AMIS (converged and unconverged)
     # dLdt annual weighted prior and posterior and obs
     if rgiid_good is not None:
+        #==dLdt
         dLdt_annual_merged_good = pd.merge(dLdt_annual_weighted_obs_poster_prior, rgiid_good, on='rgiid', how='inner')
         # Extract the df for dLdt annual weighted prior and posterior and obs
         dLdt_prior_df_good = dLdt_annual_merged_good ['dLdt_annual_myr_prior']
@@ -675,6 +726,97 @@ def main ():
         dLdt_delta_rmse_good = dLdt_poster_rmse_good - dLdt_prior_rmse_good
         dLdt_delta_0010_rmse_good = dLdt_poster_0010_rmse_good - dLdt_prior_0010_rmse_good
         dLdt_delta_1020_rmse_good = dLdt_poster_1020_rmse_good - dLdt_prior_1020_rmse_good
+
+        # ==MB_clim
+        MB_clim_annual_merged_good_20002010 = pd.merge(MB_clim_annual_weighted_obs_poster_prior_20002010, rgiid_good, on='rgiid', how='inner')
+        MB_clim_annual_merged_good_20102020 = pd.merge(MB_clim_annual_weighted_obs_poster_prior_20102020, rgiid_good, on='rgiid', how='inner')
+        MB_clim_annual_merged_good_20002020 = pd.merge(MB_clim_annual_weighted_obs_poster_prior_20002020, rgiid_good, on='rgiid', how='inner')
+        MB_clim_prior_df_good_20002010 = MB_clim_annual_merged_good_20002010 ['mb_annul_mwea_prior']
+        MB_clim_prior_df_good_20102020 = MB_clim_annual_merged_good_20102020 ['mb_annul_mwea_prior']
+        MB_clim_prior_df_good_20002020 = MB_clim_annual_merged_good_20002020 ['mb_annul_mwea_prior']
+        MB_clim_poster_df_good_20002010 = MB_clim_annual_merged_good_20002010 ['mb_annul_mwea_poster']
+        MB_clim_poster_df_good_20102020 = MB_clim_annual_merged_good_20102020 ['mb_annul_mwea_poster']
+        MB_clim_poster_df_good_20002020 = MB_clim_annual_merged_good_20002020 ['mb_annul_mwea_poster']
+        MB_clim_obs_df_good_20002010 = MB_clim_annual_merged_good_20002010 ['mb_clim_mwea']
+        MB_clim_obs_unc_df_good_20002010 = MB_clim_annual_merged_good_20002010 ['mb_clim_mwea_err']
+        MB_clim_obs_df_good_20102020 = MB_clim_annual_merged_good_20102020 ['mb_clim_mwea']
+        MB_clim_obs_unc_df_good_20102020 = MB_clim_annual_merged_good_20102020 ['mb_clim_mwea_err']
+        MB_clim_obs_df_good_20002020 = MB_clim_annual_merged_good_20002020 ['mb_clim_mwea']
+        MB_clim_obs_unc_df_good_20002020 = MB_clim_annual_merged_good_20002020 ['mb_clim_mwea_err']
+
+        MB_clim_prior_rmse_good = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([MB_clim_obs_df_good_20002020[i]]),
+                                                                model_values= np.array([MB_clim_prior_df_good_20002020[i]]),
+                                                                obs_uncertainty=np.array([MB_clim_obs_unc_df_good_20002020[i]]),
+                                                                adjust_uncertainty=True) for i in range(len(MB_clim_obs_df_good_20002020))])
+        MB_clim_prior_0010_rmse_good = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([MB_clim_obs_df_good_20002010[i]]),
+                                                                model_values= np.array([MB_clim_prior_df_good_20002010[i]]),
+                                                                obs_uncertainty=np.array([MB_clim_obs_unc_df_good_20002010[i]]),
+                                                                adjust_uncertainty=True) for i in range(len(MB_clim_obs_df_good_20002010))])
+        MB_clim_prior_1020_rmse_good = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([MB_clim_obs_df_good_20102020[i]]),
+                                                                model_values= np.array([MB_clim_prior_df_good_20102020[i]]),
+                                                                obs_uncertainty=np.array([MB_clim_obs_unc_df_good_20102020[i]]),
+                                                                adjust_uncertainty=True) for i in range(len(MB_clim_obs_df_good_20102020))])
+        MB_clim_poster_rmse_good = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([MB_clim_obs_df_good_20002020[i]]),
+                                                                model_values= np.array([MB_clim_poster_df_good_20002020[i]]),
+                                                                obs_uncertainty=np.array([MB_clim_obs_unc_df_good_20002020[i]]),
+                                                                adjust_uncertainty=True) for i in range(len(MB_clim_obs_df_good_20002020))])
+        MB_clim_poster_0010_rmse_good = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([MB_clim_obs_df_good_20002010[i]]),
+                                                                model_values= np.array([MB_clim_poster_df_good_20002010[i]]),
+                                                                obs_uncertainty=np.array([MB_clim_obs_unc_df_good_20002010[i]]),
+                                                                adjust_uncertainty=True) for i in range(len(MB_clim_obs_df_good_20002010))])
+        MB_clim_poster_1020_rmse_good = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([MB_clim_obs_df_good_20102020[i]]),
+                                                                model_values= np.array([MB_clim_poster_df_good_20102020[i]]),
+                                                                obs_uncertainty=np.array([MB_clim_obs_unc_df_good_20102020[i]]),
+                                                                adjust_uncertainty=True) for i in range(len(MB_clim_obs_df_good_20102020))])
+        # calculate the delta RMSE
+        MB_clim_delta_rmse_good = MB_clim_poster_rmse_good - MB_clim_prior_rmse_good
+        MB_clim_delta_0010_rmse_good = MB_clim_poster_0010_rmse_good - MB_clim_prior_0010_rmse_good
+        MB_clim_delta_1020_rmse_good = MB_clim_poster_1020_rmse_good - MB_clim_prior_1020_rmse_good
+
+        # ==FA
+        FA_annual_merged_good_20002010 = pd.merge(FA_annual_weighted_obs_poster_prior_20002010, rgiid_good, on='rgiid', how='inner')
+        FA_annual_merged_good_20102020 = pd.merge(FA_annual_weighted_obs_poster_prior_20102020, rgiid_good, on='rgiid', how='inner')
+        FA_annual_merged_good_20002020 = pd.merge(FA_annual_weighted_obs_poster_prior_20002020, rgiid_good, on='rgiid', how='inner')
+        FA_prior_df_good_20002010 = FA_annual_merged_good_20002010 ['fa_annual_gta_prior']
+        FA_prior_df_good_20102020 = FA_annual_merged_good_20102020 ['fa_annual_gta_prior']
+        FA_prior_df_good_20002020 = FA_annual_merged_good_20002020 ['fa_annual_gta_prior']
+        FA_poster_df_good_20002010 = FA_annual_merged_good_20002010 ['fa_annual_gta_poster']
+        FA_poster_df_good_20102020 = FA_annual_merged_good_20102020 ['fa_annual_gta_poster']
+        FA_poster_df_good_20002020 = FA_annual_merged_good_20002020 ['fa_annual_gta_poster']
+        FA_obs_df_good_20002010 = FA_annual_merged_good_20002010 ['fa_gta_obs']
+        FA_obs_unc_df_good_20002010 = FA_annual_merged_good_20002010 ['fa_gta_obs_unc']
+        FA_obs_df_good_20002020 = FA_annual_merged_good_20002020 ['fa_gta_obs']
+        FA_obs_unc_df_good_20002020 = FA_annual_merged_good_20002020 ['fa_gta_obs_unc']
+        FA_obs_df_good_20102020 = FA_annual_merged_good_20102020 ['fa_gta_obs']
+        FA_obs_unc_df_good_20102020 = FA_annual_merged_good_20102020 ['fa_gta_obs_unc']
+        FA_prior_rmse_good = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([FA_obs_df_good_20002020[i]]),
+                                                                model_values= np.array([FA_prior_df_good_20002020[i]]),
+                                                                obs_uncertainty=np.array([FA_obs_unc_df_good_20002020[i]]),
+                                                                adjust_uncertainty=True) for i in range(len(FA_obs_df_good_20002020))])
+        FA_prior_0010_rmse_good = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([FA_obs_df_good_20002010[i]]),
+                                                                model_values= np.array([FA_prior_df_good_20002010[i]]),
+                                                                obs_uncertainty=np.array([FA_obs_unc_df_good_20002010[i]]),
+                                                                adjust_uncertainty=True) for i in range(len(FA_obs_df_good_20002010))])
+        FA_prior_1020_rmse_good = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([FA_obs_df_good_20102020[i]]),
+                                                                model_values= np.array([FA_prior_df_good_20102020[i]]),
+                                                                obs_uncertainty=np.array([FA_obs_unc_df_good_20102020[i]]),
+                                                                adjust_uncertainty=True) for i in range(len(FA_obs_df_good_20102020))])
+        FA_poster_rmse_good = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([FA_obs_df_good_20002020[i]]),
+                                                                model_values= np.array([FA_poster_df_good_20002020[i]]),
+                                                                obs_uncertainty=np.array([FA_obs_unc_df_good_20002020[i]]),
+                                                                adjust_uncertainty=True) for i in range(len(FA_obs_df_good_20002020))])
+        FA_poster_0010_rmse_good = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([FA_obs_df_good_20002010[i]]),
+                                                                model_values= np.array([FA_poster_df_good_20002010[i]]),
+                                                                obs_uncertainty=np.array([FA_obs_unc_df_good_20002010[i]]),
+                                                                adjust_uncertainty=True) for i in range(len(FA_obs_df_good_20002010))])
+        FA_poster_1020_rmse_good = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([FA_obs_df_good_20102020[i]]),
+                                                                model_values= np.array([FA_poster_df_good_20102020[i]]),
+                                                                obs_uncertainty=np.array([FA_obs_unc_df_good_20102020[i]]),
+                                                                adjust_uncertainty=True) for i in range(len(FA_obs_df_good_20102020))])
+        # calculate the delta RMSE
+        FA_delta_rmse_good = FA_poster_rmse_good - FA_prior_rmse_good
+        FA_delta_0010_rmse_good = FA_poster_0010_rmse_good - FA_prior_0010_rmse_good
+        FA_delta_1020_rmse_good = FA_poster_1020_rmse_good - FA_prior_1020_rmse_good
     else:
         dLdt_prior_df_good = None
         dLdt_poster_df_good = None
@@ -689,8 +831,27 @@ def main ():
         dLdt_delta_rmse_good = None
         dLdt_delta_0010_rmse_good = None
         dLdt_delta_1020_rmse_good = None
+        MB_clim_prior_rmse_good = None
+        MB_clim_prior_0010_rmse_good = None
+        MB_clim_prior_1020_rmse_good = None
+        MB_clim_poster_rmse_good = None
+        MB_clim_poster_0010_rmse_good = None
+        MB_clim_poster_1020_rmse_good = None
+        MB_clim_delta_rmse_good = None
+        MB_clim_delta_0010_rmse_good = None
+        MB_clim_delta_1020_rmse_good = None
+        FA_prior_rmse_good = None
+        FA_prior_0010_rmse_good = None
+        FA_prior_1020_rmse_good = None
+        FA_poster_rmse_good = None
+        FA_poster_0010_rmse_good = None
+        FA_poster_1020_rmse_good = None
+        FA_delta_rmse_good = None
+        FA_delta_0010_rmse_good = None
+        FA_delta_1020_rmse_good = None
 
     if rgiid_bad is not None:
+        # ==dLdt
         dLdt_annual_merged_bad = pd.merge(dLdt_annual_weighted_obs_poster_prior, rgiid_bad, on='rgiid', how='inner')
         dLdt_prior_df_bad = dLdt_annual_merged_bad ['dLdt_annual_myr_prior']
         dLdt_poster_df_bad = dLdt_annual_merged_bad ['dLdt_annual_myr_poster']
@@ -724,6 +885,97 @@ def main ():
         dLdt_delta_rmse_bad = dLdt_poster_rmse_bad - dLdt_prior_rmse_bad
         dLdt_delta_0010_rmse_bad = dLdt_poster_0010_rmse_bad - dLdt_prior_0010_rmse_bad
         dLdt_delta_1020_rmse_bad = dLdt_poster_1020_rmse_bad - dLdt_prior_1020_rmse_bad
+
+        # ==MB_clim
+        MB_clim_annual_merged_bad_20002010 = pd.merge(MB_clim_annual_weighted_obs_poster_prior_20002010, rgiid_bad, on='rgiid', how='inner')
+        MB_clim_annual_merged_bad_20102020 = pd.merge(MB_clim_annual_weighted_obs_poster_prior_20102020, rgiid_bad, on='rgiid', how='inner')
+        MB_clim_annual_merged_bad_20002020 = pd.merge(MB_clim_annual_weighted_obs_poster_prior_20002020, rgiid_bad, on='rgiid', how='inner')
+        MB_clim_prior_df_bad_20002010 = MB_clim_annual_merged_bad_20002010 ['mb_annul_mwea_prior']
+        MB_clim_prior_df_bad_20102020 = MB_clim_annual_merged_bad_20102020 ['mb_annul_mwea_prior']
+        MB_clim_prior_df_bad_20002020 = MB_clim_annual_merged_bad_20002020 ['mb_annul_mwea_prior']
+        MB_clim_poster_df_bad_20002010 = MB_clim_annual_merged_bad_20002010 ['mb_annul_mwea_poster']
+        MB_clim_poster_df_bad_20102020 = MB_clim_annual_merged_bad_20102020 ['mb_annul_mwea_poster']
+        MB_clim_poster_df_bad_20002020 = MB_clim_annual_merged_bad_20002020 ['mb_annul_mwea_poster']
+        MB_clim_obs_df_bad_20002010 = MB_clim_annual_merged_bad_20002010 ['mb_clim_mwea']
+        MB_clim_obs_unc_df_bad_20002010 = MB_clim_annual_merged_bad_20002010 ['mb_clim_mwea_err']
+        MB_clim_obs_df_bad_20102020 = MB_clim_annual_merged_bad_20102020 ['mb_clim_mwea']
+        MB_clim_obs_unc_df_bad_20102020 = MB_clim_annual_merged_bad_20102020 ['mb_clim_mwea_err']
+        MB_clim_obs_df_bad_20002020 = MB_clim_annual_merged_bad_20002020 ['mb_clim_mwea']
+        MB_clim_obs_unc_df_bad_20002020 = MB_clim_annual_merged_bad_20002020 ['mb_clim_mwea_err']
+        MB_clim_prior_rmse_bad = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([MB_clim_obs_df_bad_20002020[i]]),
+                                                                model_values= np.array([MB_clim_prior_df_bad_20002020[i]]),
+                                                                obs_uncertainty=np.array([MB_clim_obs_unc_df_bad_20002020[i]]),
+                                                                adjust_uncertainty=True) for i in range(len(MB_clim_obs_df_bad_20002020))])
+        MB_clim_prior_0010_rmse_bad = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([MB_clim_obs_df_bad_20002010[i]]),
+                                                                model_values= np.array([MB_clim_prior_df_bad_20002010[i]]),
+                                                                obs_uncertainty=np.array([MB_clim_obs_unc_df_bad_20002010[i]]),
+                                                                adjust_uncertainty=True) for i in range(len(MB_clim_obs_df_bad_20002010))])
+        MB_clim_prior_1020_rmse_bad = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([MB_clim_obs_df_bad_20102020[i]]),
+                                                                model_values= np.array([MB_clim_prior_df_bad_20102020[i]]),
+                                                                obs_uncertainty=np.array([MB_clim_obs_unc_df_bad_20102020[i]]),
+                                                                adjust_uncertainty=True) for i in range(len(MB_clim_obs_df_bad_20102020))])
+        MB_clim_poster_rmse_bad = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([MB_clim_obs_df_bad_20002020[i]]),
+                                                                model_values= np.array([MB_clim_poster_df_bad_20002020[i]]),
+                                                                obs_uncertainty=np.array([MB_clim_obs_unc_df_bad_20002020[i]]),
+                                                                adjust_uncertainty=True) for i in range(len(MB_clim_obs_df_bad_20002020))])
+        MB_clim_poster_0010_rmse_bad = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([MB_clim_obs_df_bad_20002010[i]]),
+                                                                model_values= np.array([MB_clim_poster_df_bad_20002010[i]]),
+                                                                obs_uncertainty=np.array([MB_clim_obs_unc_df_bad_20002010[i]]),
+                                                                adjust_uncertainty=True) for i in range(len(MB_clim_obs_df_bad_20002010))])
+        MB_clim_poster_1020_rmse_bad = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([MB_clim_obs_df_bad_20102020[i]]),
+                                                                model_values= np.array([MB_clim_poster_df_bad_20102020[i]]),
+                                                                obs_uncertainty=np.array([MB_clim_obs_unc_df_bad_20102020[i]]),
+                                                                adjust_uncertainty=True) for i in range(len(MB_clim_obs_df_bad_20102020))])
+        # calculate the delta RMSE
+        MB_clim_delta_rmse_bad = MB_clim_poster_rmse_bad - MB_clim_prior_rmse_bad
+        MB_clim_delta_0010_rmse_bad = MB_clim_poster_0010_rmse_bad - MB_clim_prior_0010_rmse_bad
+        MB_clim_delta_1020_rmse_bad = MB_clim_poster_1020_rmse_bad - MB_clim_prior_1020_rmse_bad
+
+        # ==FA
+        FA_annual_merged_bad_20002010 = pd.merge(FA_annual_weighted_obs_poster_prior_20002010, rgiid_bad, on='rgiid', how='inner')
+        FA_annual_merged_bad_20102020 = pd.merge(FA_annual_weighted_obs_poster_prior_20102020, rgiid_bad, on='rgiid', how='inner')
+        FA_annual_merged_bad_20002020 = pd.merge(FA_annual_weighted_obs_poster_prior_20002020, rgiid_bad, on='rgiid', how='inner')
+        FA_prior_df_bad_20002010 = FA_annual_merged_bad_20002010 ['fa_annual_gta_prior']
+        FA_prior_df_bad_20102020 = FA_annual_merged_bad_20102020 ['fa_annual_gta_prior']
+        FA_prior_df_bad_20002020 = FA_annual_merged_bad_20002020 ['fa_annual_gta_prior']
+        FA_poster_df_bad_20002010 = FA_annual_merged_bad_20002010 ['fa_annual_gta_poster']
+        FA_poster_df_bad_20102020 = FA_annual_merged_bad_20102020 ['fa_annual_gta_poster']
+        FA_poster_df_bad_20002020 = FA_annual_merged_bad_20002020 ['fa_annual_gta_poster']
+        FA_obs_df_bad_20002010 = FA_annual_merged_bad_20002010 ['fa_gta_obs']
+        FA_obs_unc_df_bad_20002010 = FA_annual_merged_bad_20002010 ['fa_gta_obs_unc']
+        FA_obs_df_bad_20002020 = FA_annual_merged_bad_20002020 ['fa_gta_obs']
+        FA_obs_unc_df_bad_20002020 = FA_annual_merged_bad_20002020 ['fa_gta_obs_unc']
+        FA_obs_df_bad_20102020 = FA_annual_merged_bad_20102020 ['fa_gta_obs']
+        FA_obs_unc_df_bad_20102020 = FA_annual_merged_bad_20102020 ['fa_gta_obs_unc']
+        FA_prior_rmse_bad = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([FA_obs_df_bad_20002020[i]]),
+                                                                model_values= np.array([FA_prior_df_bad_20002020[i]]),
+                                                                obs_uncertainty=np.array([FA_obs_unc_df_bad_20002020[i]]),
+                                                                adjust_uncertainty=True) for i in range(len(FA_obs_df_bad_20002020))])
+        FA_prior_0010_rmse_bad = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([FA_obs_df_bad_20002010[i]]),
+                                                                model_values= np.array([FA_prior_df_bad_20002010[i]]),
+                                                                obs_uncertainty=np.array([FA_obs_unc_df_bad_20002010[i]]),
+                                                                adjust_uncertainty=True) for i in range(len(FA_obs_df_bad_20002010))])
+        FA_prior_1020_rmse_bad = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([FA_obs_df_bad_20102020[i]]),
+                                                                model_values= np.array([FA_prior_df_bad_20102020[i]]),
+                                                                obs_uncertainty=np.array([FA_obs_unc_df_bad_20102020[i]]),
+                                                                adjust_uncertainty=True) for i in range(len(FA_obs_df_bad_20102020))])
+        FA_poster_rmse_bad = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([FA_obs_df_bad_20002020[i]]),
+                                                                model_values= np.array([FA_poster_df_bad_20002020[i]]),
+                                                                obs_uncertainty=np.array([FA_obs_unc_df_bad_20002020[i]]),
+                                                                adjust_uncertainty=True) for i in range(len(FA_obs_df_bad_20002020))])
+        FA_poster_0010_rmse_bad = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([FA_obs_df_bad_20002010[i]]),
+                                                                model_values= np.array([FA_poster_df_bad_20002010[i]]),
+                                                                obs_uncertainty=np.array([FA_obs_unc_df_bad_20002010[i]]),
+                                                                adjust_uncertainty=True) for i in range(len(FA_obs_df_bad_20002010))])
+        FA_poster_1020_rmse_bad = np.array([stats_t.calculate_rmse_with_unc(obs_values=np.array([FA_obs_df_bad_20102020[i]]),
+                                                                model_values= np.array([FA_poster_df_bad_20102020[i]]),
+                                                                obs_uncertainty=np.array([FA_obs_unc_df_bad_20102020[i]]),
+                                                                adjust_uncertainty=True) for i in range(len(FA_obs_df_bad_20102020))])
+        # calculate the delta RMSE
+        FA_delta_rmse_bad = FA_poster_rmse_bad - FA_prior_rmse_bad
+        FA_delta_0010_rmse_bad = FA_poster_0010_rmse_bad - FA_prior_0010_rmse_bad
+        FA_delta_1020_rmse_bad = FA_poster_1020_rmse_bad - FA_prior_1020_rmse_bad
+
     else:
         dLdt_prior_df_bad = None
         dLdt_poster_df_bad = None
@@ -738,15 +990,24 @@ def main ():
         dLdt_delta_rmse_bad = None
         dLdt_delta_0010_rmse_bad = None
         dLdt_delta_1020_rmse_bad = None
-    
-    # TODO MB_clim annual weighted prior and posterior and obs,GOOD and BAD
-    # TODO FA annual weighted prior and posterior and obs, GOOD and BAD
-
-
-
-    # TODO MB_clim annual weighted prior and posterior and obs,GOOD and BAD
-    # TODO FA annual weighted prior and posterior and obs, GOOD and BAD
-
+        MB_clim_prior_rmse_bad = None
+        MB_clim_prior_0010_rmse_bad = None
+        MB_clim_prior_1020_rmse_bad = None
+        MB_clim_poster_rmse_bad = None
+        MB_clim_poster_0010_rmse_bad = None
+        MB_clim_poster_1020_rmse_bad = None
+        MB_clim_delta_rmse_bad = None
+        MB_clim_delta_0010_rmse_bad = None
+        MB_clim_delta_1020_rmse_bad = None
+        FA_prior_rmse_bad = None
+        FA_prior_0010_rmse_bad = None
+        FA_prior_1020_rmse_bad = None
+        FA_poster_rmse_bad = None
+        FA_poster_0010_rmse_bad = None
+        FA_poster_1020_rmse_bad = None
+        FA_delta_rmse_bad = None
+        FA_delta_0010_rmse_bad = None
+        FA_delta_1020_rmse_bad = None   
 
     # == Step 9 visulize the RMSE/DELTA RMSE of modeled and obs between posterior and prior ==
     # the period is 2000-2010
@@ -761,8 +1022,26 @@ def main ():
     Vis_ts.plot_delta_rmse_histograms(delta_rmse_good= dLdt_delta_rmse_good, delta_rmse_bad= dLdt_delta_rmse_bad, breaks_index = True,
                                bin_width= 0.3,xlim_left =(-60,-51),xlim_right =(-25,20),x_breaks = -25,
                                save_path=postpro_output_fp_region, save_name=None,item_name='dLdt_myr', period='2000-2020')
-    # TODO MB_clim annual weighted prior and posterior and obs,GOOD and BAD
-    # TODO FA annual weighted prior and posterior and obs, GOOD and BAD
+    # MB_clim annual weighted prior and posterior and obs,GOOD and BAD
+    Vis_ts.plot_delta_rmse_histograms(delta_rmse_good= MB_clim_delta_0010_rmse_good, delta_rmse_bad= MB_clim_delta_0010_rmse_bad, breaks_index = False,
+                               bin_width= 0.3,xlim_left =(-60,-51),xlim_right =(-25,20),x_breaks = -25,
+                               save_path=postpro_output_fp_region, save_name=None,item_name='MB_clim_mwea', period='2000-2010')
+    Vis_ts.plot_delta_rmse_histograms(delta_rmse_good= MB_clim_delta_1020_rmse_good, delta_rmse_bad= MB_clim_delta_1020_rmse_bad, breaks_index = False,
+                                 bin_width= 0.3,xlim_left =(-60,-51),xlim_right =(-25,20),x_breaks = -25,
+                                 save_path=postpro_output_fp_region, save_name=None,item_name='MB_clim_mwea', period='2010-2020')
+    Vis_ts.plot_delta_rmse_histograms(delta_rmse_good= MB_clim_delta_rmse_good, delta_rmse_bad= MB_clim_delta_rmse_bad, breaks_index = False,
+                               bin_width= 0.3,xlim_left =(-60,-51),xlim_right =(-25,20),x_breaks = -25,
+                               save_path=postpro_output_fp_region, save_name=None,item_name='MB_clim_mwea', period='2000-2020')
+    # FA annual weighted prior and posterior and obs, GOOD and BAD
+    Vis_ts.plot_delta_rmse_histograms(delta_rmse_good= FA_delta_0010_rmse_good, delta_rmse_bad= FA_delta_0010_rmse_bad, breaks_index = False,
+                               bin_width= 0.3,xlim_left =(-60,-51),xlim_right =(-25,20),x_breaks = -25,
+                               save_path=postpro_output_fp_region, save_name=None,item_name='FA_gta', period='2000-2010')
+    Vis_ts.plot_delta_rmse_histograms(delta_rmse_good= FA_delta_1020_rmse_good, delta_rmse_bad= FA_delta_1020_rmse_bad, breaks_index = False,
+                                 bin_width= 0.3,xlim_left =(-60,-51),xlim_right =(-25,20),x_breaks = -25,
+                                 save_path=postpro_output_fp_region, save_name=None,item_name='FA_gta', period='2010-2020')
+    Vis_ts.plot_delta_rmse_histograms(delta_rmse_good= FA_delta_rmse_good, delta_rmse_bad= FA_delta_rmse_bad, breaks_index = False,
+                               bin_width= 0.3,xlim_left =(-60,-51),xlim_right =(-25,20),x_breaks = -25,
+                               save_path=postpro_output_fp_region, save_name=None,item_name='FA_gta', period='2000-2020')
 
 
 
@@ -781,8 +1060,25 @@ def main ():
                                 rmse_bad_prior=dLdt_prior_rmse_bad,rmse_bad_poster=dLdt_poster_rmse_bad, bins_width = 0.5,
                          save_path=postpro_output_fp_region, save_name=None, item_name='dLdt_myr', period='2000-2020')
     # TODO MB_clim annual weighted prior and posterior and obs,GOOD and BAD
+    Vis_ts.plot_rmse_histograms(rmse_good_prior=MB_clim_prior_0010_rmse_good,rmse_good_poster=MB_clim_poster_0010_rmse_good,
+                                rmse_bad_prior=MB_clim_prior_0010_rmse_bad,rmse_bad_poster=MB_clim_poster_0010_rmse_bad, bins_width = 0.5,
+                         save_path=postpro_output_fp_region, save_name=None, item_name='MB_clim_mwea', period='2000-2010')
+    Vis_ts.plot_rmse_histograms(rmse_good_prior=MB_clim_prior_1020_rmse_good,rmse_good_poster=MB_clim_poster_1020_rmse_good,
+                                rmse_bad_prior=MB_clim_prior_1020_rmse_bad,rmse_bad_poster=MB_clim_poster_1020_rmse_bad, bins_width = 0.5,
+                         save_path=postpro_output_fp_region, save_name=None, item_name='MB_clim_mwea', period='2010-2020')
+    Vis_ts.plot_rmse_histograms(rmse_good_prior=MB_clim_prior_rmse_good,rmse_good_poster=MB_clim_poster_rmse_good,
+                                rmse_bad_prior=MB_clim_prior_rmse_bad,rmse_bad_poster=MB_clim_poster_rmse_bad, bins_width = 0.5,
+                         save_path=postpro_output_fp_region, save_name=None, item_name='MB_clim_mwea', period='2000-2020')
     # TODO FA annual weighted prior and posterior and obs, GOOD and BAD
-    
+    Vis_ts.plot_rmse_histograms(rmse_good_prior=FA_prior_0010_rmse_good,rmse_good_poster=FA_poster_0010_rmse_good,
+                                rmse_bad_prior=FA_prior_0010_rmse_bad,rmse_bad_poster=FA_poster_0010_rmse_bad, bins_width = 0.5,
+                         save_path=postpro_output_fp_region, save_name=None, item_name='FA_gta', period='2000-2010')
+    Vis_ts.plot_rmse_histograms(rmse_good_prior=FA_prior_1020_rmse_good,rmse_good_poster=FA_poster_1020_rmse_good,
+                                rmse_bad_prior=FA_prior_1020_rmse_bad,rmse_bad_poster=FA_poster_1020_rmse_bad, bins_width = 0.5,
+                         save_path=postpro_output_fp_region, save_name=None, item_name='FA_gta', period='2010-2020')
+    Vis_ts.plot_rmse_histograms(rmse_good_prior=FA_prior_rmse_good,rmse_good_poster=FA_poster_rmse_good,
+                                rmse_bad_prior=FA_prior_rmse_bad,rmse_bad_poster=FA_poster_rmse_bad, bins_width = 0.5,
+                         save_path=postpro_output_fp_region, save_name=None, item_name='FA_gta', period='2000-2020')
 
     
 
