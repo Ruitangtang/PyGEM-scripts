@@ -22,6 +22,7 @@ import json
 import ast
 import re
 from scipy.stats import ks_2samp  # Import K-S test function
+import traceback
 import pygem_input as pygem_prms
 
 
@@ -1419,7 +1420,19 @@ def calculate_rmse_with_unc(obs_values=None, model_values=None, obs_uncertainty=
             raise ValueError("Observed uncertainty must have the same length as observed values.")
 
         # Adjust the RMSE calculation using the observed uncertainty
-        rmse = np.sqrt(np.mean(((obs_values - model_values) / obs_uncertainty) ** 2))
+        # filter out zero uncertainties to avoid division by zero
+        valid_indices = obs_uncertainty > 0
+        obs_values = obs_values[valid_indices]
+        model_values = model_values[valid_indices]
+        obs_uncertainty = obs_uncertainty[valid_indices]
+        try:
+            rmse = np.sqrt(np.mean(((obs_values - model_values) / obs_uncertainty) ** 2))
+        except ValueError:
+            rmse = np.nan  # Assign NaN if a value error occurs
+            print(traceback.format_exc())
+        except ZeroDivisionError:
+            rmse = np.nan  # Assign NaN if division by zero occurs
+            print(traceback.format_exc())
     else:
         # Calculate RMSE without uncertainty adjustment
         rmse = np.sqrt(np.mean((obs_values - model_values) ** 2))
