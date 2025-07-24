@@ -2551,18 +2551,39 @@ def plot_delta_rmse_histograms(delta_rmse_good= None, delta_rmse_bad= None, brea
     combined = np.concatenate([arr for arr in [delta_rmse_good, delta_rmse_bad] if arr.size > 0])
 
     bin_width = bin_width
-    min_edge = np.floor(combined.min() / bin_width) * bin_width
-    max_edge = np.ceil(combined.max() / bin_width) * bin_width
-    bins = np.arange(min_edge, max_edge + bin_width, bin_width)
+    # filter out inf and -inf values
+    combined = combined[np.isfinite(combined)]
+    delta_rmse_good = delta_rmse_good[np.isfinite(delta_rmse_good)]
+    delta_rmse_bad = delta_rmse_bad[np.isfinite(delta_rmse_bad)]
+    # Ensure there's valid data in combined before proceeding
+    if combined.size > 0:
+        min_edge = np.floor(combined.min() / bin_width) * bin_width
+        max_edge = np.ceil(combined.max() / bin_width) * bin_width
+        bins = np.arange(min_edge, max_edge + bin_width, bin_width)
+    else:
+        print("Warning: No valid combined RMSE values available after filtering.")
+        bins = np.array([])  # Return an empty array for bins or handle as needed
     #print("min_edge, max_edge, bins:", min_edge, max_edge, bins)
     if 0 not in bins:
         bins = np.sort(np.append(bins, 0.0))
 
-    # Calculate means and t-tests
-    mean_good = np.mean(delta_rmse_good)
-    t_stat_good, p_val_good = stats.ttest_1samp(delta_rmse_good, 0)
-    mean_bad = np.mean(delta_rmse_bad)
-    t_stat_bad, p_val_bad = stats.ttest_1samp(delta_rmse_bad, 0)
+    # Calculate mean and t-test for delta_rmse_good
+    if delta_rmse_good.size > 0:
+        mean_good = np.mean(delta_rmse_good)
+        t_stat_good, p_val_good = stats.ttest_1samp(delta_rmse_good, 0)
+        # print("Mean Good:", mean_good)
+        # print("t-statistic for Good:", t_stat_good, "p-value:", p_val_good)
+    else:
+        print("Warning: No valid delta_rmse_good values available for calculations.")
+
+    # Calculate mean and t-test for delta_rmse_bad
+    if delta_rmse_bad.size > 0:
+        mean_bad = np.mean(delta_rmse_bad)
+        t_stat_bad, p_val_bad = stats.ttest_1samp(delta_rmse_bad, 0)
+        # print("Mean Bad:", mean_bad)
+        # print("t-statistic for Bad:", t_stat_bad, "p-value:", p_val_bad)
+    else:
+        print("Warning: No valid delta_rmse_bad values available for calculations.")
 
     # Create subplots
 
@@ -2702,15 +2723,37 @@ def plot_rmse_histograms(rmse_good_prior=None,rmse_good_poster=None,rmse_bad_pri
         
         # Combine non-empty arrays
         combined = np.concatenate([arr for arr in [rmse_good, rmse_bad] if arr.size > 0])
-    
+
+        # Filter out inf and -inf values
+        combined = combined[np.isfinite(combined)]
         bins_width = bins_width
-        min_edge = np.floor(combined.min() / bins_width) * bins_width
-        max_edge = np.ceil(combined.max() / bins_width) * bins_width
-        bins = np.arange(min_edge, max_edge + bins_width, bins_width)
+        if combined.size >0:
+            min_edge = np.floor(combined.min() / bins_width) * bins_width
+            max_edge = np.ceil(combined.max() / bins_width) * bins_width
+            bins = np.arange(min_edge, max_edge + bins_width, bins_width)
+        else:
+            print("No valid RMSE data to plot.")
+            bins = np.array([])
+        
+
+    
         #print("min_edge, max_edge, bins:", min_edge, max_edge, bins)
         if 0 not in bins:
             bins = np.sort(np.append(bins, 0.0))
-    
+        # filter out inf and -inf values
+        # Function to filter and validate RMSE arrays
+        def filter_rmse(rmse_array):
+            # Filter out infinite and NaN values
+            filtered_array = rmse_array[np.isfinite(rmse_array)]
+            if filtered_array.size == 0:
+                print("Warning: No valid RMSE values available after filtering.")
+                return None  # Indicate that the array is empty or handle it as required
+            return filtered_array
+
+        rmse_good_prior = filter_rmse(rmse_good_prior)
+        rmse_good_poster = filter_rmse(rmse_good_poster)
+        rmse_bad_prior = filter_rmse(rmse_bad_prior)
+        rmse_bad_poster = filter_rmse(rmse_bad_poster)
         # Calculate means and t-tests
         mean_good_prior = np.mean(rmse_good_prior)
         t_stat_good_prior, p_val_good_prior = stats.ttest_1samp(rmse_good_prior, 0)
