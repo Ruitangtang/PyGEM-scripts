@@ -82,8 +82,8 @@ Dynamic_step_Monthly = False
 
 
 #%% ----- plot save path -----
-output_fp_cali = pygem_prms.main_directory + '/Calibration_AMIS_MB_FA/'
-output_fp = pygem_prms.main_directory + '/Simulation_AMIS_MB_FA/'
+output_fp_cali = pygem_prms.main_directory + '/Calibration/'
+output_fp = pygem_prms.main_directory + '/Simulation/'
 os.makedirs(output_fp, exist_ok=True)
 save_path_figure = output_fp + '/figures/'
 # Check if the directory exists, and if not, create it
@@ -134,6 +134,8 @@ def getparser():
         Switch for turning debug printing on or off (default = 0 (off))
     debug_spc (optional) : int
         Switch for turning debug printing of spc on or off (default = 0 (off))
+    hugonnet_fn (optional) : str
+        filename of .pkl/.csv file containing period averaged mass balance (climatic) data (observations)
 
     Returns
     -------
@@ -169,6 +171,8 @@ def getparser():
                         help='Batch number used to differentiate output on supercomputer')
     parser.add_argument('-modelprms_fp', action='store', type=str, default=None,
                     help='model parameters filepath')
+    parser.add_argument('-hugonnet_fn', action='store', type=str, default=None,
+                    help='Filename containing period averaged mass balance (climatic) data (observations)')
     # flags
     parser.add_argument('-option_ordered', action='store_true',
                         help='Flag to keep glacier lists ordered (default is off)')
@@ -223,7 +227,7 @@ def calc_stats_array(data, stats_cns=pygem_prms.sim_stat_cns):
     return stats
 
 
-def calc_stats_array_Restruct(data_uniq, stats_cns=pygem_prms.sim_stat_cns, rgiid_ind =None):
+def calc_stats_array_Restruct(data_uniq, stats_cns=pygem_prms.sim_stat_cns, rgiid_ind =None,reg_id=None,glacier_id=None):
     """
     Calculate stats for a given variable, but it will restruct the array based on the info from Unique function
     of Model Posterior Parameters
@@ -236,7 +240,10 @@ def calc_stats_array_Restruct(data_uniq, stats_cns=pygem_prms.sim_stat_cns, rgii
         dataset of output with all ensemble simulations / unique ensemble
     rgiid_ind : str
         is the glacier id
-        
+    reg_id : str
+        is the region id, e.g. '01' for RGI region 01
+    glacier_id : str
+        is the glacier id, which is used to get the unique info of Model posterior parameters, e.g. '7.00125'
 
     Returns
     -------
@@ -245,7 +252,7 @@ def calc_stats_array_Restruct(data_uniq, stats_cns=pygem_prms.sim_stat_cns, rgii
     """
     #%% Restruct the array
     # ==== read the Unique info of Model posterior parameters
-    output_folder_post_params_unique = os.path.join(output_fp_cali, 'parameter','Poster','Unique')
+    output_folder_post_params_unique = os.path.join(output_fp_cali,'parameter',reg_id,glacier_id,'Poster','Unique')
     output_filename_params_unique_Info = f'calibration_poster_Params_unique_{rgiid_ind}_Info.json'
     output_fp_params_unique_Info = os.path.join(output_folder_post_params_unique, output_filename_params_unique_Info) 
     
@@ -2195,7 +2202,7 @@ def simu_MB_FA(list_packed_vars,num_cores = 1,model_function = simu_MB_FA_single
                         # modelprms_fullfn = os.path.join(modelprms_fp, modelprms_fn)
                         # The unique posterior parameter set
                         modelprms_fn = f'calibration_poster_Params_unique_{rgiid}.json' 
-                        modelprms_fp = os.path.join(output_fp_cali, 'parameter','Poster','Unique')
+                        modelprms_fp = os.path.join(output_fp_cali, 'parameter', reg_str, glacier_str, 'Poster', 'Unique')
                         modelprms_fullfn = os.path.join(modelprms_fp, modelprms_fn)
                     print("modelprms_fullfn :",modelprms_fullfn)    
                     assert os.path.exists(modelprms_fullfn), 'Calibrated parameters do not exist.'
@@ -2221,7 +2228,7 @@ def simu_MB_FA(list_packed_vars,num_cores = 1,model_function = simu_MB_FA_single
                                               'tsnow_threshold':  pygem_prms.tsnow_threshold ,
                                               'precgrad': pygem_prms.precgrad
                                               }
-                            tau_values = np.array[modelprms_all['tau']]  
+                            tau_values = np.median(modelprms_all['tau'])
                         else:
                             # Select every kth iteration to use for the ensemble
                             # mcmc_sample_no = len(modelprms_all['kp']['chain_0'])
@@ -2241,8 +2248,6 @@ def simu_MB_FA(list_packed_vars,num_cores = 1,model_function = simu_MB_FA_single
                             tau_values = np.array(modelprms_all['tau'])
                     else:
                         sim_iters = 1
-                        
-
                 else:
                     modelprms_all = {'kp': [pygem_prms.kp],
                                       'tbias': [pygem_prms.tbias],
@@ -2585,42 +2590,40 @@ def simu_MB_FA(list_packed_vars,num_cores = 1,model_function = simu_MB_FA_single
                     # ----- STATS OF ALL VARIABLES -----
                     if pygem_prms.export_essential_data:
                         try:
-                            pdb.set_trace()
+                            #pdb.set_trace()
                             # Create empty dataset
                             output_ds_all_stats, encoding = create_xrdataset(glacier_rgi_table, dates_table)
                             # Create empty dataset for all variables and all statistic infomations
                             output_ds_all_stats_ALL, encoding_ALL = create_xrdataset_all_statis(glacier_rgi_table, dates_table)
                             # Output statistics
-                            output_glac_runoff_monthly_stats = calc_stats_array_Restruct(output_glac_runoff_monthly,rgiid_ind = rgiid)
-                            output_glac_area_annual_stats = calc_stats_array_Restruct(output_glac_area_annual,rgiid_ind = rgiid)
-                            output_glac_length_annual_stats = calc_stats_array_Restruct(output_glac_length_annual,rgiid_ind = rgiid)
-                            output_glac_length_change_annual_stats = calc_stats_array_Restruct(output_glac_length_change_annual,rgiid_ind = rgiid)
-                            output_glac_frontalablation_annual_stats = calc_stats_array_Restruct(output_glac_frontalablation_annual,rgiid_ind = rgiid)
-                            output_glac_mass_annual_stats = calc_stats_array_Restruct(output_glac_mass_annual,rgiid_ind = rgiid)
-                            output_glac_mass_bsl_annual_stats = calc_stats_array_Restruct(output_glac_mass_bsl_annual,rgiid_ind = rgiid)
-                            output_glac_ELA_annual_stats = calc_stats_array_Restruct(output_glac_ELA_annual,rgiid_ind = rgiid)
-                            output_offglac_runoff_monthly_stats = calc_stats_array_Restruct(output_offglac_runoff_monthly,rgiid_ind = rgiid)
+                            output_glac_runoff_monthly_stats = calc_stats_array_Restruct(output_glac_runoff_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
+                            output_glac_area_annual_stats = calc_stats_array_Restruct(output_glac_area_annual,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
+                            output_glac_length_annual_stats = calc_stats_array_Restruct(output_glac_length_annual,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
+                            output_glac_length_change_annual_stats = calc_stats_array_Restruct(output_glac_length_change_annual,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
+                            output_glac_frontalablation_annual_stats = calc_stats_array_Restruct(output_glac_frontalablation_annual,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
+                            output_glac_mass_annual_stats = calc_stats_array_Restruct(output_glac_mass_annual,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
+                            output_glac_mass_bsl_annual_stats = calc_stats_array_Restruct(output_glac_mass_bsl_annual,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
+                            output_glac_ELA_annual_stats = calc_stats_array_Restruct(output_glac_ELA_annual,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
+                            output_offglac_runoff_monthly_stats = calc_stats_array_Restruct(output_offglac_runoff_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
                             if pygem_prms.export_extra_vars:
-                                output_glac_temp_monthly_stats = calc_stats_array_Restruct(output_glac_temp_monthly,rgiid_ind = rgiid)
-                                output_glac_prec_monthly_stats = calc_stats_array_Restruct(output_glac_prec_monthly,rgiid_ind = rgiid)
-                                output_glac_acc_monthly_stats = calc_stats_array_Restruct(output_glac_acc_monthly,rgiid_ind = rgiid)
-                                output_glac_refreeze_monthly_stats = calc_stats_array_Restruct(output_glac_refreeze_monthly,rgiid_ind = rgiid)
-                                output_glac_melt_monthly_stats = calc_stats_array_Restruct(output_glac_melt_monthly,rgiid_ind = rgiid)
-                                output_glac_frontalablation_monthly_stats = calc_stats_array_Restruct(output_glac_frontalablation_monthly,rgiid_ind = rgiid)
-                                
-                                
-                                
-                                output_glac_massbaltotal_monthly_stats = calc_stats_array_Restruct(output_glac_massbaltotal_monthly,rgiid_ind = rgiid)
-                                output_glac_snowline_monthly_stats = calc_stats_array_Restruct(output_glac_snowline_monthly,rgiid_ind = rgiid)
-                                output_glac_mass_change_ignored_annual_stats = calc_stats_array_Restruct(output_glac_mass_change_ignored_annual,rgiid_ind = rgiid)
-                                output_offglac_prec_monthly_stats = calc_stats_array_Restruct(output_offglac_prec_monthly,rgiid_ind = rgiid)
-                                output_offglac_melt_monthly_stats = calc_stats_array_Restruct(output_offglac_melt_monthly,rgiid_ind = rgiid)
-                                output_offglac_refreeze_monthly_stats = calc_stats_array_Restruct(output_offglac_refreeze_monthly,rgiid_ind = rgiid)
-                                output_offglac_snowpack_monthly_stats = calc_stats_array_Restruct(output_offglac_snowpack_monthly,rgiid_ind = rgiid)
+                                output_glac_temp_monthly_stats = calc_stats_array_Restruct(output_glac_temp_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
+                                output_glac_prec_monthly_stats = calc_stats_array_Restruct(output_glac_prec_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
+                                output_glac_acc_monthly_stats = calc_stats_array_Restruct(output_glac_acc_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
+                                output_glac_refreeze_monthly_stats = calc_stats_array_Restruct(output_glac_refreeze_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
+                                output_glac_melt_monthly_stats = calc_stats_array_Restruct(output_glac_melt_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
+                                output_glac_frontalablation_monthly_stats = calc_stats_array_Restruct(output_glac_frontalablation_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
+
+                                output_glac_massbaltotal_monthly_stats = calc_stats_array_Restruct(output_glac_massbaltotal_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
+                                output_glac_snowline_monthly_stats = calc_stats_array_Restruct(output_glac_snowline_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
+                                output_glac_mass_change_ignored_annual_stats = calc_stats_array_Restruct(output_glac_mass_change_ignored_annual,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
+                                output_offglac_prec_monthly_stats = calc_stats_array_Restruct(output_offglac_prec_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
+                                output_offglac_melt_monthly_stats = calc_stats_array_Restruct(output_offglac_melt_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
+                                output_offglac_refreeze_monthly_stats = calc_stats_array_Restruct(output_offglac_refreeze_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
+                                output_offglac_snowpack_monthly_stats = calc_stats_array_Restruct(output_offglac_snowpack_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
 
                                 if Dynamic_step_Monthly:
-                                    output_glac_length_monthly_stats = calc_stats_array_Restruct(output_glac_length_monthly,rgiid_ind = rgiid)
-                                    output_glac_length_change_monthly_stats = calc_stats_array_Restruct(output_glac_length_change_monthly,rgiid_ind = rgiid)
+                                    output_glac_length_monthly_stats = calc_stats_array_Restruct(output_glac_length_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
+                                    output_glac_length_change_monthly_stats = calc_stats_array_Restruct(output_glac_length_change_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
                             #TODO save the all statistic information of the model output, mean, std, 2.5%,25%,median,75%,97.5%,mad
                              # Compute statistics for each variable
                             stats_dict_ALL = {
@@ -2736,7 +2739,7 @@ def simu_MB_FA(list_packed_vars,num_cores = 1,model_function = simu_MB_FA_single
                             print(traceback.format_exc())
 
 
-                        pdb.set_trace()
+                        #pdb.set_trace()
                         # visualize the statistics of lengthchange and frontal ablation
                         save_name_lenthchange = 'lengthchange_' + glacier_str + '_' + gcm_name + '_' + scenario + '_'  + str(sim_iters) + 'sets' + '_' + str(args.gcm_bc_startyear) + '_' + str(args.gcm_endyear) + '.png'
                         save_name_frontalablation = 'frontalablation_' + glacier_str + '_' + gcm_name + '_' + scenario + '_'  + str(sim_iters) + 'sets' + '_' + str(args.gcm_bc_startyear) + '_' + str(args.gcm_endyear) + '.png'
@@ -2913,6 +2916,15 @@ def main():
         debug = False
     #TODO check with input args
     debug = True
+
+    # observation datasets
+    if args.hugonnet_fn is None:
+        print("No hugonnet_fn provided. Please provide the proper hugonnet_fn.")
+        exit(1)
+    else:
+        hugonnet_fn = args.hugonnet_fn
+        pygem_prms.hugonnet_fn = hugonnet_fn
+
 
     if not 'pygem_modelprms' in cfg.BASENAMES:
         cfg.BASENAMES['pygem_modelprms'] = ('pygem_modelprms.pkl', 'PyGEM model parameters')
