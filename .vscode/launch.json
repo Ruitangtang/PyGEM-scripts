@@ -7,17 +7,11 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "args": [
-                "-rgi_region01", "07",
-                "-ref_startyear", "2000",
-                "-ref_endyear", "2019",
-                "-frontalablation_fn", "frontal_ablation_obs_20002010_task10.csv",
-                "-hugonnet_fn", "mass_balance_obs_20002010_task10.csv",
-                "-lengthchange_annual_fn", "lengthchange_annual_rgi_region01_7_20002020_task10.csv",
-                "-store_monthly_step",
-                "-Visualize_Index",
-                "-v",
-                "-o",
-                "-debug"
+                "-gcm_startyear", "2000",
+                "-gcm_endyear", "2025",
+                "-gcm_name", "CESM2",
+                "-scenario", "ssp126",
+                "-hugonnet_fn", "mass_balance_obs_20002010_task0.csv",
             ],
         },
 
