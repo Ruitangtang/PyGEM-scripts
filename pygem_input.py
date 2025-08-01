@@ -17,32 +17,33 @@ from pygem.utils._funcs_selectglaciers import get_same_glaciers, glac_num_fromra
 
 #%% ===== MODEL SETUP DIRECTORY =====
 #main_directory = os.getcwd()
-main_directory = '/home/ruitang/OGGM-Ruitang/Results/Test_KS_1T_24Jun/RGI_17.15808_PBS_Test01/Output/'
+#main_directory = '/home/ruitang/OGGM-Ruitang/Results/Test_KS_1T_24Jun/RGI_7.00025_PBS_Test01/Output/'
+main_directory = '/home/ruitang/OGGM-Ruitang/Results/Test_KS_Regional_1Apr2025/Output/'
 
 # Output directory
-output_filepath = main_directory + '/../Output/'
+output_filepath = main_directory
 #output_filepath = main_directory + '/../PyGEM-Test-Simple/Output/'
 model_run_date = datetime.today().strftime('%Y-%m-%d')
 
 #%% ===== GLACIER SELECTION =====
-rgi_regionsO1 = [17]                 # 1st order region number (RGI V6.0)
+rgi_regionsO1 = [7]                 # 1st order region number (RGI V6.0)
 rgi_regionsO2 = 'all'               # 2nd order region number (RGI V6.0)
 # RGI glacier number (RGI V6.0)
 #  Three options: (1) use glacier numbers for a given region (or 'all'), must have glac_no set to None
 #                 (2) glac_no is not None, e.g., ['1.00001', 13.0001'], overrides rgi_glac_number
 #                 (3) use one of the functions from  utils._funcs_selectglaciers
-#rgi_glac_number = 'all'
+rgi_glac_number = 'all'
 # rgi_glac_number = glac_num_fromrange(1,10)
 
 glac_no_skip = None
-#glac_no = None
+glac_no = None
 #glac_no = ['15.03732'] # Khumbu Glacier
 #glac_no = ['1.10689'] # Columbia Glacier
 #glac_no = ['1.03622'] # LeConte Glacier
 #glac_no = ['1.03377'] #  Dawes Glacier
-glac_no= ['17.15808']
+#glac_no= ['17.15808']
 #glac_no = ['17.04876'] #  Amalia Glacier
-
+#glac_no = ['7.00025'] #  Amalia Glacier
 
 if glac_no is not None:
     rgi_regionsO1 = sorted(list(set([int(x.split('.')[0]) for x in glac_no])))
@@ -200,12 +201,12 @@ elif option_calibration == 'PBS':
     # pbs_mem = '16gb'              # memory for PBS job
     # pbs_queue = 'normal'
     #           # queue for PBS job
-    Neffthrs = 0.2                  # threshold for effective sample size
+    Neffthrs = 0.1            # threshold for effective sample size
     vars_to_calibrate = ['tbias', 'kp', 'ddfsnow','tau']  # variables to calibrate
     perturbation_strategy = ["logitnormal_mult", "logitnormal_mult", "logitnormal_mult","logitnormal_mult"]  # perturbation strategy # TODO check the distribution of parameters
-    max_iterations = 10              # maximum number of iterations
-    pbs_sample_no = 200            # number of samples for each PBS job
-    pbs_resample_no = 200
+    max_iterations = 10             # maximum number of iterations
+    pbs_sample_no = 200          # number of samples for each PBS job
+    pbs_resample_no = 200     #
     
     # priors mean and standard deviation
     pygem_median_priors = {'tbias': 0.021, 'kp': 2.17, 'ddfsnow': 0.0041,'tau' : 1.453} # same to the original prior distribution in logitnormal, in pygem like truncnormal
@@ -252,10 +253,10 @@ elif option_calibration == 'PBS':
 
 # ----- Calibration Dataset -----
 # Hugonnet geodetic mass balance data
-hugonnet_fp = main_directory + '/../../DEMs/Hugonnet2020/'
+hugonnet_fp = main_directory + '/../DEMs/Hugonnet2020/'
 #hugonnet_fp = main_directory + '/../PyGEM-Test-Simple/DEMs/Hugonnet2020/'
-#hugonnet_fn = 'df_pergla_global_20yr-filled-facorrected_20002010.csv'
-hugonnet_fn = 'df_pergla_global_20yr-filled-facorrected_20102020.csv'
+hugonnet_fn = 'df_pergla_global_20yr-filled-facorrected_20002010.csv'
+#hugonnet_fn = 'df_pergla_global_20yr-filled-facorrected_20102020.csv'
 #hugonnet_fn = 'df_pergla_global_20yr-filled-facorrected_20002020.csv'
 
 if '-filled' in hugonnet_fn:
@@ -310,13 +311,16 @@ option_bias_adjustment = 1
 # MCMC options
 if option_calibration == 'MCMC':
     sim_iters = 100                  # number of simulations
-    sim_burn = 0                    # number of burn-in (if burn-in is done in MCMC sampling, then don't do here)
+    sim_burn = 0                     # number of burn-in (if burn-in is done in MCMC sampling, then don't do here)
+elif option_calibration == 'PBS':
+    sim_iters = pbs_resample_no        # number of simulations, same to the pbs resample number
+    sim_burn = 0                     # number of burn-in (if burn-in is done in MCMC sampling, then don't do here)
 else:
     sim_iters = 100                   # number of simulations
 
 # Output filepath of simulations
 #output_sim_fp = output_filepath + 'simulations/'
-output_sim_fp = output_filepath + '/Simulation_AMIS_MB_FA/' # The path for AMIS simulation
+output_sim_fp = output_filepath + '/Simulation/' # The path for AMIS simulation
 # Output statistics of simulation (options include any of the following 'mean', 'std', '2.5%', '25%', 'median', '75%', '97.5%')
 sim_stat_cns = ['mean', 'mad', '2.5%', '25%', 'median', '75%', '97.5%', 'std']
 
@@ -330,7 +334,8 @@ export_extra_vars = True            # Option to export extra variables (temp, pr
 if option_dynamics in ['OGGM', 'MassRedistributionCurves']:
     cfl_number = 0.02
     cfl_number_calving = 0.01
-    glena_reg_fullfn = main_directory + '/../csvs/glena_region.csv'
+    #glena_reg_fullfn = main_directory + '/../csvs/glena_region.csv'
+    glena_reg_fullfn = main_directory + '/../Regional_glenA/glena_region.csv'
     #print("glena_reg_fullfn is :",glena_reg_fullfn)
     #glena_reg_fullfn = main_directory + '/../PyGEM-Test-Simple/Output/calibration/glena_region.csv'
     use_reg_glena = True
