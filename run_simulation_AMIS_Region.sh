@@ -6,7 +6,7 @@ mkdir -p /home/ruitang/OGGM-Ruitang/Results/Test_KS_Regional_1Apr2025/Output/Sim
 # Start overall timer
 START_TIME_ALL=$(date +%s)
 # Loop over task files from Task0.txt to TaskN.txt, and run simulation for each GCM with different scenario
-for task_id in 0  # Change 0 to however many tasks you want to run, or expand to {0..N}
+for task_id in {0..11}  # Change 0 to however many tasks you want to run, or expand to {0..N}
 do
     # Log file for the current task_id
     LOGFILE="/home/ruitang/OGGM-Ruitang/Results/Test_KS_Regional_1Apr2025/Output/Simulation/simulation_task${task_id}_log.txt"
@@ -24,11 +24,11 @@ do
             -option_parallels \
             -rgi_region01 7 \
             -gcm_startyear 2000 \
-            -gcm_endyear 2025 \
+            -gcm_endyear 2100 \
             -gcm_list_fn '/home/ruitang/GeoFag_Ruitang/Test_Tidewater/climate_data/cmip6/gcm_cmip6_list.txt' \
             -scenario "$scenario" \
             -hugonnet_fn "mass_balance_obs_20002010_task${task_id}.csv" \
-            -debug >> "$LOGFILE" 2>&1
+            -debug
     done
     # End timer for the individual task
     END_TIME_TASK=$(date +%s)
@@ -55,5 +55,9 @@ echo "Total time taken: $DIFF_TIME_ALL seconds" | tee -a "$LOGFILE"
 # This command is equivalent to running the script for task 0.
 # Make sure to adjust the paths and filenames as necessary for your environment.
 
+# Example command to run this bash:
+# bash run_simulation_AMIS_Region.sh
+# Example command to run this bash at the background:
+# nohup bash run_simulation_AMIS_Region.sh &
 # Example command to run a single task with specific parameters: ONELINE
 # python -u run_simulation_AMIS_MB_FA_RT_MD_Parallel.py -option_parallels -rgi_region01 7 -gcm_startyear 2000 -gcm_endyear 2025 -gcm_name='CESM2 BCC-CSM2-MR' -scenario='ssp126' -hugonnet_fn "mass_balance_obs_20002010_task0.csv" -debug
