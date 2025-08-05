@@ -1988,18 +1988,19 @@ def simu_MB_FA(list_packed_vars,num_cores = 1,model_function = simu_MB_FA_single
     # Unpack variables
     parser = getparser()
     args = parser.parse_args()
-    count = list_packed_vars[0]
-    glac_no = list_packed_vars[1]
-    gcm_name = list_packed_vars[2]
-    realization = list_packed_vars[3]
-    if (gcm_name != pygem_prms.ref_gcm_name) and (args.scenario is None):
-        scenario = os.path.basename(args.gcm_list_fn).split('_')[1]
-    elif not args.scenario is None:
-        scenario = args.scenario
+    #count = list_packed_vars[0]
+    glac_no = list_packed_vars[0]
+    gcm_name = list_packed_vars[1]
+    realization = list_packed_vars[2]
+    scenario = list_packed_vars[3]
+    # if (gcm_name != pygem_prms.ref_gcm_name) and (args.scenario is None):
+    #     scenario = os.path.basename(args.gcm_list_fn).split('_')[1]
+    # elif not args.scenario is None:
+    #     scenario = args.scenario
     debug = args.debug
-    if debug:
-        if 'scenario' in locals():
-            print(scenario)
+    # if debug:
+    #     if 'scenario' in locals():
+    #         print(scenario)
     if args.debug_spc:
         debug_spc = True
     else:
@@ -2990,179 +2991,410 @@ def simu_MB_FA(list_packed_vars,num_cores = 1,model_function = simu_MB_FA_single
         main_vars = inspect.currentframe().f_locals
 
 
-#%% PARALLEL PROCESSING
-def main():
-    time_start = time.time()
-    parser = getparser()
-    args = parser.parse_args()
-    
-    if args.debug == 1:
-        debug = True
-    else:
-        debug = False
-    #TODO check with input args
-    debug = True
-
-    # reset the gcm start and end year
-    if args.gcm_startyear is None:
-        args.gcm_startyear = 2000
-    if args.gcm_endyear is None:
-        args.gcm_endyear = 2100
-    pygem_prms.gcm_startyear = args.gcm_startyear
-    pygem_prms.gcm_endyear = args.gcm_endyear
-
-    # observation datasets
-    if args.hugonnet_fn is None:
-        print("No hugonnet_fn provided. Please provide the proper hugonnet_fn.")
-        exit(1)
-    else:
-        hugonnet_fn = f"{args.hugonnet_fn}"
-        pygem_prms.hugonnet_fn = hugonnet_fn
-
-
-    if not 'pygem_modelprms' in cfg.BASENAMES:
-        cfg.BASENAMES['pygem_modelprms'] = ('pygem_modelprms.pkl', 'PyGEM model parameters')
-
-    # RGI glacier number
+# %% GET GLACIER NUMBERS
+# the function to get the glacier numbers based on the input arguments
+def get_glacier_numbers(args):
+    """    Get glacier numbers based on the input arguments.
+    Args:
+        args (argparse.Namespace): Parsed command line arguments.
+    Returns:
+        list: List of glacier numbers.
+    """
     if args.rgi_glac_number:
-        glac_no = [args.rgi_glac_number]
+        return [args.rgi_glac_number]
     elif args.rgi_glac_number_fn is not None:
         with open(args.rgi_glac_number_fn, 'r') as f:
-            glac_no = json.load(f)
+            return json.load(f)
     elif args.rgi_region01:
-        # read the glacier numbers from the calibration results, and remove the failed ones
-        calibration_result_fn = output_fp_cali + 'Summary/'+str(args.rgi_region01)+'-calving_cal_ind.csv'
-        rgiid_reg_wdata_Cali_all = pd.read_csv(calibration_result_fn)
-        rgiid_reg_wdata_Cali = rgiid_reg_wdata_Cali_all.dropna(subset=['Neff_k'])
-        rgiid_reg_wdata_Cali = rgiid_reg_wdata_Cali['RGIId'].values.flatten().tolist()
-        # remove the row if the value of Neff_k is nan
-        glacno_reg_wdata_Cali = sorted([(str(int(rgiid.split('-')[1].split('.')[0])) + '.' + 
-                                                 rgiid.split('-')[1].split('.')[1]) for rgiid in rgiid_reg_wdata_Cali])
-        #print("glacno_reg_wdata_Cali:", glacno_reg_wdata_Cali)
-        #sys.exit()
-        main_glac_rgi_all = modelsetup.selectglaciersrgitable(
-                rgi_regionsO1=[args.rgi_region01], rgi_regionsO2=pygem_prms.rgi_regionsO2,
-                rgi_glac_number=pygem_prms.rgi_glac_number, glac_no= glacno_reg_wdata_Cali,
-                include_landterm=pygem_prms.include_landterm, include_laketerm=pygem_prms.include_laketerm, 
-                include_tidewater=pygem_prms.include_tidewater, 
-                min_glac_area_km2=pygem_prms.min_glac_area_km2)        
-        glac_no = list(main_glac_rgi_all['rgino_str'].values)
-        print("glac_no:", glac_no)
-        #sys.exit() 
+        return get_glaciers_from_calibration_region(args)
     elif pygem_prms.glac_no is not None:
-        glac_no = pygem_prms.glac_no
+        return pygem_prms.glac_no
     else:
         main_glac_rgi_all = modelsetup.selectglaciersrgitable(
-                rgi_regionsO1=pygem_prms.rgi_regionsO1, rgi_regionsO2=pygem_prms.rgi_regionsO2,
-                rgi_glac_number=pygem_prms.rgi_glac_number, glac_no=pygem_prms.glac_no,
-                include_landterm=pygem_prms.include_landterm, include_laketerm=pygem_prms.include_laketerm, 
-                include_tidewater=pygem_prms.include_tidewater, 
-                min_glac_area_km2=pygem_prms.min_glac_area_km2)
-        glac_no = list(main_glac_rgi_all['rgino_str'].values)
+            rgi_regionsO1=pygem_prms.rgi_regionsO1,
+            rgi_regionsO2=pygem_prms.rgi_regionsO2,
+            rgi_glac_number=pygem_prms.rgi_glac_number,
+            glac_no=pygem_prms.glac_no,
+            include_landterm=pygem_prms.include_landterm,
+            include_laketerm=pygem_prms.include_laketerm,
+            include_tidewater=pygem_prms.include_tidewater,
+            min_glac_area_km2=pygem_prms.min_glac_area_km2
+        )
+        return list(main_glac_rgi_all['rgino_str'].values)
 
-    # Number of cores for parallel processing
+        
+# the function to get the glacier numbers from the calibration results for region
+def get_glaciers_from_calibration_region(args):
+    """Get glacier numbers from the calibration results for a specific region.
+    Args:
+        args (argparse.Namespace): Parsed command line arguments.
+    Returns:
+        list: List of glacier numbers for the specified region.
+    """
+    calibration_result_fn = output_fp_cali + 'Summary/' + str(args.rgi_region01) + '-calving_cal_ind.csv'
+    rgiid_reg_wdata_Cali_all = pd.read_csv(calibration_result_fn)
+    rgiid_reg_wdata_Cali = rgiid_reg_wdata_Cali_all.dropna(subset=['Neff_k'])
+    rgiid_reg_wdata_Cali = rgiid_reg_wdata_Cali['RGIId'].values.flatten().tolist()
+    glac_no_reg_wdata_Cali = sorted([str(int(rgiid.split('-')[1].split('.')[0])) + '.' + rgiid.split('-')[1].split('.')[1] for rgiid in rgiid_reg_wdata_Cali])
+
+    main_glac_rgi_all = modelsetup.selectglaciersrgitable(
+        rgi_regionsO1=[args.rgi_region01],
+        rgi_regionsO2=pygem_prms.rgi_regionsO2,
+        rgi_glac_number=pygem_prms.rgi_glac_number,
+        glac_no=glac_no_reg_wdata_Cali,
+        include_landterm=pygem_prms.include_landterm,
+        include_laketerm=pygem_prms.include_laketerm,
+        include_tidewater=pygem_prms.include_tidewater,
+        min_glac_area_km2=pygem_prms.min_glac_area_km2
+    )
+    
+    return list(main_glac_rgi_all['rgino_str'].values)
+
+
+# Function to set up parallel processing
+def setup_parallel_processing(args, glac_no):
+    """Set up parallel processing based on the command line arguments.
+    Args:
+        args (argparse.Namespace): Parsed command line arguments.
+        glac_no (list): List of glacier numbers.
+    Returns:
+        int: Number of processes to use for parallel processing.
+    """
     if args.option_parallels:
-        #num_cores = int(np.min([len(glac_no), args.num_simultaneous_processes]))
         proc_count = cpu_count()
-        print(f"There are {proc_count} processors are available")
-        proc_count_RT = max(1, proc_count - proc_count//2)  # Ensure at least one process
-        num_cores = proc_count_RT
-    else:
-        num_cores = 1
+        print(f"There are {proc_count} processors available.")
+        return max(1, proc_count - proc_count // 2)  # Ensure at least one process
+    return 1  # Default to single processing
 
-    # Glacier number lists to pass for parallel processing
-    glac_no_lsts = modelsetup.split_list(glac_no, n=num_cores, option_ordered=args.option_ordered)
 
-    # Read GCM names from argument parser
-    #gcm_name = args.gcm_list_fn
-    if args.gcm_name is not None:
-        gcm_list = [args.gcm_name]
-        scenario = args.scenario
-    elif args.gcm_list_fn == pygem_prms.ref_gcm_name:
-        gcm_list = [pygem_prms.ref_gcm_name]
-        scenario = args.scenario
-    else:
-        with open(args.gcm_list_fn, 'r') as gcm_fn:
-            gcm_list = gcm_fn.read().splitlines()
-            scenario = os.path.basename(args.gcm_list_fn).split('_')[1]
-            print('Found %d gcms to process'%(len(gcm_list)))
-  
-    # Read realizations from argument parser
+# Function to prepare the GCM list based on command line arguments
+def prepare_gcm_list(args):
+    """Prepare the list of GCMs to process based on command line arguments.
+
+    Args:
+        args (argparse.Namespace): Parsed command line arguments.
+
+    Returns:
+        tuple: A tuple containing the list of GCM names and the scenario.
+    """
+    # Initialize scenario
+    scenario = args.scenario
+
+    # Check if a single GCM name was provided
+    if args.gcm_name:
+        return [args.gcm_name], scenario
+
+    # Check if a reference GCM name is being used
+    if args.gcm_list_fn == pygem_prms.ref_gcm_name:
+        return [pygem_prms.ref_gcm_name], scenario
+
+    # Read GCMs from file
+    with open(args.gcm_list_fn, 'r') as gcm_fn:
+        gcm_list = gcm_fn.read().splitlines()
+
+    # Determine the scenario if it hasn't been set
+    if scenario is None:
+        scenario = os.path.basename(args.gcm_list_fn).split('_')[1]
+
+    #print(f'Found {len(gcm_list)} GCMs to process.')
+    return gcm_list, scenario
+
+
+# Function to prepare realizations based on command line arguments
+def prepare_realizations(args):
+    """Prepare the list of realizations to process based on command line arguments.
+    Args:
+        args (argparse.Namespace): Parsed command line arguments.
+    Returns:
+        list: List of realizations to process, or None if not specified.
+    """
     if args.realization is not None:
-        realizations = [args.realization]
+        return [args.realization]
     elif args.realization_list is not None:
         with open(args.realization_list, 'r') as real_fn:
             realizations = list(real_fn.read().splitlines())
-            print('Found %d realizations to process'%(len(realizations)))
-    else:
-        realizations = None
-    
-    # Producing realization or realization list. Best to convert them into the same format!
-    # Then pass this as a list or None.
-    # If passing this through the list_packed_vars, then don't go back and get from arg parser again!
-    # Open a file for logging failures, to save the failed information
-    # Construct the file path
-    failed_txt_fp = os.path.join(pygem_prms.output_sim_fp, 'failed', str(args.rgi_region01), 'failed_info.txt')
-    # Create directories if they do not exist
-    os.makedirs(os.path.dirname(failed_txt_fp), exist_ok=True) 
+            print(f'Found {len(realizations)} realizations to process.')
+            return realizations
+    return None
 
-    with open(failed_txt_fp, 'a') as fail_log: #Open the file in append mode
-        # Loop through all GCMs
+
+# Function to pack variables for parallel processing
+def pack_variables(glac_no, gcm_name, realizations, scenario):
+    """Pack variables for parallel processing.
+
+    Args:
+        glac_no (str): Glacier number.
+        gcm_name (str): Name of the GCM.
+        realizations (list): List of realizations.
+        scenario (str): Scenario associated with the processing.
+
+    Returns:
+        list: List of packed variables for parallel processing.
+    """
+    list_packed_vars = []
+    
+    if realizations is not None:
+        for realization in realizations:
+            list_packed_vars.append([glac_no, gcm_name, realization, scenario])
+    else:
+        list_packed_vars.append([glac_no, gcm_name, None, scenario])
+    
+    return list_packed_vars
+
+
+# Function to process packed variables
+def process_packed_variables(list_packed_vars, num_cores, fail_log):
+    if num_cores > 1:
+        # Parallel processing if num_cores > 1
+        for n in range(len(list_packed_vars)):
+            try:
+                simu_MB_FA(list_packed_vars[n], num_cores=num_cores)
+            except Exception as e:
+                error_message = f"Error processing glacier {list_packed_vars[n]}: {e}\n"
+                print(error_message)
+                fail_log.write(error_message)  # Log the error
+    else:
+        # Sequential processing for single core
+        for n in range(len(list_packed_vars)):
+            try:
+                simu_MB_FA(list_packed_vars[n], num_cores=1)
+            except Exception as e:
+                error_message = f"Error processing glacier {list_packed_vars[n]}: {e}\n"
+                print(error_message)
+                fail_log.write(error_message)  # Log the error
+
+
+#%% main function to run the model
+def main():
+    # Start timing the execution
+    time_start = time.time()
+    
+    # Set up argument parser and parse command-line arguments
+    parser = getparser()
+    args = parser.parse_args()
+
+    # Set debug mode
+    debug = args.debug == 1
+
+    # Set GCM start and end years
+    pygem_prms.gcm_startyear = args.gcm_startyear if args.gcm_startyear is not None else 2000
+    pygem_prms.gcm_endyear = args.gcm_endyear if args.gcm_endyear is not None else 2100
+
+    # Validate the hugonnet_fn parameter
+    if args.hugonnet_fn is None:
+        print("No hugonnet_fn provided. Please provide the proper hugonnet_fn.")
+        exit(1)
+    pygem_prms.hugonnet_fn = f"{args.hugonnet_fn}"
+
+    # Initialize model parameters if not already set
+    if 'pygem_modelprms' not in cfg.BASENAMES:
+        cfg.BASENAMES['pygem_modelprms'] = ('pygem_modelprms.pkl', 'PyGEM model parameters')
+
+    # Get glacier numbers based on input arguments
+    glac_no = get_glacier_numbers(args)
+
+    # Set number of cores for parallel processing
+    num_cores = setup_parallel_processing(args, glac_no)
+
+    # Prepare GCMs and scenarios
+    gcm_list, scenario = prepare_gcm_list(args)
+
+    # Prepare realizations
+    realizations = prepare_realizations(args)
+
+    # Open a file for logging failed processes
+    failed_txt_fp = os.path.join(pygem_prms.output_sim_fp, 'failed', str(args.rgi_region01), 'failed_info.txt')
+    os.makedirs(os.path.dirname(failed_txt_fp), exist_ok=True)
+
+    with open(failed_txt_fp, 'a') as fail_log:  # Open the file in append mode
         for gcm_name in gcm_list:
-            if args.scenario is None:
-                print('Processing:', gcm_name)
-            elif not args.scenario is None:
-                print('Processing:', gcm_name, scenario)
-            # Pack variables for multiprocessing
-            list_packed_vars = []          
-            if realizations is not None:
-                for realization in realizations:
-                    for count, glac_no_lst in enumerate(glac_no_lsts):
-                        list_packed_vars.append([count, glac_no_lst, gcm_name, realization])
-            else:
-                for count, glac_no_lst in enumerate(glac_no_lsts):
-                    list_packed_vars.append([count, glac_no_lst, gcm_name, realizations])
-                    
-            print('len list packed vars:', len(list_packed_vars))
+            print(f'Processing: {gcm_name} with scenario: {scenario}')
             
-            # Parallel processing
-            if args.option_parallels:
-                # If there's only one item in list_packed_vars, parallelize inside the item
-                if len(list_packed_vars) == 1:
-                    data = list_packed_vars[0]
-                    try:
-                        # Parallelize across `num_cores` inside the single glacier's iterations
-                        simu_MB_FA(data, num_cores)  # This will handle parallelism inside the single glacier
-                    except Exception as e:
-                        error_message = f"Error processing {data}: {e}\n"
-                        print(error_message)
-                        fail_log.write(error_message)  # Log the error to the file
-                else:
-                    # Parallelize across glaciers (list_packed_vars) using multiprocessing
-                    #with multiprocessing.Pool(num_cores) as p:
-                    #    p.starmap(simu_MB_FA, [(data, num_cores) for data in list_packed_vars])
-                    for n in range(len(list_packed_vars)):
-                        try:
-                            simu_MB_FA(list_packed_vars[n],num_cores = num_cores)
-                        except Exception as e:
-                            error_message = f"Error processing glacier {list_packed_vars[n]}: {e}\n"
-                            print(error_message)
-                            fail_log.write(error_message)  # Log the error to the file
-            # If not in parallel, then only should be one loop
-            else:
-                # Loop through the chunks and export bias adjustments
-                for n in range(len(list_packed_vars)):
-                    try:
-                        simu_MB_FA(list_packed_vars[n],num_cores = 1)
-                    except Exception as e:
-                        error_message = f"Error processing glacier {list_packed_vars[n]}: {e}\n"
-                        print(error_message)
-                        fail_log.write(error_message)  # Log the error to the file
+            # Pack variables for multiprocessing
+            list_packed_vars = pack_variables(glac_no, gcm_name, realizations, scenario)
+
+            print('Length of packed variables:', len(list_packed_vars))
+
+            # Process the packed variables
+            process_packed_variables(list_packed_vars, num_cores, fail_log)
+
+    print('Total processing time:', time.time() - time_start, 's')
+
+
+
+# #%% PARALLEL PROCESSING
+# def main():
+#     time_start = time.time()
+#     parser = getparser()
+#     args = parser.parse_args()
+    
+#     if args.debug == 1:
+#         debug = True
+#     else:
+#         debug = False
+#     #TODO check with input args
+#     debug = True
+
+#     # reset the gcm start and end year
+#     if args.gcm_startyear is None:
+#         args.gcm_startyear = 2000
+#     if args.gcm_endyear is None:
+#         args.gcm_endyear = 2100
+#     pygem_prms.gcm_startyear = args.gcm_startyear
+#     pygem_prms.gcm_endyear = args.gcm_endyear
+
+#     # observation datasets
+#     if args.hugonnet_fn is None:
+#         print("No hugonnet_fn provided. Please provide the proper hugonnet_fn.")
+#         exit(1)
+#     else:
+#         hugonnet_fn = f"{args.hugonnet_fn}"
+#         pygem_prms.hugonnet_fn = hugonnet_fn
+
+
+#     if not 'pygem_modelprms' in cfg.BASENAMES:
+#         cfg.BASENAMES['pygem_modelprms'] = ('pygem_modelprms.pkl', 'PyGEM model parameters')
+
+#     # RGI glacier number
+#     if args.rgi_glac_number:
+#         glac_no = [args.rgi_glac_number]
+#     elif args.rgi_glac_number_fn is not None:
+#         with open(args.rgi_glac_number_fn, 'r') as f:
+#             glac_no = json.load(f)
+#     elif args.rgi_region01:
+#         # read the glacier numbers from the calibration results, and remove the failed ones
+#         calibration_result_fn = output_fp_cali + 'Summary/'+str(args.rgi_region01)+'-calving_cal_ind.csv'
+#         rgiid_reg_wdata_Cali_all = pd.read_csv(calibration_result_fn)
+#         rgiid_reg_wdata_Cali = rgiid_reg_wdata_Cali_all.dropna(subset=['Neff_k'])
+#         rgiid_reg_wdata_Cali = rgiid_reg_wdata_Cali['RGIId'].values.flatten().tolist()
+#         # remove the row if the value of Neff_k is nan
+#         glacno_reg_wdata_Cali = sorted([(str(int(rgiid.split('-')[1].split('.')[0])) + '.' + 
+#                                                  rgiid.split('-')[1].split('.')[1]) for rgiid in rgiid_reg_wdata_Cali])
+#         #print("glacno_reg_wdata_Cali:", glacno_reg_wdata_Cali)
+#         #sys.exit()
+#         main_glac_rgi_all = modelsetup.selectglaciersrgitable(
+#                 rgi_regionsO1=[args.rgi_region01], rgi_regionsO2=pygem_prms.rgi_regionsO2,
+#                 rgi_glac_number=pygem_prms.rgi_glac_number, glac_no= glacno_reg_wdata_Cali,
+#                 include_landterm=pygem_prms.include_landterm, include_laketerm=pygem_prms.include_laketerm, 
+#                 include_tidewater=pygem_prms.include_tidewater, 
+#                 min_glac_area_km2=pygem_prms.min_glac_area_km2)        
+#         glac_no = list(main_glac_rgi_all['rgino_str'].values)
+#         print("glac_no:", glac_no)
+#         #sys.exit() 
+#     elif pygem_prms.glac_no is not None:
+#         glac_no = pygem_prms.glac_no
+#     else:
+#         main_glac_rgi_all = modelsetup.selectglaciersrgitable(
+#                 rgi_regionsO1=pygem_prms.rgi_regionsO1, rgi_regionsO2=pygem_prms.rgi_regionsO2,
+#                 rgi_glac_number=pygem_prms.rgi_glac_number, glac_no=pygem_prms.glac_no,
+#                 include_landterm=pygem_prms.include_landterm, include_laketerm=pygem_prms.include_laketerm, 
+#                 include_tidewater=pygem_prms.include_tidewater, 
+#                 min_glac_area_km2=pygem_prms.min_glac_area_km2)
+#         glac_no = list(main_glac_rgi_all['rgino_str'].values)
+
+#     # Number of cores for parallel processing
+#     if args.option_parallels:
+#         #num_cores = int(np.min([len(glac_no), args.num_simultaneous_processes]))
+#         proc_count = cpu_count()
+#         print(f"There are {proc_count} processors are available")
+#         proc_count_RT = max(1, proc_count - proc_count//2)  # Ensure at least one process
+#         num_cores = proc_count_RT
+#     else:
+#         num_cores = 1
+
+#     # Glacier number lists to pass for parallel processing
+#     glac_no_lsts = modelsetup.split_list(glac_no, n=num_cores, option_ordered=args.option_ordered)
+
+#     # Read GCM names from argument parser
+#     #gcm_name = args.gcm_list_fn
+#     if args.gcm_name is not None:
+#         gcm_list = [args.gcm_name]
+#         scenario = args.scenario
+#     elif args.gcm_list_fn == pygem_prms.ref_gcm_name:
+#         gcm_list = [pygem_prms.ref_gcm_name]
+#         scenario = args.scenario
+#     else:
+#         with open(args.gcm_list_fn, 'r') as gcm_fn:
+#             gcm_list = gcm_fn.read().splitlines()
+#             scenario = os.path.basename(args.gcm_list_fn).split('_')[1]
+#             print('Found %d gcms to process'%(len(gcm_list)))
+  
+#     # Read realizations from argument parser
+#     if args.realization is not None:
+#         realizations = [args.realization]
+#     elif args.realization_list is not None:
+#         with open(args.realization_list, 'r') as real_fn:
+#             realizations = list(real_fn.read().splitlines())
+#             print('Found %d realizations to process'%(len(realizations)))
+#     else:
+#         realizations = None
+    
+#     # Producing realization or realization list. Best to convert them into the same format!
+#     # Then pass this as a list or None.
+#     # If passing this through the list_packed_vars, then don't go back and get from arg parser again!
+#     # Open a file for logging failures, to save the failed information
+#     # Construct the file path
+#     failed_txt_fp = os.path.join(pygem_prms.output_sim_fp, 'failed', str(args.rgi_region01), 'failed_info.txt')
+#     # Create directories if they do not exist
+#     os.makedirs(os.path.dirname(failed_txt_fp), exist_ok=True) 
+
+#     with open(failed_txt_fp, 'a') as fail_log: #Open the file in append mode
+#         # Loop through all GCMs
+#         for gcm_name in gcm_list:
+#             if args.scenario is None:
+#                 print('Processing:', gcm_name)
+#             elif not args.scenario is None:
+#                 print('Processing:', gcm_name, scenario)
+#             # Pack variables for multiprocessing
+#             list_packed_vars = []          
+#             if realizations is not None:
+#                 for realization in realizations:
+#                     for count, glac_no_lst in enumerate(glac_no_lsts):
+#                         list_packed_vars.append([count, glac_no_lst, gcm_name, realization])
+#             else:
+#                 for count, glac_no_lst in enumerate(glac_no_lsts):
+#                     list_packed_vars.append([count, glac_no_lst, gcm_name, realizations])
+                    
+#             print('len list packed vars:', len(list_packed_vars))
+            
+#             # Parallel processing
+#             if args.option_parallels:
+#                 # If there's only one item in list_packed_vars, parallelize inside the item
+#                 if len(list_packed_vars) == 1:
+#                     data = list_packed_vars[0]
+#                     try:
+#                         # Parallelize across `num_cores` inside the single glacier's iterations
+#                         simu_MB_FA(data, num_cores)  # This will handle parallelism inside the single glacier
+#                     except Exception as e:
+#                         error_message = f"Error processing {data}: {e}\n"
+#                         print(error_message)
+#                         fail_log.write(error_message)  # Log the error to the file
+#                 else:
+#                     # Parallelize across glaciers (list_packed_vars) using multiprocessing
+#                     #with multiprocessing.Pool(num_cores) as p:
+#                     #    p.starmap(simu_MB_FA, [(data, num_cores) for data in list_packed_vars])
+#                     for n in range(len(list_packed_vars)):
+#                         try:
+#                             simu_MB_FA(list_packed_vars[n],num_cores = num_cores)
+#                         except Exception as e:
+#                             error_message = f"Error processing glacier {list_packed_vars[n]}: {e}\n"
+#                             print(error_message)
+#                             fail_log.write(error_message)  # Log the error to the file
+#             # If not in parallel, then only should be one loop
+#             else:
+#                 # Loop through the chunks and export bias adjustments
+#                 for n in range(len(list_packed_vars)):
+#                     try:
+#                         simu_MB_FA(list_packed_vars[n],num_cores = 1)
+#                     except Exception as e:
+#                         error_message = f"Error processing glacier {list_packed_vars[n]}: {e}\n"
+#                         print(error_message)
+#                         fail_log.write(error_message)  # Log the error to the file
                    
 
 
 
-    print('Total processing time:', time.time()-time_start, 's')
+#     print('Total processing time:', time.time()-time_start, 's')
 
 
 
