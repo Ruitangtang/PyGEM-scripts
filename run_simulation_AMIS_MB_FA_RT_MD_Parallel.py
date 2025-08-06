@@ -2478,9 +2478,9 @@ def simu_MB_FA(list_packed_vars,num_cores = 1,model_function = simu_MB_FA_single
                                 print('  mb [mwea]:', np.round(mb_mwea_diag, 2))
                                 print('  mb_mbmod [mwea]:', np.round(mb_mwea_mbmod, 2))
 
-                            print("mb_mwea_diag is :", mb_mwea_diag)
-                            print("mb_mwea_mbmod is :", mb_mwea_mbmod)
-                            print("diag is :", diag)
+                            # print("mb_mwea_diag is :", mb_mwea_diag)
+                            # print("mb_mwea_mbmod is :", mb_mwea_mbmod)
+                            # print("diag is :", diag)
                             try:
                                 if np.abs(mb_mwea_diag - mb_mwea_mbmod) > 1e-6:
                                     print("np.abs(mb_mwea_diag - mb_mwea_mbmod) > 1e-6")
@@ -2496,9 +2496,9 @@ def simu_MB_FA(list_packed_vars,num_cores = 1,model_function = simu_MB_FA_single
                                   mbmod.glac_wide_frontalablation.sum() / 1e9)
 
                         # RECORD PARAMETERS TO DATASET
-                        print("area_m2 in diag :", diag.area_m2.values)
+                        # print("area_m2 in diag :", diag.area_m2.values)
                         # print("length_m in diag :",diag.length_m.values)                        
-                        print("volume_bsl_m3.values :", diag.volume_bsl_m3.values)
+                        # print("volume_bsl_m3.values :", diag.volume_bsl_m3.values)
                         try:
                             output_glac_temp_monthly[:, n_iter] = mbmod.glac_wide_temp
                             output_glac_prec_monthly[:, n_iter] = mbmod.glac_wide_prec
@@ -2619,8 +2619,8 @@ def simu_MB_FA(list_packed_vars,num_cores = 1,model_function = simu_MB_FA_single
                             except:
                                 print(traceback.format_exc())
                         else:
-                            print("output_glac_bin_icethickness_annual is Not None:",
-                                  output_glac_bin_icethickness_annual)
+                            # print("output_glac_bin_icethickness_annual is Not None:",
+                            #       output_glac_bin_icethickness_annual)
                             # Update the latest thickness and volume
                             output_glac_bin_mass_annual_sim = (mbmod.glac_bin_area_annual *
                                                                mbmod.glac_bin_icethickness_annual *
