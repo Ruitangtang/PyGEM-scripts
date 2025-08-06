@@ -3145,10 +3145,10 @@ def pack_variables(glac_no, gcm_name, realizations, scenario):
     if realizations is not None:
         for realization in realizations:
             for glacier in glac_no:  # Iterate over each glacier number
-                list_packed_vars.append([glacier, gcm_name, realization, scenario])
+                list_packed_vars.append([[glacier], gcm_name, realization, scenario])
     else:
         for glacier in glac_no:
-            list_packed_vars.append([glacier, gcm_name, None, scenario])
+            list_packed_vars.append([[glacier], gcm_name, None, scenario])
 
     return list_packed_vars
 
