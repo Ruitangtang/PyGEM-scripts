@@ -1699,7 +1699,9 @@ def simu_MB_FA_single_glac (n_iter = None, gdir =None, modelprms = None, tau_val
                                         debug_refreeze=pygem_prms.debug_refreeze,
                                         fls=fls, option_areaconstant=True,
                                         inversion_filter=inversion_filter)
-
+        # print("gdir.is_tidewater is:",gdir.is_tidewater)
+        # print("pygem_prms.include_calving is:",pygem_prms.include_calving)
+        gdir.is_tidewater = True # TODO: this is a temporary fix to make sure the calving works, because the info in RGI60 is not correct for some tidewater glaciers
         # Non-tidewater glaciers
         if not gdir.is_tidewater or not pygem_prms.include_calving:
             # Arbitrariliy shift the MB profile up (or down) until mass balance is zero (equilibrium for inversion)
@@ -2195,6 +2197,8 @@ def simu_MB_FA(list_packed_vars,num_cores = 1,model_function = simu_MB_FA_single
             print(gcm_name,':', main_glac_rgi.loc[main_glac_rgi.index.values[glac],'RGIId'])
         # Select subsets of data
         glacier_rgi_table = main_glac_rgi.loc[main_glac_rgi.index.values[glac], :]
+        # TODO It's temporal setting, here we hardcode the termtype as 1, because the info in RGI60 is not correct for some tidewater glaciers
+        glacier_rgi_table['TermType'] = 1
         glacier_str = '{0:0.5f}'.format(glacier_rgi_table['RGIId_float'])
         reg_str = str(glacier_rgi_table.O1Region).zfill(2)
         rgiid = main_glac_rgi.loc[main_glac_rgi.index.values[glac],'RGIId']
@@ -3024,39 +3028,44 @@ def get_glacier_numbers(args):
 
         
 # the function to get the glacier numbers from the calibration results for region
-def get_glaciers_from_calibration_region(args):
+def get_glaciers_from_calibration_region(args, cali_dataset_fp= None):
     """Get glacier numbers from the calibration results for a specific region.
     Args:
         args (argparse.Namespace): Parsed command line arguments.
+        cali_dataset_fp (str): File path to the calibration datasets. If None, uses default path.
     Returns:
         list: List of glacier numbers for the specified region.
     """
+    # Set default calibration dataset file path if not provided
+    if cali_dataset_fp is None:
+        cali_dataset_fp = os.path.join(pygem_prms.hugonnet_fp, pygem_prms.hugonnet_fn)
+    # Read calibration datasets, get the glacier numbers, which are splitted into several tasks, as csv file, and get the RGIId info, to get the glacier numbers
+    # print('cali_dataset_fp: ', cali_dataset_fp)
+    rgiid_rasks_cali = pd.read_csv(cali_dataset_fp)
+    # print('rgiid_rasks_cali: ', rgiid_rasks_cali)
+    rgiid_rasks_cali = rgiid_rasks_cali['RGIId'].values.flatten().tolist()
+    glac_no_reg_wdata_Cali_dataset = sorted ([str(int(rgiid.split('-')[1].split('.')[0])) + '.' + rgiid.split('-')[1].split('.')[1] for rgiid in rgiid_rasks_cali])
+
+    # Read the calibration results file, get the corresponding glacier numbers
     calibration_result_fn = output_fp_cali + 'Summary/' + str(args.rgi_region01) + '-calving_cal_ind.csv'
     rgiid_reg_wdata_Cali_all = pd.read_csv(calibration_result_fn)
     rgiid_reg_wdata_Cali = rgiid_reg_wdata_Cali_all.dropna(subset=['Neff_k'])
     rgiid_reg_wdata_Cali = rgiid_reg_wdata_Cali['RGIId'].values.flatten().tolist()
-    glac_no_reg_wdata_Cali = sorted([str(int(rgiid.split('-')[1].split('.')[0])) + '.' + rgiid.split('-')[1].split('.')[1] for rgiid in rgiid_reg_wdata_Cali])
+    glac_no_reg_wdata_Cali_result = sorted([str(int(rgiid.split('-')[1].split('.')[0])) + '.' + rgiid.split('-')[1].split('.')[1] for rgiid in rgiid_reg_wdata_Cali])
 
-    main_glac_rgi_all = modelsetup.selectglaciersrgitable(
-        rgi_regionsO1=[args.rgi_region01],
-        rgi_regionsO2=pygem_prms.rgi_regionsO2,
-        rgi_glac_number=pygem_prms.rgi_glac_number,
-        glac_no=glac_no_reg_wdata_Cali,
-        include_landterm=pygem_prms.include_landterm,
-        include_laketerm=pygem_prms.include_laketerm,
-        include_tidewater=pygem_prms.include_tidewater,
-        min_glac_area_km2=pygem_prms.min_glac_area_km2
-    )
-    
-    return list(main_glac_rgi_all['rgino_str'].values)
+    # Get the intersection of the glacier numbers from the calibration dataset and the calibration results
+    glac_no_reg_wdata_Cali = list(set(glac_no_reg_wdata_Cali_dataset) & set(glac_no_reg_wdata_Cali_result))
+
+    glac_no_lsts = glac_no_reg_wdata_Cali
+    #print("the glac_no_lsts is :", glac_no_lsts)
+    return glac_no_lsts
 
 
 # Function to set up parallel processing
-def setup_parallel_processing(args, glac_no):
+def setup_parallel_processing(args):
     """Set up parallel processing based on the command line arguments.
     Args:
         args (argparse.Namespace): Parsed command line arguments.
-        glac_no (list): List of glacier numbers.
     Returns:
         int: Number of processes to use for parallel processing.
     """
@@ -3123,7 +3132,7 @@ def pack_variables(glac_no, gcm_name, realizations, scenario):
     """Pack variables for parallel processing.
 
     Args:
-        glac_no (str): Glacier number.
+        glac_no (list): List of Glacier number.
         gcm_name (str): Name of the GCM.
         realizations (list): List of realizations.
         scenario (str): Scenario associated with the processing.
@@ -3135,10 +3144,12 @@ def pack_variables(glac_no, gcm_name, realizations, scenario):
     
     if realizations is not None:
         for realization in realizations:
-            list_packed_vars.append([glac_no, gcm_name, realization, scenario])
+            for glacier in glac_no:  # Iterate over each glacier number
+                list_packed_vars.append([glacier, gcm_name, realization, scenario])
     else:
-        list_packed_vars.append([glac_no, gcm_name, None, scenario])
-    
+        for glacier in glac_no:
+            list_packed_vars.append([glacier, gcm_name, None, scenario])
+
     return list_packed_vars
 
 
@@ -3194,7 +3205,7 @@ def main():
     glac_no = get_glacier_numbers(args)
 
     # Set number of cores for parallel processing
-    num_cores = setup_parallel_processing(args, glac_no)
+    num_cores = setup_parallel_processing(args)
 
     # Prepare GCMs and scenarios
     gcm_list, scenario = prepare_gcm_list(args)
@@ -3213,8 +3224,10 @@ def main():
             # Pack variables for multiprocessing
             list_packed_vars = pack_variables(glac_no, gcm_name, realizations, scenario)
 
-            print('Length of packed variables:', len(list_packed_vars))
-
+            # print('Length of packed variables:', len(list_packed_vars))
+            # print('list_packed_vars:', list_packed_vars)
+            # set a breakpoint for debugging, and just stop the whole process and get out
+            # sys.exit()
             # Process the packed variables
             process_packed_variables(list_packed_vars, num_cores, fail_log)
 
