@@ -1792,19 +1792,19 @@ def simu_MB_FA_single_glac (n_iter = None, gdir =None, modelprms = None, tau_val
                     if do_fl_diag:
                         fl_diag_path = gdir.get_filepath('fl_diagnostics',delete=True,filesuffix = file_suffix)
                         diag, fl_diag_dss = ev_model.run_until_and_store(nyears,store_monthly_step= store_monthly_step,fl_diag_path=fl_diag_path)
-                        print('diag is :',diag)
+                        # print('diag is :',diag)
                         #pdb.set_trace()
                     else:
                         diag = ev_model.run_until_and_store(nyears,store_monthly_step= store_monthly_step)
-                        print('diag is :',diag)
+                        # print('diag is :',diag)
                 except:
                     print("oggm ver >1.3, run_until_and store failed")
                     print(traceback.format_exc())
             else:
                 _, diag = ev_model.run_until_and_store(nyears)
                 print("oggm run law failed")
-            print("the volume_3 in the diag is :",diag.volume_m3)
-            print("area_m2 in diag is :",diag.area_m2)
+            # print("the volume_3 in the diag is :",diag.volume_m3)
+            # print("area_m2 in diag is :",diag.area_m2)
             ev_model.mb_model.glac_wide_volume_annual[-1] = diag.volume_m3[-1]
             ev_model.mb_model.glac_wide_area_annual[-1] = diag.area_m2[-1]
             #ev_model.mb_model.glac_wide_length_annual[-1] = diag.length_m[-1]
@@ -1830,7 +1830,7 @@ def simu_MB_FA_single_glac (n_iter = None, gdir =None, modelprms = None, tau_val
                         calving_m3_annual = calving_m3_month
                         length_change_m_annual = length_change_m_monthly
                     #pdb.set_trace()
-                    print("calving_m3_annual is:",calving_m3_annual)
+                    # print("calving_m3_annual is:",calving_m3_annual)
                     print("the frontalablation is updated totally :",calving_m3_month.shape[0])
                     for n in np.arange(calving_m3_month.shape[0]):
                         # update monthly or annual
