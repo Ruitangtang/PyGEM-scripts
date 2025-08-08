@@ -270,7 +270,10 @@ def calc_stats_array_Restruct(data_uniq, stats_cns=pygem_prms.sim_stat_cns, rgii
     stats = None
     if 'mean' in stats_cns:
         if stats is None:
-            stats = np.nanmean(data,axis=1)[:,np.newaxis]
+            if np.any(~np.isnan(data)):  # Check if there's at least one non-NaN value
+                stats = np.nanmean(data, axis=1)[:, np.newaxis]
+            else:
+                stats = np.array([])  # or set to a default value if appropriate
     if 'mad' in stats_cns:
         stats = np.append(stats, median_abs_deviation(data, axis=1, nan_policy='omit')[:,np.newaxis], axis=1)
     if '2.5%' in stats_cns:
@@ -2196,7 +2199,7 @@ def simu_MB_FA(list_packed_vars,num_cores = 1,model_function = simu_MB_FA_single
         if glac == 0:
             print(gcm_name,':', main_glac_rgi.loc[main_glac_rgi.index.values[glac],'RGIId'])
         # Select subsets of data
-        glacier_rgi_table = main_glac_rgi.loc[main_glac_rgi.index.values[glac], :]
+        glacier_rgi_table = main_glac_rgi.loc[main_glac_rgi.index.values[glac], :].copy()
         # TODO It's temporal setting, here we hardcode the termtype as 1, because the info in RGI60 is not correct for some tidewater glaciers
         glacier_rgi_table['TermType'] = 1
         glacier_str = '{0:0.5f}'.format(glacier_rgi_table['RGIId_float'])
