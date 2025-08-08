@@ -268,12 +268,29 @@ def calc_stats_array_Restruct(data_uniq, stats_cns=pygem_prms.sim_stat_cns, rgii
     data = np.repeat(data_uniq,unique_counts,axis = 1)
     #%% do the stats
     stats = None
+
+    # Check if data is a MaskedArray
+    if isinstance(data, np.ma.MaskedArray):
+        # Data is a masked array
+        valid_data = data[~data.mask]  # Get only unmasked data
+    else:
+        # Data is a regular NumPy array
+        valid_data = data[np.isfinite(data)]  # Get only finite (non-NaN) data
+
+    # Now calculate the mean safely
     if 'mean' in stats_cns:
         if stats is None:
-            if np.any(~np.isnan(data)):  # Check if there's at least one non-NaN value
-                stats = np.nanmean(data, axis=1)[:, np.newaxis]
+            if valid_data.size > 0:  # Check if valid data exists
+                # Ensure valid_data has the same number of dimensions as data
+                if valid_data.ndim > 1:
+                    # Calculate the mean along the specified axis
+                    stats = np.nanmean(valid_data, axis = 1)[:, np.newaxis]
+                else:
+                    # If it's a 1D array, simply compute the mean
+                    stats = np.nanmean(valid_data)
             else:
-                stats = np.array([])  # or set to a default value if appropriate
+                stats = np.array([])  # Default to empty array if no valid data
+
     if 'mad' in stats_cns:
         stats = np.append(stats, median_abs_deviation(data, axis=1, nan_policy='omit')[:,np.newaxis], axis=1)
     if '2.5%' in stats_cns:
