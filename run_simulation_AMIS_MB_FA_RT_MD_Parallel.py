@@ -23,6 +23,8 @@ import cftime
 import traceback
 import pdb
 import json
+import warnings
+
 # External libraries
 import pandas as pd
 import pickle
@@ -50,6 +52,7 @@ from pygem.oggm_compat import single_flowline_glacier_directory_with_calving
 from pygem.shop import debris 
 from pygem import class_climate
 import Visualization_timeseries as Visualization_timeseries
+import statistic_tool as stats_tl
 
 
 import oggm
@@ -232,7 +235,8 @@ def calc_stats_array(data, stats_cns=pygem_prms.sim_stat_cns):
     return stats
 
 
-def calc_stats_array_Restruct(data_uniq, stats_cns=pygem_prms.sim_stat_cns, rgiid_ind =None,reg_id=None,glacier_id=None):
+def calc_stats_array_Restruct(data_uniq, stats_cns=pygem_prms.sim_stat_cns, rgiid_ind =None,reg_id=None,glacier_id=None,
+                              object_name=None,traceback_fp=None,warning_fp=None):
     """
     Calculate stats for a given variable, but it will restruct the array based on the info from Unique function
     of Model Posterior Parameters
@@ -249,6 +253,12 @@ def calc_stats_array_Restruct(data_uniq, stats_cns=pygem_prms.sim_stat_cns, rgii
         is the region id, e.g. '01' for RGI region 01
     glacier_id : str
         is the glacier id, which is used to get the unique info of Model posterior parameters, e.g. '7.00125'
+    object_name : str
+        is the name of the object being processed, e.g. 'glac_length_monthly'
+    traceback_fp : str
+        is the file path for the traceback information
+    warning_fp : str
+        is the file path for the warning information
 
     Returns
     -------
@@ -269,45 +279,43 @@ def calc_stats_array_Restruct(data_uniq, stats_cns=pygem_prms.sim_stat_cns, rgii
     #%% do the stats
     stats = None
 
-    # Check if data is a MaskedArray
-    if isinstance(data, np.ma.MaskedArray):
-        # Data is a masked array
-        valid_data = data[~data.mask]  # Get only unmasked data
-    else:
-        # Data is a regular NumPy array
-        valid_data = data[np.isfinite(data)]  # Get only finite (non-NaN) data
+    # Set up warning capture to use the custom handler
+    warnings.showwarning = lambda message, category, filename, lineno, file=None, line=None: stats_tl.custom_warning_handler(
+        message, category, filename, lineno, object_name=object_name, file_fp=warning_fp
+    )
 
+    warnings.simplefilter("always", RuntimeWarning)  # Capture all RuntimeWarnings
     # Now calculate the mean safely
-    if 'mean' in stats_cns:
-        if stats is None:
-            if valid_data.size > 0:  # Check if valid data exists
-                # Ensure valid_data has the same number of dimensions as data
-                if valid_data.ndim > 1:
-                    # Calculate the mean along the specified axis
-                    stats = np.nanmean(valid_data, axis = 1)[:, np.newaxis]
+    try:
+        if 'mean' in stats_cns:
+            try:
+                if stats is None:
+                    stats = np.nanmean(data, axis=1)[:, np.newaxis]
                 else:
-                    # If it's a 1D array, simply compute the mean
-                    stats = np.nanmean(valid_data)
+                    stats = np.append(stats, np.nanmean(data, axis=1)[:, np.newaxis], axis=1)
+            except Exception as e:
+                # log the traceback information to the traceback file
+                stats_tl.log_traceback(object_name=object_name, traceback_fp=traceback_fp)
+        if 'mad' in stats_cns:
+            stats = np.append(stats, median_abs_deviation(data, axis=1, nan_policy='omit')[:,np.newaxis], axis=1)
+        if '2.5%' in stats_cns:
+            stats = np.append(stats, np.nanpercentile(data, 2.5, axis=1)[:,np.newaxis], axis=1)
+        if '25%' in stats_cns:
+            stats = np.append(stats, np.nanpercentile(data, 25, axis=1)[:,np.newaxis], axis=1)
+        if 'median' in stats_cns:
+            if stats is None:
+                stats = np.nanmedian(data, axis=1)[:,np.newaxis]
             else:
-                stats = np.array([])  # Default to empty array if no valid data
-
-    if 'mad' in stats_cns:
-        stats = np.append(stats, median_abs_deviation(data, axis=1, nan_policy='omit')[:,np.newaxis], axis=1)
-    if '2.5%' in stats_cns:
-        stats = np.append(stats, np.nanpercentile(data, 2.5, axis=1)[:,np.newaxis], axis=1)
-    if '25%' in stats_cns:
-        stats = np.append(stats, np.nanpercentile(data, 25, axis=1)[:,np.newaxis], axis=1)
-    if 'median' in stats_cns:
-        if stats is None:
-            stats = np.nanmedian(data, axis=1)[:,np.newaxis]
-        else:
-            stats = np.append(stats, np.nanmedian(data, axis=1)[:,np.newaxis], axis=1)
-    if '75%' in stats_cns:
-        stats = np.append(stats, np.nanpercentile(data, 75, axis=1)[:,np.newaxis], axis=1)
-    if '97.5%' in stats_cns:
-        stats = np.append(stats, np.nanpercentile(data, 97.5, axis=1)[:,np.newaxis], axis=1)
-    if 'std' in stats_cns:
-        stats = np.append(stats, np.nanstd(data,axis=1)[:,np.newaxis], axis=1)
+                stats = np.append(stats, np.nanmedian(data, axis=1)[:,np.newaxis], axis=1)
+        if '75%' in stats_cns:
+            stats = np.append(stats, np.nanpercentile(data, 75, axis=1)[:,np.newaxis], axis=1)
+        if '97.5%' in stats_cns:
+            stats = np.append(stats, np.nanpercentile(data, 97.5, axis=1)[:,np.newaxis], axis=1)
+        if 'std' in stats_cns:
+            stats = np.append(stats, np.nanstd(data,axis=1)[:,np.newaxis], axis=1)
+    except Exception as e:
+        # log the traceback information to the traceback file
+        stats_tl.log_traceback(object_name=object_name, traceback_fp=traceback_fp)
 
     return stats
 
@@ -2222,6 +2230,23 @@ def simu_MB_FA(list_packed_vars,num_cores = 1,model_function = simu_MB_FA_single
         glacier_str = '{0:0.5f}'.format(glacier_rgi_table['RGIId_float'])
         reg_str = str(glacier_rgi_table.O1Region).zfill(2)
         rgiid = main_glac_rgi.loc[main_glac_rgi.index.values[glac],'RGIId']
+
+        # Log failure
+        fail_fp = pygem_prms.output_sim_fp + 'failed/' + reg_str + '/' + gcm_name + '/'
+        if gcm_name not in ['ERA-Interim', 'ERA5', 'COAWST']:
+            fail_fp += scenario + '/'
+        if not os.path.exists(fail_fp):
+            os.makedirs(fail_fp, exist_ok=True)
+        # Log the failure message to sim_failed.txt, appending if it already exists
+        txt_fn_fail = glacier_str + "-sim_failed.txt"
+        txt_fp_fail = os.path.join(fail_fp, txt_fn_fail)
+        # Log the traceback information to sim_traceback.txt, appending if it already exists
+        traceback_fn = glacier_str + "-sim_traceback.txt"
+        traceback_fp = os.path.join(fail_fp, traceback_fn)
+        # Log the warning message to sim_warning.txt, appending if it already exists
+        warning_fn = glacier_str + "-sim_warning.txt"
+        warning_fp = os.path.join(fail_fp, warning_fn)
+
         print("====================================")
         print("-------------------------- start MB Running for the",glac,"glacier, rgiid is :",rgiid,"--------------------------")
         # if do_DA_simulation:
@@ -2690,36 +2715,36 @@ def simu_MB_FA(list_packed_vars,num_cores = 1,model_function = simu_MB_FA_single
                             # Create empty dataset for all variables and all statistic infomations
                             output_ds_all_stats_ALL, encoding_ALL = create_xrdataset_all_statis(glacier_rgi_table, dates_table)
                             # Output statistics
-                            output_glac_runoff_monthly_stats = calc_stats_array_Restruct(output_glac_runoff_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
-                            output_glac_area_annual_stats = calc_stats_array_Restruct(output_glac_area_annual,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
-                            output_glac_length_annual_stats = calc_stats_array_Restruct(output_glac_length_annual,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
-                            output_glac_length_change_annual_stats = calc_stats_array_Restruct(output_glac_length_change_annual,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
-                            output_glac_frontalablation_annual_stats = calc_stats_array_Restruct(output_glac_frontalablation_annual,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
-                            output_glac_massbaltotal_annual_stats = calc_stats_array_Restruct(output_glac_massbaltotal_annual,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
-                            output_glac_massbalclim_annual_stats = calc_stats_array_Restruct(output_glac_massbalclim_annual,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
-                            output_glac_mass_annual_stats = calc_stats_array_Restruct(output_glac_mass_annual,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
-                            output_glac_mass_bsl_annual_stats = calc_stats_array_Restruct(output_glac_mass_bsl_annual,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
-                            output_glac_ELA_annual_stats = calc_stats_array_Restruct(output_glac_ELA_annual,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
-                            output_offglac_runoff_monthly_stats = calc_stats_array_Restruct(output_offglac_runoff_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
+                            output_glac_runoff_monthly_stats = calc_stats_array_Restruct(output_glac_runoff_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str,object_name = 'glac_runoff_monthly',traceback_fp =traceback_fp,warning_fp = warning_fp)
+                            output_glac_area_annual_stats = calc_stats_array_Restruct(output_glac_area_annual,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str,object_name = 'glac_area_annual',traceback_fp =traceback_fp,warning_fp = warning_fp)
+                            output_glac_length_annual_stats = calc_stats_array_Restruct(output_glac_length_annual,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str,object_name = 'glac_length_annual',traceback_fp =traceback_fp,warning_fp = warning_fp)
+                            output_glac_length_change_annual_stats = calc_stats_array_Restruct(output_glac_length_change_annual,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str,object_name = 'glac_length_change_annual',traceback_fp =traceback_fp,warning_fp = warning_fp)
+                            output_glac_frontalablation_annual_stats = calc_stats_array_Restruct(output_glac_frontalablation_annual,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str,object_name = 'glac_frontalablation_annual',traceback_fp =traceback_fp,warning_fp = warning_fp)
+                            output_glac_massbaltotal_annual_stats = calc_stats_array_Restruct(output_glac_massbaltotal_annual,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str,object_name = 'glac_massbaltotal_annual',traceback_fp =traceback_fp,warning_fp = warning_fp)
+                            output_glac_massbalclim_annual_stats = calc_stats_array_Restruct(output_glac_massbalclim_annual,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str,object_name = 'glac_massbalclim_annual',traceback_fp =traceback_fp,warning_fp = warning_fp)
+                            output_glac_mass_annual_stats = calc_stats_array_Restruct(output_glac_mass_annual,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str,object_name = 'glac_mass_annual',traceback_fp =traceback_fp,warning_fp = warning_fp)
+                            output_glac_mass_bsl_annual_stats = calc_stats_array_Restruct(output_glac_mass_bsl_annual,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str,object_name = 'glac_mass_bsl_annual',traceback_fp =traceback_fp,warning_fp = warning_fp)
+                            output_glac_ELA_annual_stats = calc_stats_array_Restruct(output_glac_ELA_annual,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str,object_name = 'glac_ELA_annual',traceback_fp =traceback_fp,warning_fp = warning_fp)
+                            output_offglac_runoff_monthly_stats = calc_stats_array_Restruct(output_offglac_runoff_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str,object_name = 'offglac_runoff_monthly',traceback_fp =traceback_fp,warning_fp = warning_fp)
                             if pygem_prms.export_extra_vars:
-                                output_glac_temp_monthly_stats = calc_stats_array_Restruct(output_glac_temp_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
-                                output_glac_prec_monthly_stats = calc_stats_array_Restruct(output_glac_prec_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
-                                output_glac_acc_monthly_stats = calc_stats_array_Restruct(output_glac_acc_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
-                                output_glac_refreeze_monthly_stats = calc_stats_array_Restruct(output_glac_refreeze_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
-                                output_glac_melt_monthly_stats = calc_stats_array_Restruct(output_glac_melt_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
-                                output_glac_frontalablation_monthly_stats = calc_stats_array_Restruct(output_glac_frontalablation_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
-                                output_glac_massbalclim_monthly_stats = calc_stats_array_Restruct(output_glac_massbalclim_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
-                                output_glac_massbaltotal_monthly_stats = calc_stats_array_Restruct(output_glac_massbaltotal_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
-                                output_glac_snowline_monthly_stats = calc_stats_array_Restruct(output_glac_snowline_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
-                                output_glac_mass_change_ignored_annual_stats = calc_stats_array_Restruct(output_glac_mass_change_ignored_annual,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
-                                output_offglac_prec_monthly_stats = calc_stats_array_Restruct(output_offglac_prec_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
-                                output_offglac_melt_monthly_stats = calc_stats_array_Restruct(output_offglac_melt_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
-                                output_offglac_refreeze_monthly_stats = calc_stats_array_Restruct(output_offglac_refreeze_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
-                                output_offglac_snowpack_monthly_stats = calc_stats_array_Restruct(output_offglac_snowpack_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
+                                output_glac_temp_monthly_stats = calc_stats_array_Restruct(output_glac_temp_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str,object_name = 'glac_temp_monthly',traceback_fp =traceback_fp,warning_fp = warning_fp)
+                                output_glac_prec_monthly_stats = calc_stats_array_Restruct(output_glac_prec_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str,object_name = 'glac_prec_monthly',traceback_fp =traceback_fp,warning_fp = warning_fp)
+                                output_glac_acc_monthly_stats = calc_stats_array_Restruct(output_glac_acc_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str,object_name = 'glac_acc_monthly',traceback_fp =traceback_fp,warning_fp = warning_fp)
+                                output_glac_refreeze_monthly_stats = calc_stats_array_Restruct(output_glac_refreeze_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str,object_name = 'glac_refreeze_monthly',traceback_fp =traceback_fp,warning_fp = warning_fp)
+                                output_glac_melt_monthly_stats = calc_stats_array_Restruct(output_glac_melt_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str,object_name = 'glac_melt_monthly',traceback_fp =traceback_fp,warning_fp = warning_fp)
+                                output_glac_frontalablation_monthly_stats = calc_stats_array_Restruct(output_glac_frontalablation_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str,object_name = 'glac_frontalablation_monthly',traceback_fp =traceback_fp,warning_fp = warning_fp)
+                                output_glac_massbalclim_monthly_stats = calc_stats_array_Restruct(output_glac_massbalclim_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str,object_name = 'glac_massbalclim_monthly',traceback_fp =traceback_fp,warning_fp = warning_fp)
+                                output_glac_massbaltotal_monthly_stats = calc_stats_array_Restruct(output_glac_massbaltotal_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str,object_name = 'glac_massbaltotal_monthly',traceback_fp =traceback_fp,warning_fp = warning_fp)
+                                output_glac_snowline_monthly_stats = calc_stats_array_Restruct(output_glac_snowline_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str,object_name = 'glac_snowline_monthly',traceback_fp =traceback_fp,warning_fp = warning_fp)
+                                output_glac_mass_change_ignored_annual_stats = calc_stats_array_Restruct(output_glac_mass_change_ignored_annual,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str,object_name = 'glac_mass_change_ignored_annual',traceback_fp =traceback_fp,warning_fp = warning_fp)
+                                output_offglac_prec_monthly_stats = calc_stats_array_Restruct(output_offglac_prec_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str,object_name = 'offglac_prec_monthly',traceback_fp =traceback_fp,warning_fp = warning_fp)
+                                output_offglac_melt_monthly_stats = calc_stats_array_Restruct(output_offglac_melt_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str,object_name = 'offglac_melt_monthly',traceback_fp =traceback_fp,warning_fp = warning_fp)
+                                output_offglac_refreeze_monthly_stats = calc_stats_array_Restruct(output_offglac_refreeze_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str,object_name = 'offglac_refreeze_monthly',traceback_fp =traceback_fp,warning_fp = warning_fp)
+                                output_offglac_snowpack_monthly_stats = calc_stats_array_Restruct(output_offglac_snowpack_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str,object_name = 'offglac_snowpack_monthly',traceback_fp =traceback_fp,warning_fp = warning_fp)
 
                                 if Dynamic_step_Monthly:
-                                    output_glac_length_monthly_stats = calc_stats_array_Restruct(output_glac_length_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
-                                    output_glac_length_change_monthly_stats = calc_stats_array_Restruct(output_glac_length_change_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str)
+                                    output_glac_length_monthly_stats = calc_stats_array_Restruct(output_glac_length_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str,object_name = 'glac_length_monthly',traceback_fp =traceback_fp,warning_fp = warning_fp)
+                                    output_glac_length_change_monthly_stats = calc_stats_array_Restruct(output_glac_length_change_monthly,rgiid_ind = rgiid,reg_id=reg_str,glacier_id=glacier_str,object_name = 'glac_length_change_monthly',traceback_fp =traceback_fp,warning_fp = warning_fp)
                             #TODO save the all statistic information of the model output, mean, std, 2.5%,25%,median,75%,97.5%,mad
                              # Compute statistics for each variable
                             stats_dict_ALL = {
@@ -2840,8 +2865,9 @@ def simu_MB_FA(list_packed_vars,num_cores = 1,model_function = simu_MB_FA_single
                                         output_ds_all_stats['glac_length_monthly_mad'].values[0,:] = output_glac_length_monthly_stats[:,1]
                                         output_ds_all_stats['glac_length_change_monthly_mad'].values[0,:] = output_glac_length_change_monthly_stats[:,1]
                             print("------------- record 3 finish -------------")
-                        except:
-                            print(traceback.format_exc())
+                        except Exception:
+                                stats_tl.log_traceback(object_name=None, traceback_fp=traceback_fp)
+                                print(traceback.format_exc())
 
 
                         #pdb.set_trace()
@@ -2958,6 +2984,8 @@ def simu_MB_FA(list_packed_vars,num_cores = 1,model_function = simu_MB_FA_single
                             output_ds_binned_stats.close()
                             print("------------- record 4 finish -------------")
                         except:
+                            with open(traceback_fp, "a") as traceback_file:  # Change "w" to "a" for appending
+                                traceback_file.write(traceback.format_exc() + "\n")  # Add a newline for clarity
                             print(traceback.format_exc())
 
                         
@@ -2999,14 +3027,10 @@ def simu_MB_FA(list_packed_vars,num_cores = 1,model_function = simu_MB_FA_single
         
         except Exception as err:
             # LOG FAILURE
-            fail_fp = pygem_prms.output_sim_fp + 'failed/' + reg_str + '/' + gcm_name + '/'
-            if gcm_name not in ['ERA-Interim', 'ERA5', 'COAWST']:
-                fail_fp += scenario + '/'
-            if not os.path.exists(fail_fp):
-                os.makedirs(fail_fp, exist_ok=True)
-            txt_fn_fail = glacier_str + "-sim_failed.txt"
-            with open(fail_fp + txt_fn_fail, "w") as text_file:
+            with open(txt_fp_fail, "a") as text_file:
                 text_file.write(glacier_str + f' failed to complete simulation: {err}')
+            # Traceback
+            stats_tl.log_traceback(object_name=glacier_str, traceback_fp=traceback_fp)
             print(traceback.format_exc())
 
     # Global variables for Spyder development
