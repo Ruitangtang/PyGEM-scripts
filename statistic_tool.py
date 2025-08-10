@@ -1481,3 +1481,51 @@ def load_posterior_weighted_region(model_output_fp_region=None):
                 Poster_weighted[key].append(value)  # Append the value to the corresponding list
     
     return Poster_weighted
+
+# Custom warning handler defined outside the function
+def custom_warning_handler(message, category, filename, lineno, file=None, line=None,
+                           object_name=None, file_fp='warning_record.txt'):
+    """
+    Writes warning messages to a specified log file.
+
+    Parameters
+    ----------
+    message : str
+        The warning message.
+    category : Warning
+        The warning category (e.g., RuntimeWarning, UserWarning).
+    filename : str
+        The name of the file where the warning was raised.
+    lineno : int
+        The line number of the warning.
+    file : TextIO, optional
+        The file object (default is None).
+    line : str, optional
+        The line of code (default is None).
+    object_name : str, optional
+        The name of the object associated with the warning (default is None).
+    file_fp : str, optional
+        The file path for the warning information (default is 'warning_record.txt').
+    """
+    with open(file_fp, "a") as wf:  # Open the file in append mode
+        if object_name is not None:
+            wf.write(f"Object Name: {object_name}\n")  # Log object name on the first line
+        wf.write(f"{filename}:{lineno}: {category.__name__}: {message}\n")  # Log the warning details
+
+
+# Log error (traceback info)
+def log_traceback(object_name=None, traceback_fp='traceback.txt'):
+    """
+    Logs traceback messages to a specified error log file.
+
+    Parameters
+    ----------
+    object_name : str, optional
+        The name of the object associated with the error (default is None).
+    file_fp : str, optional
+        The file path for the error information (default is 'traceback.txt').
+    """
+    with open(traceback_fp, "a") as ef:  # Open the file in append mode
+        if object_name is not None:
+            ef.write(f"Object Name: {object_name}\n")  # Log object name on the first line
+        ef.write(f"TRACEBACK: {traceback.format_exc()}\n")  # Log the traceback information
