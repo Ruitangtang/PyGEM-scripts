@@ -3116,7 +3116,7 @@ def setup_parallel_processing(args):
     if args.option_parallels:
         proc_count = cpu_count()
         print(f"There are {proc_count} processors available.")
-        return max(1, proc_count - proc_count // 2)  # Ensure at least one process
+        return max(1, proc_count)  # Ensure at least one process
     return 1  # Default to single processing
 
 
