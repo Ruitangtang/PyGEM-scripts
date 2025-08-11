@@ -2888,14 +2888,14 @@ def simu_MB_FA(list_packed_vars,num_cores = 1,model_function = simu_MB_FA_single
                         # save the data to csv file
                         #pdb.set_trace()
                         # TODO Check if this is necessary, since we already has the nc file, if not necessary, remove this part
-                        output_glac_length_change_annual_df = pd.DataFrame(output_glac_length_change_annual.T,columns = year_values)
-                        output_glac_frontalablation_annual_df = pd.DataFrame(output_glac_frontalablation_annual.T,columns = year_values)
-                        output_glac_massbalclim_annual_df = pd.DataFrame(output_glac_massbalclim_annual.T,columns = year_values)
-                        output_glac_massbaltotal_annual_df = pd.DataFrame(output_glac_massbaltotal_annual.T,columns = year_values)
-                        output_glac_length_change_annual_df.to_csv(save_path_modeloutput + 'lengthchange_' + glacier_str + '_' + gcm_name + '_' + scenario + '_'  + str(SIM_ITERATIONS) + 'sets' + '_' + str(args.gcm_bc_startyear) + '_' + str(args.gcm_endyear) + '.csv')
-                        output_glac_frontalablation_annual_df.to_csv(save_path_modeloutput + 'frontalablation_' + glacier_str + '_' + gcm_name + '_' + scenario + '_'  + str(SIM_ITERATIONS) + 'sets' + '_' + str(args.gcm_bc_startyear) + '_' + str(args.gcm_endyear) + '.csv')
-                        output_glac_massbalclim_annual_df.to_csv(save_path_modeloutput + 'massbalclim_' + glacier_str + '_' + gcm_name + '_' + scenario + '_'  + str(SIM_ITERATIONS) + 'sets' + '_' + str(args.gcm_bc_startyear) + '_' + str(args.gcm_endyear) + '.csv')
-                        output_glac_massbaltotal_annual_df.to_csv(save_path_modeloutput + 'massbaltotal_' + glacier_str + '_' + gcm_name + '_' + scenario + '_'  + str(SIM_ITERATIONS) + 'sets' + '_' + str(args.gcm_bc_startyear) + '_' + str(args.gcm_endyear) + '.csv')
+                        # output_glac_length_change_annual_df = pd.DataFrame(output_glac_length_change_annual.T,columns = year_values)
+                        # output_glac_frontalablation_annual_df = pd.DataFrame(output_glac_frontalablation_annual.T,columns = year_values)
+                        # output_glac_massbalclim_annual_df = pd.DataFrame(output_glac_massbalclim_annual.T,columns = year_values)
+                        # output_glac_massbaltotal_annual_df = pd.DataFrame(output_glac_massbaltotal_annual.T,columns = year_values)
+                        # output_glac_length_change_annual_df.to_csv(save_path_modeloutput + 'lengthchange_' + glacier_str + '_' + gcm_name + '_' + scenario + '_'  + str(SIM_ITERATIONS) + 'sets' + '_' + str(args.gcm_bc_startyear) + '_' + str(args.gcm_endyear) + '.csv')
+                        # output_glac_frontalablation_annual_df.to_csv(save_path_modeloutput + 'frontalablation_' + glacier_str + '_' + gcm_name + '_' + scenario + '_'  + str(SIM_ITERATIONS) + 'sets' + '_' + str(args.gcm_bc_startyear) + '_' + str(args.gcm_endyear) + '.csv')
+                        # output_glac_massbalclim_annual_df.to_csv(save_path_modeloutput + 'massbalclim_' + glacier_str + '_' + gcm_name + '_' + scenario + '_'  + str(SIM_ITERATIONS) + 'sets' + '_' + str(args.gcm_bc_startyear) + '_' + str(args.gcm_endyear) + '.csv')
+                        # output_glac_massbaltotal_annual_df.to_csv(save_path_modeloutput + 'massbaltotal_' + glacier_str + '_' + gcm_name + '_' + scenario + '_'  + str(SIM_ITERATIONS) + 'sets' + '_' + str(args.gcm_bc_startyear) + '_' + str(args.gcm_endyear) + '.csv')
                         #pdb.set_trace()
                     
                         # Export statistics to netcdf
@@ -2977,11 +2977,11 @@ def simu_MB_FA(list_packed_vars,num_cores = 1,model_function = simu_MB_FA_single
                                             str(pygem_prms.option_calibration) + '_ba' + str(pygem_prms.option_bias_adjustment) + 
                                             '_' + str(SIM_ITERATIONS) + 'sets' + '_' + str(args.gcm_bc_startyear) + '_' + 
                                             str(args.gcm_endyear) + '_binned.nc')
-                            # Export netcdf
-                            output_ds_binned_stats.to_netcdf(output_sim_binned_fp + netcdf_fn, encoding=encoding_binned)
+                            # Export netcdf TODO Temporally comment the binned results saving, because of the storage issue
+                            # output_ds_binned_stats.to_netcdf(output_sim_binned_fp + netcdf_fn, encoding=encoding_binned)
                 
-                            # Close datasets
-                            output_ds_binned_stats.close()
+                            # # Close datasets
+                            # output_ds_binned_stats.close()
                             print("------------- record 4 finish -------------")
                         except:
                             with open(traceback_fp, "a") as traceback_file:  # Change "w" to "a" for appending
