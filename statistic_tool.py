@@ -1529,3 +1529,44 @@ def log_traceback(object_name=None, traceback_fp='traceback.txt'):
         if object_name is not None:
             ef.write(f"Object Name: {object_name}\n")  # Log object name on the first line
         ef.write(f"TRACEBACK: {traceback.format_exc()}\n")  # Log the traceback information
+
+
+# Function to extract regional id and rgiid float, and regional id_full and rgiid full from the full RGIID .E.G., RGI60-07.00029
+def extract_regional_rgiid_float(rgiid = None,index_full = False):
+    """
+    Extract reg_id and rgi_float from RGI ID.
+    
+    Args:
+        rgiid (str): RGI ID string, e.g., 'RGI60-07.00120' or 'RGI60-11.12500'
+        index_full (bool): If True, return full regional IDs as well.
+    
+    Returns:
+        tuple: (reg_id, rgi_float) where:
+            - reg_id is the region ID as string, e.g., '07', '11'
+            - rgi_float is the float value as string, e.g., '7.00120', '11.12500'
+    """
+    # Regional_full name
+    reg_id_R1_full = rgiid[:-6]
+    reg_id_R2_full = rgiid[:-3]
+    # Remove the 'RGI60-' prefix
+    suffix = rgiid.replace('RGI60-', '')
+    
+    # Split by dot to separate the integer and decimal parts
+    parts = suffix.split('.')
+    
+    # Extract reg_id (the part before decimal, keeping leading zeros)
+    reg_id = parts[0]
+    
+    # Construct rgi_float by removing leading zero from integer part if needed
+    if reg_id.startswith('0') and len(reg_id) > 1:
+        # Remove leading zero for the float representation
+        rgi_float = f"{int(reg_id)}.{parts[1]}"
+    else:
+        # No leading zero to remove
+        rgi_float = f"{reg_id}.{parts[1]}"
+
+    # return the full name or just short name
+    if index_full:
+        return reg_id, rgi_float,reg_id_R1_full,reg_id_R2_full
+    else:
+        return reg_id, rgi_float 
