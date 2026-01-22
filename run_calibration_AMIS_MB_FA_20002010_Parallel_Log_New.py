@@ -2206,7 +2206,7 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
         lengthchange_annual_data_reg = lengthchange_annual_data.loc[lengthchange_annual_data['O1Region'] == reg, :].copy()
         lengthchange_annual_data_reg.reset_index(inplace=True, drop=True)
 
-        fa_glac_data_reg['glacno'] = np.nan
+        fa_glac_data_reg['glacno'] = ''
 
         for nglac, rgiid in enumerate(fa_glac_data_reg.RGIId):
             # Avoid regional data and observations from multiple RGIIds (len==14)
