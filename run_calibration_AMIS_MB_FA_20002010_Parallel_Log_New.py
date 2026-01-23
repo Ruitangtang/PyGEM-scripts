@@ -728,7 +728,7 @@ def AMIS(obs, pred, R, prim, pric, propm, propc, props):
                 psi = 0.5 * np.sum((Aj.T) * B.T, 1)
                 psi = psi - lcj
                 psij[:, j] = psi
-            psijx = np.maximum(psij, 1)  # Ne
+            psijx = np.max(psij, axis=1)  # Ne
             psijs = (psij.T - psijx).T  # Ne x Nl
             lsepsiell = psijx + np.log(np.sum(np.exp(psijs), 1))
             lsepsi[:, ell] = lsepsiell
