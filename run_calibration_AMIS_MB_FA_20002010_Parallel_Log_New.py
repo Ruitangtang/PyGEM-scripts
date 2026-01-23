@@ -208,7 +208,7 @@ def getparser():
     rgi_region01 (optional) : int
         Randoph Glacier Inventory region
     rgi_glac_number (optional) : str
-        Randoph Glacier Inventory glacier number
+        Randoph Glacier Inventory glacier number(ex, '11.00897')
     gcm_bc_startyear (optional) : int
         start year for bias correction
     gcm_startyear (optional) : int
@@ -728,7 +728,7 @@ def AMIS(obs, pred, R, prim, pric, propm, propc, props):
                 psi = 0.5 * np.sum((Aj.T) * B.T, 1)
                 psi = psi - lcj
                 psij[:, j] = psi
-            psijx = np.max(psij, 1)  # Ne
+            psijx = max(psij, 1)  # Ne
             psijs = (psij.T - psijx).T  # Ne x Nl
             lsepsiell = psijx + np.log(np.sum(np.exp(psijs), 1))
             lsepsi[:, ell] = lsepsiell
@@ -2159,6 +2159,11 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
     -------
     None
     """
+    # load the rgi glacier id if it's provided
+    if args.rgi_glac_number != '':
+        rgi_glac_number_single = args.rgi_glac_number
+    else:
+        rgi_glac_number_single = None
     # ===== Load mass balance and frontal ablation data, and length change data =====
     #Load calving glacier data (20 years averaged data,i.e. one value for the 20-year period) ===== 
     fa_glac_data = pd.read_csv(frontalablation_fp + frontalablation_fn)
@@ -2246,11 +2251,14 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
         # ===== regional observations
         reg_calving_gta_obs = fa_glac_data_reg['fa_gta_obs'].sum()
         # Glacier numbers for model runs
-        #TODO Set the condition for calibtation variables, calibrate FA or dLdt or both;Maybe add the regional mass balance total, climatic mass balance here we assume all glaciers has the MB data
-        glacno_reg_wdata_FA = sorted(list(fa_glac_data_reg.glacno.values)) # 20 years averaged data
-        glacno_reg_wdata_dLdt_annual = sorted(list(lengthchange_annual_data_reg.glacno.values)) # annuall timeseries data       
-        glacno_reg_wdata = sorted(list(set(glacno_reg_wdata_FA).intersection(set(glacno_reg_wdata_dLdt_annual))))
-        # glacno_reg_wdata = sorted(list(set(glacno_reg_wdata_FA_annual).intersection(set(glacno_reg_wdata_dLdt_annual))))
+        if rgi_glac_number_single is not None:
+            glacno_reg_wdata = [rgi_glac_number_single]
+        else:
+            #TODO Set the condition for calibtation variables, calibrate FA or dLdt or both;Maybe add the regional mass balance total, climatic mass balance here we assume all glaciers has the MB data
+            glacno_reg_wdata_FA = sorted(list(fa_glac_data_reg.glacno.values)) # 20 years averaged data
+            glacno_reg_wdata_dLdt_annual = sorted(list(lengthchange_annual_data_reg.glacno.values)) # annuall timeseries data       
+            glacno_reg_wdata = sorted(list(set(glacno_reg_wdata_FA).intersection(set(glacno_reg_wdata_dLdt_annual))))
+            # glacno_reg_wdata = sorted(list(set(glacno_reg_wdata_FA_annual).intersection(set(glacno_reg_wdata_dLdt_annual))))
         print('glacno_reg_wdata:', glacno_reg_wdata)
         print('type of glacno_reg_wdata:', type(glacno_reg_wdata))
         # ===== LOAD GLACIERS =====
@@ -2635,7 +2643,8 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                         A = (thetap.T-pm).T
                         pc = (A@A.T)/Ne
                     else:
-                        pc = np.copy(priorcov)*(0.5**j)
+                        shrink=max(0.5**j,0.2) # TODO check the shrinkage factor
+                        pc = np.copy(priorcov)*shrink
                     print("pc after AMIS is",pc)
                     # Draw from this Gaussian for the next adaptive iteration
                     # if there will be one
