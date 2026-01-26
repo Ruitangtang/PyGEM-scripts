@@ -9,6 +9,9 @@
 # Revised by Ruitang Yang, supported by Kristoffer on 30 Dec 2024
 # It's a copy of the run_calibration_AMIS_MB_FA_20002010_Parallel_Log.py, but revising the create/save way of the output csv file so that it can be extended.
 #  And also debug it for the regional running
+import sys
+sys.path.insert(0, '/home/ruitang/PyGEM_2023')
+sys.path.insert(0, '/home/ruitang/PyGEM_2023/PyGEM-scripts')
 # Built-in libraries
 import argparse
 import collections
@@ -2855,7 +2858,22 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                         if Visualize_Index:
 
                             # priod avearge fa/calving_flux Gta  #TODO CHANGE TO THE POSTERIOR
-                            Visualization_timeseries.plot_model_vs_observation((np.append(calving_flux_Gta_average_model_array_post_repeat, calving_flux_Gta_average_model_weighted)).tolist(),
+                            # # Here is for debugging
+                            # # Add debugging before line 2858:
+                            # print(f"calving_flux_Gta_average_model_array_post_repeat shape: {np.shape(calving_flux_Gta_average_model_array_post_repeat)}")
+                            # print(f"calving_flux_Gta_average_model_array_post_repeat type: {type(calving_flux_Gta_average_model_array_post_repeat)}")
+                            # print(f"calving_flux_Gta_average_model_weighted shape: {np.shape(calving_flux_Gta_average_model_weighted)}")
+                            # print(f"calving_flux_Gta_average_model_weighted type: {type(calving_flux_Gta_average_model_weighted)}")
+
+                            # # Check if they're scalars or arrays
+                            # if hasattr(calving_flux_Gta_average_model_weighted, '__len__'):
+                            #     print(f"calving_flux_Gta_average_model_weighted length: {len(calving_flux_Gta_average_model_weighted)}")
+                            # else:
+                            #     print(f"calving_flux_Gta_average_model_weighted is scalar: {calving_flux_Gta_average_model_weighted}")
+
+                            # print(f"fa_gta_obs_ind_array shape: {np.shape(fa_gta_obs_ind_array)}")
+                            # print(f"fa_gta_obs_ind_array type: {type(fa_gta_obs_ind_array)}")
+                            Visualization_timeseries.plot_model_vs_observation(np.concatenate([calving_flux_Gta_average_model_array_post_repeat,[[calving_flux_Gta_average_model_weighted]]], axis=0).tolist(),
                                                                             fa_gta_obs_ind_array, plot_type='point', model_label='Modeled frontal ablation (Gt a⁻¹)', obs_label='Observed frontal ablation (Gt a⁻¹)',
                                                                                 model_legends=[f"Particle {i+1}" for i in range(Sample_N)] + ["Weighted Avg"], start_date=2000,
                                                                                 title='Calving flux comparison model vs observation', observation_error=fa_gta_obs_unc_ind,
