@@ -53,7 +53,7 @@ def plot_timeseries_Numpy(data, start_date='2000-01-01', end_date='2020-12-31', 
     """
 
     # Create the datetime index with monthly frequency
-    date_range = pd.date_range(start=start_date, end=end_date, freq='M')
+    date_range = pd.date_range(start=start_date, end=end_date, freq='ME')
 
     # Check if data length matches date range
     if data is None or len(data) != len(date_range):
@@ -88,7 +88,7 @@ def plot_timeseries_Numpy(data, start_date='2000-01-01', end_date='2020-12-31', 
     plt.title(F_title)
 
     # Adding dashed vertical lines after each year
-    years = pd.date_range(start=date_range.min(), end=date_range.max(), freq='Y')  # Year start frequency
+    years = pd.date_range(start=date_range.min(), end=date_range.max(), freq='YE')  # Year start frequency
     for year in years:
         plt.axvline(x=year, linestyle='--', color='gray', linewidth=0.5)  # Add a dashed vertical line
 
@@ -583,8 +583,18 @@ def plot_model_vs_observation(models_output, observation_data, dates=None, start
             raise TypeError(f"Unexpected type for observation_data: {type(observation_data)}")
 
         # Now calculate min_val using the flattened model output and observation_data
-        min_val = min(min(flattened_model_output), observation_min)
-        max_val = max(max(flattened_model_output), observation_max)
+        # print(f"observation_min shape: {observation_min.shape if hasattr(observation_min, 'shape') else 'no shape'}")
+        # print(f"observation_min type: {type(observation_min)}")
+        # print(f"observation_min: {observation_min}")
+        # Extract scalar from observation_min if it's an array
+        if hasattr(observation_min, 'flatten'):
+            observation_min_scalar = observation_min.flatten()[0]
+            observation_max_scalar = observation_max.flatten()[0]
+        else:
+            observation_min_scalar = observation_min
+            observation_max_scalar = observation_max
+        min_val = float(min(min(flattened_model_output), observation_min_scalar))
+        max_val = float(max(max(flattened_model_output), observation_max_scalar))
 
         plt.plot([min_val, max_val], [min_val, max_val], 'k--', label='1:1 Line')  # Reference line for perfect agreement
         
