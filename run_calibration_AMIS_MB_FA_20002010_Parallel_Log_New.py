@@ -198,7 +198,7 @@ def setup_worker_logger(save_path_log=None,log_level=None):
 
 # Function to record floating terminus information
 def record_floating_terminus(glacier_str, th, thick0, water_level, rho, rho_o,
-                           floating_info_fp_glac, index_pariticles):
+                           floating_info_fp_glac = None, index_particles):
     """
     Record floating terminus information (backward compatible version).
     Performs exactly the same operations as original code, just organized better.
@@ -210,23 +210,42 @@ def record_floating_terminus(glacier_str, th, thick0, water_level, rho, rho_o,
     rho (float): Ice density
     rho_o (float): Ocean water density
     floating_info_fp_glac (str): File path to save floating info
-    index_pariticles (int): Index of the particle
+    index_particles (int): Index of the particle
 
     """
+        # Early exit if no floating condition
+    buoyancy_threshold = (1 - rho / rho_o) * thick0
+    if th >= buoyancy_threshold:
+        return
+    print(f"Warning: Terminus of glacier {glacier_str} is floating "
+        f"(th={th:.2f}m < {buoyancy_threshold:.2f}m)")
     
-    if th < (1 - rho / rho_o) * thick0:
-        print(f"Warning: The terminus of glacier {glacier_str} is floating")
+    # Early exit if no output directory specified
+    if floating_info_fp_glac is None:
+        return
+    else:
+        # Ensure output directory exists
+        os.makedirs(floating_info_fp_glac, exist_ok=True)
+        iteration = 'Poster'  # Just recording posterior samples
+        # Construct file path
+        filepath = os.path.join(floating_info_fp_glac, f"floating_info_glacier_{glacier_str}.csv")
+        # Prepare data for writing
+        header = "glacier_id,iteration,particle_index,th,thick0,water_level\n"
+        data_row = (f"{glacier_str},{iteration},{index_particles},"
+                    f"{th:.2f},{thick0:.2f},{water_level:.2f}\n")
         
-        if floating_info_fp_glac is not None:
-            # Just record the warning for the posterior iteration
-            iteration = 'Poster'
-            floating_info_fn = os.path.join(
-                floating_info_fp_glac, 
-                f"floating_info_glacier_{glacier_str}.csv"
-            )
+        # Write to file
+        try:
+            # Check if file exists to determine if header is needed
+            write_header = not os.path.exists(filepath)
             
-            with open(floating_info_fn, "a") as f:
-                f.write(f"{glacier_str},{iteration},{index_pariticles},{th:.2f},{thick0:.2f},{water_level:.2f}\n")
+            with open(filepath, "a", encoding="utf-8") as f:
+                if write_header:
+                    f.write(header)
+                f.write(data_row)
+                
+        except (IOError, OSError) as e:
+            print(f"Error writing floating terminus data for {glacier_str}: {e}")
 
 
 #%% ----- The boundary condition for length change myr -----
@@ -876,7 +895,7 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
     #pdb.set_trace()
 
     calving_k = modelprms_MB_FA['tau'] # calving parameter, in k_calving called calving_k, in SermQ called tau, but using the same name calving_k
-    index_pariticles = modelprms_MB_FA['index']
+    index_particles = modelprms_MB_FA['index']
     output_cns = ['RGIId', 'calving_k', 'calving_thick', 'calving_flux_Gta_inv', 'calving_flux_Gta', 'no_errors', 'oggm_dynamics','length_change_m','length_change_rate_myr_dLdt','velocity_at_calvingfront_myr','thickness_at_calvingfront_m','width_at_calvingfront_m','volume_bsl_m3','volume_bwl_m3']
     output_df = pd.DataFrame(np.zeros((main_glac_rgi.shape[0],len(output_cns))), columns=output_cns)
     output_df['RGIId'] = main_glac_rgi.RGIId
@@ -904,9 +923,9 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
         glacier_rgi_table = main_glac_rgi.loc[main_glac_rgi.index.values[nglac], :]
         glacier_str = '{0:0.5f}'.format(glacier_rgi_table['RGIId_float'])
         if do_DA_calib_Paralle:
-            k_str=glacier_str+"_"+f"{index_pariticles:.0f}"
+            k_str=glacier_str+"_"+f"{index_particles:.0f}"
             # set the suffix of each iteration
-            #file_suffix = '_'+str(index_pariticles) #TODO we save the file_suffix in the glacier directory here, incase, we can solve the repeat download problems for each iteration and each parameters
+            #file_suffix = '_'+str(index_particles) #TODO we save the file_suffix in the glacier directory here, incase, we can solve the repeat download problems for each iteration and each parameters
             file_suffix = ''
         else:
             #k_str = ''
@@ -1103,7 +1122,7 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
             # print("------------------ after the thickness inversion with calving, run the dynamics ------------------")
             # record the terminus floating status
             record_floating_terminus(glacier_str, th, thick0, water_level, rho, rho_o,
-                           floating_info_fp_glac, index_pariticles)
+                           floating_info_fp_glac=floating_info_fp_glac, index_particles)
 
 
             #%%
@@ -1144,7 +1163,7 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                         #    print('\n\ndiag.calving_m3:', diag.calving_m3.values)
                         #    print('calving_m3_since_y0:', ev_model.calving_m3_since_y0)
                         save_path_figure_glac = Path(save_path_figure_glac)
-                        save_path_figure_calving = os.path.join(save_path_figure_glac, f"{index_pariticles}")
+                        save_path_figure_calving = os.path.join(save_path_figure_glac, f"{index_particles}")
 
                         if Visualize_Index:
                             if not os.path.exists(save_path_figure_calving):
@@ -2515,7 +2534,7 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                                                                                         ignore_nan=False,calibrate_timeseries =True,store_monthly_step=store_monthly_step,
                                                                                         return_all = False,store_result= True,N_iteration = j,save_path_figure_glac = save_path_figure_glac,
                                                                                         save_path_parameter_glac = save_path_parameter_glac,save_path_modeloutput_glac = save_path_modeloutput_glac,
-                                                                                        save_path_log_glac = save_path_log_glac,log_level = log_level,floating_info_fp_glac = None,)
+                                                                                        save_path_log_glac = save_path_log_glac,log_level = log_level,floating_info_fp_glac = floating_info_fp_glac)
 
                     # ==== Replace the outliers by the boundarys
                     #---- maskout the inf or -inf value based on the length change #TODO  Revise it , if it's inf, a specific number , e.g. 5000
