@@ -197,8 +197,8 @@ def setup_worker_logger(save_path_log=None,log_level=None):
 
 
 # Function to record floating terminus information
-def record_floating_terminus(glacier_str, th, thick0, water_level, rho, rho_o,
-                           floating_info_fp_glac = None, index_particles):
+def record_floating_terminus(glacier_str, th, thick0, water_level, rho, rho_o,index_particles,
+                             floating_info_fp_glac = None):
     """
     Record floating terminus information (backward compatible version).
     Performs exactly the same operations as original code, just organized better.
@@ -213,10 +213,15 @@ def record_floating_terminus(glacier_str, th, thick0, water_level, rho, rho_o,
     index_particles (int): Index of the particle
 
     """
-        # Early exit if no floating condition
-    buoyancy_threshold = (1 - rho / rho_o) * thick0
-    if th >= buoyancy_threshold:
+    # Early exit if no floating condition
+    if glacier_str is None or th is None or thick0 is None or water_level is None or rho is None or rho_o is None or index_particles is None:
+        print("Error: Missing required parameters for recording floating terminus information.")
         return
+  
+    buoyancy_threshold = (1 - rho / rho_o) * thick0
+
+    if th >= buoyancy_threshold:
+            return
     print(f"Warning: Terminus of glacier {glacier_str} is floating "
         f"(th={th:.2f}m < {buoyancy_threshold:.2f}m)")
     
@@ -1121,8 +1126,8 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
             # print('at the moment water level is :',water_level)
             # print("------------------ after the thickness inversion with calving, run the dynamics ------------------")
             # record the terminus floating status
-            record_floating_terminus(glacier_str, th, thick0, water_level, rho, rho_o,
-                           floating_info_fp_glac=floating_info_fp_glac, index_particles)
+            record_floating_terminus(glacier_str, th, thick0, water_level, rho, rho_o,index_particles,
+                           floating_info_fp_glac=floating_info_fp_glac)
 
 
             #%%
