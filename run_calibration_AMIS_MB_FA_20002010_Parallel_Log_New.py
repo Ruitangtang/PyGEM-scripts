@@ -146,6 +146,12 @@ save_path_summary = output_fp + '/Summary/'
 if not os.path.exists(save_path_summary):
     os.makedirs(save_path_summary)
 
+# the path to save the floating warning info
+floating_info_fp = output_fp + '/Floating_Warning_Info/'
+# Check if the directory exists, and if not, create it
+if not os.path.exists(floating_info_fp):
+    os.makedirs(floating_info_fp)
+
 #set the log file
 def setup_worker_logger(save_path_log=None,log_level=None):
     """Set up a separate logger for each worker process with a unique log file.
@@ -188,6 +194,39 @@ def setup_worker_logger(save_path_log=None,log_level=None):
     logger.propagate = False  # Prevent duplicate logging from root logger
     
     return logger
+
+
+# Function to record floating terminus information
+def record_floating_terminus(glacier_str, th, thick0, water_level, rho, rho_o,
+                           floating_info_fp_glac, index_pariticles):
+    """
+    Record floating terminus information (backward compatible version).
+    Performs exactly the same operations as original code, just organized better.
+    --- Parameters ---
+    glacier_str (str): Glacier identifier, e.g., '17.01156'
+    th (float): Current ice thickness at terminus
+    thick0 (float): Initial ice thickness at terminus
+    water_level (float): Water level at terminus
+    rho (float): Ice density
+    rho_o (float): Ocean water density
+    floating_info_fp_glac (str): File path to save floating info
+    index_pariticles (int): Index of the particle
+
+    """
+    
+    if th < (1 - rho / rho_o) * thick0:
+        print(f"Warning: The terminus of glacier {glacier_str} is floating")
+        
+        if floating_info_fp_glac is not None:
+            # Just record the warning for the posterior iteration
+            iteration = 'Poster'
+            floating_info_fn = os.path.join(
+                floating_info_fp_glac, 
+                f"floating_info_glacier_{glacier_str}.csv"
+            )
+            
+            with open(floating_info_fn, "a") as f:
+                f.write(f"{glacier_str},{iteration},{index_pariticles},{th:.2f},{thick0:.2f},{water_level:.2f}\n")
 
 
 #%% ----- The boundary condition for length change myr -----
@@ -760,7 +799,7 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                      prms_from_reg_priors=False, prms_from_glac_cal=False, ignore_nan=True, debug=True,
                      invert_standard=False,
                      calc_mb_geo_correction=False, reset_gdir=True,store_monthly_step =False, Visualize_Index = False,
-                     do_DA_calib_Paralle = False,save_path_figure_glac =None,log_level = 'INFO'):
+                     do_DA_calib_Paralle = False,save_path_figure_glac =None,log_level = 'INFO',floating_info_fp_glac=None):
     """
     Compute the calving flux for a group of glaciers # TODO Currently, it is called by single glacier
     
@@ -788,6 +827,8 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
     save_path_figure_glac: PATH
         The path to save the figure of glacier profile, length change, length change rate, accumulated calving flux and calving
         This is only used when Visualize_Index is True
+    floating_info_fp_glac: PATH
+        The path to the floating info file for each glacier
     log_level : str
         Set the logging level (default: INFO), can be DEBUG, INFO, WARNING, ERROR, CRITICAL
         It is used to set the log level of the logger, and control the output of the log file and the print hints
@@ -1060,6 +1101,11 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
 
             # print('at the moment water level is :',water_level)
             # print("------------------ after the thickness inversion with calving, run the dynamics ------------------")
+            # record the terminus floating status
+            record_floating_terminus(glacier_str, th, thick0, water_level, rho, rho_o,
+                           floating_info_fp_glac, index_pariticles)
+
+
             #%%
             ev_model = CalvingFluxBasedModelJanRt(nfls, y0=0, mb_model=mbmod,
                                       glen_a=cfg.PARAMS['glen_a']*glen_a_multiplier, fs=fs,
@@ -1546,7 +1592,7 @@ def Visualize_parameter_paralle (model_function = None, parameters_dict = None,c
                                  rgiid_ind = None, Visual_index = False, N_iteration = None,
                                  store_result =False,save_path_figure_glac = None,
                                  save_path_parameter_glac =None,save_path_modeloutput_glac=None,
-                                 save_path_log_glac = None,log_level = None,**kwargs):
+                                 save_path_log_glac = None,log_level = None,floating_info_fp_glac=None, **kwargs):
     """
         This function is used to visulize the relationship between parameter k and model_functions, copy from def Visualize_parameter, revised for
     paralle computing 
@@ -1565,7 +1611,8 @@ def Visualize_parameter_paralle (model_function = None, parameters_dict = None,c
         save_path_modeloutput_glac: str, the path of the model output folder for single glacier
         save_path_log_glac: str, the path of the log folder for single glacier
         log_level: str, the log level for the logger,the default is 'INFO', could be 'DEBUG', 'WARNING', 'ERROR', 'CRITICAL', also control the print hints
-        **kwags: the keyword arguments for model_function
+        floating_info_fp_glac: str, the path to the floating info file for the glacier
+        **kwargs: other arguments for the model_function
     Returns:
         The model ouput of the paralle computing for the model_function with the parameters_dict
 
@@ -1788,7 +1835,7 @@ def Model_MB_FA_RT(model_function = reg_calving_flux,parameters_dict= None,rgiid
                    calibrate_timeseries =True,store_monthly_step=False, return_all = False,
                    store_result= False,N_iteration = None,save_path_figure_glac = None,
                    save_path_parameter_glac = None,save_path_modeloutput_glac = None,
-                   save_path_log_glac=None,log_level = None,**kwargs):
+                   save_path_log_glac=None,log_level = None,floating_info_fp_glac=None, **kwargs):
     """
     This function is the main function for the  computation of the mass balance and Frontal ablation/lengthchange, is the coupling of PyGEM, OGGM, SERMeQ
 
@@ -1810,6 +1857,7 @@ def Model_MB_FA_RT(model_function = reg_calving_flux,parameters_dict= None,rgiid
     save_path_modeloutput_glac : str, optional, the path to store the model output
     log_level : str, optional, the log level for the logger, the default is None, which means the log level is INFO, could be DEBUG, WARNING, ERROR, CRITICAL
     save_path_log_glac : str, optional, the path to store the log file
+    floating_info_fp_glac : str, optional, the path to the floating info file for the glacier
     kwargs : dict, optional
     Returns
     -------
@@ -1819,7 +1867,7 @@ def Model_MB_FA_RT(model_function = reg_calving_flux,parameters_dict= None,rgiid
                                                                     calibrate_timeseries =calibrate_timeseries,store_monthly_step=store_monthly_step,
                                                                     N_iteration=N_iteration,store_result=store_result,save_path_figure_glac=save_path_figure_glac,
                                                                     save_path_parameter_glac =save_path_parameter_glac,save_path_modeloutput_glac=save_path_modeloutput_glac,
-                                                                    save_path_log_glac=save_path_log_glac,log_level = log_level,**kwargs)
+                                                                    save_path_log_glac=save_path_log_glac,log_level = log_level,floating_info_fp_glac=floating_info_fp_glac, **kwargs)
     # Extract the results
     # Extract results using dictionary comprehension (#TODOat the moment, we using lengthchnage_dLdt_model_array, and massbalclim_model_array to do the calibration, more choice could be added in the future)
     lengthchange_m_TMS_model_array = output_prior['length_change_m_timeseries'] # lengthchange based on the difference of the length of the centerline flowline
@@ -2206,6 +2254,8 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
         os.makedirs(save_path_log_reg, exist_ok=True)  # Safe for concurrent runs
         save_path_statistics_reg = os.path.join(save_path_statistics, f"{str(reg).zfill(2)}/")
         os.makedirs(save_path_statistics_reg, exist_ok=True)  # Safe for concurrent runs
+        floating_info_fp_reg = os.path.join(floating_info_fp, f"{str(reg).zfill(2)}/")
+        os.makedirs(floating_info_fp_reg, exist_ok=True)  # Safe for concurrent runs
 
         # === Regional data ===
         fa_glac_data_reg = fa_glac_data.loc[fa_glac_data['O1Region'] == reg, :].copy()
@@ -2399,7 +2449,8 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                 os.makedirs(save_path_AMISINFO_glac, exist_ok=True)
                 save_path_log_glac = os.path.join(save_path_log_reg, glacier_str)
                 os.makedirs(save_path_log_glac, exist_ok=True)
-
+                floating_info_fp_glac = os.path.join(floating_info_fp_reg, glacier_str)
+                os.makedirs(floating_info_fp_glac, exist_ok=True)
                 # Select individual glacier
                 main_glac_rgi_ind = main_glac_rgi.loc[[nglac],:]
                 main_glac_rgi_ind.reset_index(inplace=True, drop=True)
@@ -2464,7 +2515,7 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                                                                                         ignore_nan=False,calibrate_timeseries =True,store_monthly_step=store_monthly_step,
                                                                                         return_all = False,store_result= True,N_iteration = j,save_path_figure_glac = save_path_figure_glac,
                                                                                         save_path_parameter_glac = save_path_parameter_glac,save_path_modeloutput_glac = save_path_modeloutput_glac,
-                                                                                        save_path_log_glac = save_path_log_glac,log_level = log_level)
+                                                                                        save_path_log_glac = save_path_log_glac,log_level = log_level,floating_info_fp_glac = None,)
 
                     # ==== Replace the outliers by the boundarys
                     #---- maskout the inf or -inf value based on the length change #TODO  Revise it , if it's inf, a specific number , e.g. 5000
@@ -2784,6 +2835,7 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                                     save_path_parameter_glac = save_path_parameter_glac,
                                     save_path_modeloutput_glac = save_path_modeloutput_glac,
                                     save_path_log_glac = save_path_log_glac,
+                                    floating_info_fp_glac = floating_info_fp_glac,
                                     log_level = log_level
                                     )
 
