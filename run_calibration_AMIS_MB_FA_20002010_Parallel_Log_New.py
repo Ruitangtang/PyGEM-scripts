@@ -195,6 +195,33 @@ def setup_worker_logger(save_path_log=None,log_level=None):
     
     return logger
 
+# Function to log floating terminus warnings
+def log_floating_warning(glacier_str, log_dir= None):
+    """
+    Log the floating terminus warning to a separate file.
+    Only this warning is logged; other prints are untouched.
+    """
+
+    # Ensure the log directory exists
+    if log_dir is None:
+        log_dir = save_path_log + '/Floating_Warnings/'
+    os.makedirs(log_dir, exist_ok=True)
+    log_file = os.path.join(log_dir, "floating_warnings.log")
+
+    # Create a dedicated logger for floating warnings
+    logger = logging.getLogger(f"floating_logger_{glacier_str}")
+    logger.setLevel(logging.WARNING)
+
+    # Avoid adding multiple handlers if logger is reused
+    if not logger.handlers:
+        file_handler = logging.FileHandler(log_file, mode="a", encoding="utf-8")
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+
+    # Log the warning
+    logger.warning(f"Glacier {glacier_str} terminus is floating")
+
 
 # Function to record floating terminus information
 def record_floating_terminus(glacier_str, th, thick0, water_level, rho, rho_o,index_particles,
@@ -1128,8 +1155,10 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
             #         water_level = -thick0/4 if thick0 > 8*th else 0
             #     else:
             #         water_level = water_level
-            # if th < (1-rho/rho_o)*thick0:
-            #     print ("Warning: The terminus of this glacier is floating")
+            if th < (1-rho/rho_o)*thick0:
+                print ("Warning: The terminus of this glacier is floating")
+                # record in the log file
+                log_floating_warning(glacier_str)  # logs to separate file only
             #     water_level = th - (1-rho/rho_o)*thick0
             # elif th > 0.3*thick0:
             #     water_level = th - 0.3*thick0
