@@ -49,6 +49,8 @@ import ast  # To safely evaluate string representations of lists and dictionarie
 from datetime import date, datetime
 from scipy.stats import median_abs_deviation, skew, kurtosis
 import statsmodels.stats.correlation_tools as ct
+import statistic_tool as statis_tool
+from statistic_tool import GlacierLogger
 
 
 try:
@@ -88,7 +90,7 @@ from oggm.core.inversion_RT_New import find_inversion_calving_from_any_mb
 
 cfg.PARAMS['hydro_month_nh']=1
 cfg.PARAMS['hydro_month_sh']=1
-cfg.PARAMS['trapezoid_lambdas'] = 1
+#cfg.PARAMS['trapezoid_lambdas'] = 1
 
 
 #%% ----- MANUAL INPUT DATA -----
@@ -133,6 +135,8 @@ save_path_log = output_fp + '/log/'
 # Check if the directory exists, and if not, create it
 if not os.path.exists(save_path_log):
     os.makedirs(save_path_log)
+# initialize the main logger
+gl_logger = GlacierLogger(save_path_log)
 
 # the path to save the statistic info about the model run, e.g the number of successful runs, as well as the number of failures
 save_path_statistics = output_fp + '/Statistics_model_run/'
@@ -278,6 +282,7 @@ def record_floating_terminus(glacier_str, th, thick0, water_level, rho, rho_o,in
                 
         except (IOError, OSError) as e:
             print(f"Error writing floating terminus data for {glacier_str}: {e}")
+
 
 
 #%% ----- The boundary condition for length change myr -----
@@ -1125,14 +1130,53 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                 except:
                     print("Something wrong with the find_inversion_calving_from_any_mb")
                     print(traceback.format_exc())
-
-                    
-                
-                
-                #print("the calving_flux is",out_calving['calving_flux'])
-                
+                #print("the calving_flux is",out_calving['calving_flux']   
             # ------ MODEL WITH EVOLVING AREA ------
-            tasks.init_present_time_glacier(gdir,filesuffix=file_suffix) # adds bins below
+            # tasks.init_present_time_glacier(gdir,filesuffix=file_suffix) # adds bins below
+            geometry_valid = True
+            try:
+                tasks.init_present_time_glacier(gdir, filesuffix=file_suffix)
+
+            except ValueError as e:
+                if "Trapezoid beds need to have origin widths > 0" in str(e):
+                    gl_logger.log_invalid_geometry(glacier_str)
+                    geometry_valid = False
+                else:
+                    raise
+
+            if not geometry_valid:
+                # Fill the output_df row with safe default values
+                # Columns that are scalars
+                output_df.loc[nglac, 'calving_k'] = calving_k
+                output_df.loc[nglac, 'calving_thick'] = np.nan
+                output_df.loc[nglac, 'calving_flux_Gta'] = np.nan
+                output_df.loc[nglac, 'no_errors'] = 0
+                output_df.loc[nglac, 'oggm_dynamics'] = 0
+                # Columns that are lists/arrays (length = nyears)
+                list_columns = [
+                'length_change_m', 'length_change_rate_myr_dLdt',
+                'calving_flux_Gta_timeseries', 'velocity_at_calvingfront_myr',
+                'thickness_at_calvingfront_m', 'width_at_calvingfront_m',
+                'volume_bsl_m3', 'volume_bwl_m3',
+                'frontal_ablation_mwea', 'frontal_ablation_mwea_timeseries',
+                'area_km2_timeseries', 'massbal_clim_mwea', 'massbal_total_mwea',
+                'massbal_clim_mwea_timeseries', 'massbal_total_mwea_timeseries',
+                'massbal_clim_Gta', 'massbal_total_Gta',
+                'massbal_clim_Gta_timeseries', 'massbal_total_Gta_timeseries'
+                ]
+                # Fill row for the failed glacier
+                for col in list_columns:
+                    if col not in output_df.columns:
+                        output_df[col] = np.nan
+                    output_df.loc[nglac, col] = np.nan   # SCALAR ONLY
+                # Safe scalar outputs for return
+                reg_calving_gta_mod_good = 0.0
+                reg_calving_gta_obs_good = 0.0
+
+                # Return minimal valid output
+                return output_df, reg_calving_gta_mod_good, reg_calving_gta_obs_good, mb_years, mb_obs_mwea, mb_obs_mwea_err
+
+            # Only runs if geometry is valid
             debris.debris_binned(gdir, fl_str='model_flowlines',filesuffix=file_suffix)  # add debris enhancement factors to flowlines
             nfls = gdir.read_pickle('model_flowlines',filesuffix=file_suffix)
             # Mass balance model
@@ -1158,7 +1202,8 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
             if th < (1-rho/rho_o)*thick0:
                 print ("Warning: The terminus of this glacier is floating")
                 # record in the log file
-                log_floating_warning(glacier_str)  # logs to separate file only
+                #log_floating_warning(glacier_str)  # logs to separate file only
+                gl_logger.log_floating_warning(glacier_str)  # logs to separate file only
             #     water_level = th - (1-rho/rho_o)*thick0
             # elif th > 0.3*thick0:
             #     water_level = th - 0.3*thick0
