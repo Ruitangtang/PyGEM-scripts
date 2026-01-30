@@ -761,7 +761,9 @@ def AMIS(obs, pred, R, prim, pric, propm, propc, props):
         pass
     else:
         raise Exception('R must be a scalar, m x 1 vector.')
-    
+    # Initialize outputs
+    w = None
+    Neff = np.nan
     try:
         # cy = np.linalg.det(2 * np.pi * np.diag(R)) ** (-0.5)
         cy = np.linalg.det(2 * np.pi * np.diagflat(R)) ** (-0.5)
@@ -787,10 +789,22 @@ def AMIS(obs, pred, R, prim, pric, propm, propc, props):
             for j in range(Nl):
                 mj = propm[:, j]
                 Cj = propc[:, :, j]
-                cj = np.linalg.det(2 * np.pi * Cj) ** (-0.5)
-                lcj = np.log(cj)
+                # --- REGULARIZATION ---
+                eps = 1e-6 * np.trace(Cj) / Cj.shape[0]
+                Cj = Cj + eps * np.eye(Cj.shape[0])
+                sign, logdet = np.linalg.slogdet(2 * np.pi * Cj)
+                if sign <= 0 or not np.isfinite(logdet):
+                    raise np.linalg.LinAlgError("Invalid proposal covariance")
+
+                lcj = -0.5 * logdet
+                # cj = np.linalg.det(2 * np.pi * Cj) ** (-0.5)
+                # lcj = np.log(cj)
                 Aj = (propell.T - mj).T
-                B = np.linalg.solve(Cj, Aj)
+                # B = np.linalg.solve(Cj, Aj)
+                try:
+                    B = np.linalg.solve(Cj, Aj)
+                except np.linalg.LinAlgError:
+                    B = np.linalg.lstsq(Cj, Aj, rcond=None)[0]
                 psi = 0.5 * np.sum((Aj.T) * B.T, 1)
                 psi = psi - lcj
                 psij[:, j] = psi
@@ -813,8 +827,9 @@ def AMIS(obs, pred, R, prim, pric, propm, propc, props):
         #pdb.set_trace()
         Neff = 1 / np.sum(w ** 2)
 
-    except:
+    except Exception:
         print(traceback.format_exc())
+        return None, np.nan
 
     return w, Neff
 
