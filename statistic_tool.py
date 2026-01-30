@@ -24,7 +24,7 @@ import re
 from scipy.stats import ks_2samp  # Import K-S test function
 import traceback
 import pygem_input as pygem_prms
-
+import logging
 
 # Read data from CSV, Excel, or JSON files based on their extension
 def read_data_from_file(file_path):
@@ -1570,3 +1570,66 @@ def extract_regional_rgiid_float(rgiid = None,index_full = False):
         return reg_id, rgi_float,reg_id_R1_full,reg_id_R2_full
     else:
         return reg_id, rgi_float 
+    
+
+#%% Class of logging handler
+class GlacierLogger:
+    """
+    A class to handle logging for different glacier issues.
+    Creates separate log files for each type of warning.
+    """
+
+    def __init__(self, save_path_log):
+        self.save_path_log = save_path_log
+        os.makedirs(save_path_log, exist_ok=True)
+        self.loggers = {}
+
+    def _get_logger(self, name, log_file):
+        """
+        Internal method to create or retrieve a logger.
+        """
+        if name in self.loggers:
+            return self.loggers[name]
+
+        # Create logger
+        logger = logging.getLogger(name)
+        logger.setLevel(logging.WARNING)
+
+        # Only add handler if none exists
+        if not logger.handlers:
+            os.makedirs(os.path.dirname(log_file), exist_ok=True)
+            file_handler = logging.FileHandler(log_file, mode='a', encoding='utf-8')
+            formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+            file_handler.setFormatter(formatter)
+            logger.addHandler(file_handler)
+
+        self.loggers[name] = logger
+        return logger
+
+    def log_floating_warning(self, glacier_str):
+        """
+        Log floating terminus warning.
+        ---Parameters:
+        - glacier_str (str): Glacier identifier string. e.g. '7.00029'
+        """
+        log_file = os.path.join(self.save_path_log, 'Floating_Warnings', 'floating_warnings.log')
+        logger = self._get_logger(f"floating_logger_{glacier_str}", log_file)
+        logger.warning(f"Glacier {glacier_str} terminus is floating")
+
+    def log_invalid_geometry(self, glacier_str):
+        """
+        Log invalid geometry warning.
+        ---Parameters:
+        - glacier_str (str): Glacier identifier string. e.g. '7.00029'
+        """
+        log_file = os.path.join(self.save_path_log, 'Invalid_Geometry_Warnings', 'invalid_geometry_warnings.log')
+        logger = self._get_logger(f"geometry_logger_{glacier_str}", log_file)
+        logger.warning(f"Glacier {glacier_str} has invalid geometry")
+
+    def log_custom(self, glacier_str, message, folder='Custom_Warnings', level=logging.WARNING):
+        """
+        General-purpose logging for custom messages.
+        """
+        log_file = os.path.join(self.save_path_log, folder, f'{folder.lower()}.log')
+        logger = self._get_logger(f"{folder}_logger_{glacier_str}", log_file)
+        logger.log(level, f"Glacier {glacier_str}: {message}")
