@@ -1643,62 +1643,118 @@ def processing_parameters(model_function,kwargs,modelprms_MB_FA):
     # Initialize logger at the start (if log_level is DEBUG)
     logger = None
     if log_level == 'DEBUG':
-        logger = setup_worker_logger(save_path_log=save_path_log,log_level=log_level)
-        logger.debug(f"Processing for k={modelprms_MB_FA} with kwargs={kwargs}")
-        logger.debug("******************************")
-        logger.debug(f"modelprms_MB_FA is: {modelprms_MB_FA}")
-        logger.debug(f"The type of modelprms_MB_FA is: {type(modelprms_MB_FA)}")
-
+        logger = setup_worker_logger(
+            save_path_log=save_path_log,
+            log_level=log_level
+        )
+        logger.debug(f"Processing modelprms_MB_FA={modelprms_MB_FA}")
+    
     try:
-        if logger:   
-            logger.info(f"Processing sample: {modelprms_MB_FA}")
-        
-        output_df, reg_calving_gta_mod_good,_ , mb_years,mb_obs_mwea,mb_obs_mwea_err= model_function(modelprms_MB_FA = modelprms_MB_FA, 
-                                                                                                     do_DA_calib_Paralle = True, **kwargs)
-        
-        # Convert dates_table (DataFrame) to a structured NumPy array
-        mb_years_np = mb_years
-        # Create the output dictionary
-        out_dict =  {
-                    'modelprms_MB_FA_value' : modelprms_MB_FA,
-                    'calving_gta_average_regionalsum': reg_calving_gta_mod_good,
-                    'length_change_m_timeseries': output_df['length_change_m'].tolist(),
-                    'length_change_rate_myr_dLdt': output_df['length_change_rate_myr_dLdt'].tolist(),
-                    'calving_thick': output_df['calving_thick'].tolist(),
-                    'calving_flux_Gta_average': output_df['calving_flux_Gta'].tolist(),
-                    'calving_flux_Gta_timeseries':output_df['calving_flux_Gta_timeseries'].tolist(),
-                    'massbal_clim_mwea': output_df['massbal_clim_mwea'].tolist(),
-                    'massbal_total_mwea': output_df['massbal_total_mwea'].tolist(),
-                    'massbal_clim_Gta': output_df['massbal_clim_Gta'].tolist(),
-                    'massbal_total_Gta': output_df['massbal_total_Gta'].tolist(),
-                    'massbal_clim_mwea_timeseries': output_df['massbal_clim_mwea_timeseries'].tolist(),
-                    'massbal_total_mwea_timeseries': output_df['massbal_total_mwea_timeseries'].tolist(),
-                    'massbal_clim_Gta_timeseries': output_df['massbal_clim_Gta_timeseries'].tolist(),
-                    'massbal_total_Gta_timeseries': output_df['massbal_total_Gta_timeseries'].tolist(),
-                    'velocity_at_calvingfront_myr': output_df['velocity_at_calvingfront_myr'].tolist(),
-                    'thickness_at_calvingfront_m': output_df['thickness_at_calvingfront_m'].tolist(),
-                    'width_at_calvingfront_m': output_df['width_at_calvingfront_m'].tolist(),
-                    'volume_bsl_m3': output_df['volume_bsl_m3'].tolist(),
-                    'volume_bwl_m3': output_df['volume_bwl_m3'].tolist(),
-                    'frontal_ablation_mwea': output_df['frontal_ablation_mwea'].tolist(),
-                    'frontal_ablation_mwea_timeseries': output_df['frontal_ablation_mwea_timeseries'].tolist(),
-                    'area_km2_timeseries': output_df['area_km2_timeseries'].tolist(),
-                    'mb_years': mb_years_np,  # Add structured NumPy array of dates_table,
-                    'mb_obs_mwea': mb_obs_mwea,
-                    'mb_obs_mwea_err': mb_obs_mwea_err
-                    }
-        if logger:
-            logger.info(f"Completed sample: {modelprms_MB_FA}")
-        return out_dict
+        output_df, reg_calving_gta_mod_good, _, mb_years, mb_obs_mwea, mb_obs_mwea_err = (
+            model_function(
+                modelprms_MB_FA=modelprms_MB_FA,
+                do_DA_calib_Paralle=True,
+                **kwargs
+            )
+        )
+
+        out_dict = {
+            'modelprms_MB_FA_value': modelprms_MB_FA,
+            'calving_gta_average_regionalsum': reg_calving_gta_mod_good,
+            'length_change_m_timeseries': output_df['length_change_m'].tolist(),
+            'length_change_rate_myr_dLdt': output_df['length_change_rate_myr_dLdt'].tolist(),
+            'calving_thick': output_df['calving_thick'].tolist(),
+            'calving_flux_Gta_average': output_df['calving_flux_Gta'].tolist(),
+            'calving_flux_Gta_timeseries': output_df['calving_flux_Gta_timeseries'].tolist(),
+            'massbal_clim_mwea': output_df['massbal_clim_mwea'].tolist(),
+            'massbal_total_mwea': output_df['massbal_total_mwea'].tolist(),
+            'massbal_clim_Gta': output_df['massbal_clim_Gta'].tolist(),
+            'massbal_total_Gta': output_df['massbal_total_Gta'].tolist(),
+            'massbal_clim_mwea_timeseries': output_df['massbal_clim_mwea_timeseries'].tolist(),
+            'massbal_total_mwea_timeseries': output_df['massbal_total_mwea_timeseries'].tolist(),
+            'massbal_clim_Gta_timeseries': output_df['massbal_clim_Gta_timeseries'].tolist(),
+            'massbal_total_Gta_timeseries': output_df['massbal_total_Gta_timeseries'].tolist(),
+            'velocity_at_calvingfront_myr': output_df['velocity_at_calvingfront_myr'].tolist(),
+            'thickness_at_calvingfront_m': output_df['thickness_at_calvingfront_m'].tolist(),
+            'width_at_calvingfront_m': output_df['width_at_calvingfront_m'].tolist(),
+            'volume_bsl_m3': output_df['volume_bsl_m3'].tolist(),
+            'volume_bwl_m3': output_df['volume_bwl_m3'].tolist(),
+            'frontal_ablation_mwea': output_df['frontal_ablation_mwea'].tolist(),
+            'frontal_ablation_mwea_timeseries': output_df['frontal_ablation_mwea_timeseries'].tolist(),
+            'area_km2_timeseries': output_df['area_km2_timeseries'].tolist(),
+            'mb_years': mb_years,
+            'mb_obs_mwea': mb_obs_mwea,
+            'mb_obs_mwea_err': mb_obs_mwea_err,
+        }
+
+        return {
+            "success": True,
+            "data": out_dict,
+            "error": None,
+            "traceback": None,
+        }
+
     except Exception as e:
-        error_msg = f"Error processing sample {modelprms_MB_FA}: {str(e)}"
         if logger:
-            logger.error(error_msg)
-            logger.exception("Full error traceback:")
-        else:
-            print(error_msg)
-            print(f"Error type: {type(e).__name__}")
-        raise  # Re-raise the exception after logging
+            logger.error(f"Failure for {modelprms_MB_FA}: {e}")
+            logger.exception("Traceback")
+        return {
+            "success": False,
+            "data": None,
+            "error": str(e),
+            "traceback": traceback.format_exc(),
+        }
+
+    # try:
+    #     if logger:   
+    #         logger.info(f"Processing sample: {modelprms_MB_FA}")
+        
+    #     output_df, reg_calving_gta_mod_good,_ , mb_years,mb_obs_mwea,mb_obs_mwea_err= model_function(modelprms_MB_FA = modelprms_MB_FA, 
+    #                                                                                                  do_DA_calib_Paralle = True, **kwargs)
+        
+    #     # Convert dates_table (DataFrame) to a structured NumPy array
+    #     mb_years_np = mb_years
+    #     # Create the output dictionary
+    #     out_dict =  {
+    #                 'modelprms_MB_FA_value' : modelprms_MB_FA,
+    #                 'calving_gta_average_regionalsum': reg_calving_gta_mod_good,
+    #                 'length_change_m_timeseries': output_df['length_change_m'].tolist(),
+    #                 'length_change_rate_myr_dLdt': output_df['length_change_rate_myr_dLdt'].tolist(),
+    #                 'calving_thick': output_df['calving_thick'].tolist(),
+    #                 'calving_flux_Gta_average': output_df['calving_flux_Gta'].tolist(),
+    #                 'calving_flux_Gta_timeseries':output_df['calving_flux_Gta_timeseries'].tolist(),
+    #                 'massbal_clim_mwea': output_df['massbal_clim_mwea'].tolist(),
+    #                 'massbal_total_mwea': output_df['massbal_total_mwea'].tolist(),
+    #                 'massbal_clim_Gta': output_df['massbal_clim_Gta'].tolist(),
+    #                 'massbal_total_Gta': output_df['massbal_total_Gta'].tolist(),
+    #                 'massbal_clim_mwea_timeseries': output_df['massbal_clim_mwea_timeseries'].tolist(),
+    #                 'massbal_total_mwea_timeseries': output_df['massbal_total_mwea_timeseries'].tolist(),
+    #                 'massbal_clim_Gta_timeseries': output_df['massbal_clim_Gta_timeseries'].tolist(),
+    #                 'massbal_total_Gta_timeseries': output_df['massbal_total_Gta_timeseries'].tolist(),
+    #                 'velocity_at_calvingfront_myr': output_df['velocity_at_calvingfront_myr'].tolist(),
+    #                 'thickness_at_calvingfront_m': output_df['thickness_at_calvingfront_m'].tolist(),
+    #                 'width_at_calvingfront_m': output_df['width_at_calvingfront_m'].tolist(),
+    #                 'volume_bsl_m3': output_df['volume_bsl_m3'].tolist(),
+    #                 'volume_bwl_m3': output_df['volume_bwl_m3'].tolist(),
+    #                 'frontal_ablation_mwea': output_df['frontal_ablation_mwea'].tolist(),
+    #                 'frontal_ablation_mwea_timeseries': output_df['frontal_ablation_mwea_timeseries'].tolist(),
+    #                 'area_km2_timeseries': output_df['area_km2_timeseries'].tolist(),
+    #                 'mb_years': mb_years_np,  # Add structured NumPy array of dates_table,
+    #                 'mb_obs_mwea': mb_obs_mwea,
+    #                 'mb_obs_mwea_err': mb_obs_mwea_err
+    #                 }
+    #     if logger:
+    #         logger.info(f"Completed sample: {modelprms_MB_FA}")
+    #     return out_dict
+    # except Exception as e:
+    #     error_msg = f"Error processing sample {modelprms_MB_FA}: {str(e)}"
+    #     if logger:
+    #         logger.error(error_msg)
+    #         logger.exception("Full error traceback:")
+    #     else:
+    #         print(error_msg)
+    #         print(f"Error type: {type(e).__name__}")
+    #     raise  # Re-raise the exception after logging
 
 
 def Visualize_parameter_paralle (model_function = None, parameters_dict = None,calibrate_timeseries = False,
@@ -1775,17 +1831,30 @@ def Visualize_parameter_paralle (model_function = None, parameters_dict = None,c
             process_func = partial(processing_parameters, model_function,kwargs)
 
             with Pool(proc_count_RT) as pool:
-                try:
-                    output = pool.map(process_func, prior_samples_list)
-                    main_logger.info("Parallel processing completed successfully")
-                except Exception as e:
-                    main_logger.error(f"Parallel processing failed: {str(e)}")
-                    # Optionally log the traceback
-                    main_logger.exception("Full error traceback:")
-                    raise
+                output = pool.map(process_func, prior_samples_list)
+                # ----------------------------------------
+                # Unwrap parallel outputs (NEW, REQUIRED)
+                # ----------------------------------------
+                success_flags = np.array([res["success"] for res in output])
 
+                if not success_flags.any():
+                    raise RuntimeError(
+                        f"All parameter samples failed for glacier {rgiid_ind}"
+                    )
+
+                # Log failures but do NOT crash
+                n_fail = (~success_flags).sum()
+                if n_fail > 0:
+                    print(
+                        f"[WARNING] {n_fail}/{len(output)} samples failed "
+                        f"for glacier {rgiid_ind}"
+                    )
+
+                # Extract only successful data dicts
+                output_success = [res["data"] for res in output if res["success"]]
+                
             # Ensure output is not empty
-            if not output:
+            if not output_success:
                 raise ValueError("Processing function returned an empty output. Check 'process_func' or 'prior_samples'.")
             # Extract the results
             # Extract results using dictionary comprehension
@@ -1797,7 +1866,14 @@ def Visualize_parameter_paralle (model_function = None, parameters_dict = None,c
                 'velocity_at_calvingfront_myr','thickness_at_calvingfront_m','width_at_calvingfront_m','volume_bsl_m3','volume_bwl_m3',
                 'frontal_ablation_mwea', 'frontal_ablation_mwea_timeseries','area_km2_timeseries','mb_years', 'mb_obs_mwea','mb_obs_mwea_err'] # TODO ADD THE 'dates_table' to the keys, 'modelprms_MB_FA_value'
             # Convert extracted values to NumPy arrays
-            output_data = {key: np.array([out_dict[key] for out_dict in output]) for key in keys}
+            #output_data = {key: np.array([out_dict[key] for out_dict in output]) for key in keys}
+            output_data = {
+                            key: np.asarray(
+                                [out[key] for out in output_success],
+                                dtype=object
+                            )
+                            for key in keys
+                        }
             if log_level == 'DEBUG':
                 print("output is :",output)
                 print("output_data is:",output_data)
@@ -1832,6 +1908,7 @@ def Visualize_parameter_paralle (model_function = None, parameters_dict = None,c
             modelprms_MB_FA = output_data['modelprms_MB_FA_value']
             reg_calving_gta_mod_good = output_data['calving_gta_average_regionalsum']
             lengthchange_m_TMS = output_data['length_change_m_timeseries']
+            assert isinstance(output_data['length_change_m_timeseries'][0], (list, np.ndarray))
             lengthchange_rate_dLdt = output_data['length_change_rate_myr_dLdt']
             calving_thickness_model = output_data['calving_thick']
             calving_flux_Gta_average = output_data['calving_flux_Gta_average']
