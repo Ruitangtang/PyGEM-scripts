@@ -786,38 +786,49 @@ def AMIS(obs, pred, R, prim, pric, propm, propc, props):
     Nl = np.shape(pred)[2]
     # Np=np.shape(propm)[0]
 
-    # Checks on the observation error covariance matrix.
+    # Observation covariance
     if np.size(R) == 1:
         R = R * np.ones(No)
-    elif np.size(R) == No:
-        pass
-    else:
-        raise Exception('R must be a scalar, m x 1 vector.')
-    # Initialize outputs
-    w = None
-    Neff = np.nan
-    try:
-        # cy = np.linalg.det(2 * np.pi * np.diag(R)) ** (-0.5)
-        cy = np.linalg.det(2 * np.pi * np.diagflat(R)) ** (-0.5)
-        c0 = np.linalg.det(2 * np.pi * pric) ** (-0.5)
-        b = cy * c0
+    elif np.size(R) != No:
+        raise ValueError("R must be scalar or match number of observations")
 
-        phi = np.zeros([Ne, Nl])  # negative log of target
-        lsepsi = np.zeros([Ne, Nl])  # logsumexp of the DM proposal
+    # Initialize
+    w = np.zeros(Ne)
+    Neff = 0.0
+    try:
+        # Identify ensembles with any NaNs
+        nan_mask = np.any(np.isnan(pred), axis=(0, 2))  # shape: (Ne,)
+        valid_idx = ~nan_mask
+        if not np.any(valid_idx):
+            # All ensembles are invalid
+            return w, np.nan
+        # Only keep valid ensemble members for computation
+        pred_valid = pred[:, valid_idx, :]
+        props_valid = props[:, valid_idx, :]
+        Ne_valid = pred_valid.shape[1]
+        phi = np.zeros([Ne_valid, Nl])
+        lsepsi = np.zeros([Ne_valid, Nl])
+        # cy = np.linalg.det(2 * np.pi * np.diag(R)) ** (-0.5)
+        # cy = np.linalg.det(2 * np.pi * np.diagflat(R)) ** (-0.5)
+        # c0 = np.linalg.det(2 * np.pi * pric) ** (-0.5)
+        # b = cy * c0
+
+        # phi = np.zeros([Ne, Nl])  # negative log of target
+        # lsepsi = np.zeros([Ne, Nl])  # logsumexp of the DM proposal
         for ell in range(Nl):
             # Terms related to the target
-            propell = props[:, :, ell]  # Np x Ne
+            propell = props_valid[:, :, ell]  # Np x Ne_valid
             A0ell = (propell.T - prim).T
             B = np.linalg.solve(pric, A0ell)
             phi0ell = 0.5 * np.sum((A0ell.T) * B.T, 1)
-            predell = pred[:, :, ell]  # No x Ne
-            residuell = (obs.flatten() - predell.T).T  # No x Ne
-            #residuell = (obs - predell).T  # No x Ne
+            predell = pred_valid[:, :, ell]  # No x Ne_valid
+            residuell = (obs.flatten() - predell.T).T  # No x Ne_valid
+            #residuell = (obs - predell).T  # No x Ne_valid
             #pdb.set_trace()
             phidell = 0.5 * (1 / R.flatten()) @ (residuell ** 2)  # Ne
             phi[:, ell] = phi0ell + phidell
 
-            psij = np.zeros([Ne, Nl])
+            psij = np.zeros([Ne_valid, Nl])
             for j in range(Nl):
                 mj = propm[:, j]
                 Cj = propc[:, :, j]
@@ -845,23 +856,67 @@ def AMIS(obs, pred, R, prim, pric, propm, propc, props):
             lsepsiell = psijx + np.log(np.sum(np.exp(psijs), 1))
             lsepsi[:, ell] = lsepsiell
 
-        #logwt = np.log(b) - phi - lsepsi #TODO check the location
-        #logwt = logwt.flatten('F')  # Purposely flattening column major order
-        logwt = - phi - lsepsi
-        logwt = logwt.flatten('F')  # Purposely flattening column major order
-        lwtx = np.max(logwt)
-        lselwt = lwtx + np.log(np.sum(np.exp(logwt - lwtx)))
-        logNlNe = np.log(Nl * Ne)
-        logZ = -logNlNe + lselwt  # Log model evidence
-        logw = logwt - logNlNe - logZ
-        w = np.exp(logw)
-        #w = np.exp(logw.reshape(Ne, Nl)[:, -1])  # Now w.shape = (20,)
-        #pdb.set_trace()
-        Neff = 1 / np.sum(w ** 2)
+        # Combine terms
+        logwt = -phi - lsepsi          # shape (Ne, Nl)
+
+        # Identify valid ensemble-iteration pairs
+        valid = np.isfinite(logwt)
+
+        # Initialize weights
+        w = np.zeros_like(logwt)
+
+        if not np.any(valid):
+            # All failed → return safely
+            return w.flatten('F'), 0.0
+
+        # Work only on valid entries
+        logwt_valid = logwt[valid]
+
+        # Numerically stable normalization
+        lwtx = np.max(logwt_valid)
+        lse = lwtx + np.log(np.sum(np.exp(logwt_valid - lwtx)))
+
+        logNlNe = np.log(np.sum(valid))
+        logZ = -logNlNe + lse
+
+        logw_valid = logwt_valid - logNlNe - logZ
+
+        # Assign back
+        w[valid] = np.exp(logw_valid)
+
+        # Flatten column-major (AMIS requirement)
+        w = w.flatten('F')
+
+        # Effective sample size
+        Neff = 1.0 / np.sum(w**2)
+        # #logwt = np.log(b) - phi - lsepsi #TODO check the location
+        # #logwt = logwt.flatten('F')  # Purposely flattening column major order
+        # logwt = - phi - lsepsi
+        # logwt = logwt.flatten('F')  # Purposely flattening column major order
+        # lwtx = np.max(logwt)
+        # lselwt = lwtx + np.log(np.sum(np.exp(logwt - lwtx)))
+        # logNlNe = np.log(Nl * Ne)
+        # logZ = -logNlNe + lselwt  # Log model evidence
+        # logw_valid = np.exp(logwt - logNlNe - logZ)
+        # # Fill the weights array, zero for NaNs
+        # w[valid_idx] = logw_valid
+        # w[~valid_idx] = 0.0
+        # # Normalize just in case
+        # w_sum = np.sum(w)
+        # if w_sum > 0:
+        #     w /= w_sum
+        # else:
+        #     # All weights zero
+        #     w[:] = 1.0 / Ne
+        # # logw = logwt - logNlNe - logZ
+        # # w = np.exp(logw)
+        # #w = np.exp(logw.reshape(Ne, Nl)[:, -1])  # Now w.shape = (20,)
+        # #pdb.set_trace()
+        # Neff = 1 / np.sum(w ** 2)
 
     except Exception:
         print(traceback.format_exc())
-        return None, np.nan
+        return np.zeros(Ne), np.nan
 
     return w, Neff
 
@@ -2823,6 +2878,16 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                         adapt_thresh = pygem_prms.Neffthrs
                     #pdb.set_trace()
                     propsall[:, :, j] = proposal
+                    # handle the failures in the model runs with nan values
+                    n_expected = predall.shape[1]
+                    n_actual = predicted.shape[1]
+
+                    if n_actual != n_expected:
+                        print(f"[WARNING] Sample {j} for glacier {rgiid_ind} has unexpected length: {n_actual} instead of {n_expected}")
+                        predicted_padded = np.full((predicted.shape[0], n_expected), np.nan)
+                        predicted_padded[:, :min(n_actual, n_expected)] = predicted[:, :min(n_actual, n_expected)]
+                        predicted = predicted_padded
+                    
                     predall[:, :, j] = predicted
                     ells = np.arange(j+1)
                     obs = observations_sbst_masked
