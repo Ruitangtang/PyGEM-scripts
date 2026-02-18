@@ -426,30 +426,7 @@ def getparser():
     return parser
 
 
-
-# def convert_to_serializable(obj):
-#     """
-#     Recursively convert non-serializable objects to JSON-compatible formats.
-#     """
-#     if isinstance(obj, np.ndarray):  
-#         return obj.tolist()  # Convert NumPy array to list
-#     elif isinstance(obj, np.generic):  
-#         return obj.item()  # Convert NumPy scalar to int/float
-#     elif isinstance(obj, (date, datetime, np.datetime64)):  
-#         return str(obj)  # Convert date/datetime64 to string
-#     elif isinstance(obj, dict):  
-#         return {k: convert_to_serializable(v) for k, v in obj.items()}
-#     elif isinstance(obj, list):  
-#         return [convert_to_serializable(i) for i in obj]
-#     elif isinstance(obj, set):  
-#         return list(obj)
-#     elif isinstance(obj, tuple):  
-#         return list(obj)
-#     elif isinstance(obj, (int, float, str)):  
-#         return obj
-#     else:
-#         return str(obj)  # Convert unknown objects to strings
-
+# Function to convert non-serializable objects to JSON-compatible formats
 def convert_to_serializable(obj):
     """
     Recursively convert non-serializable objects to JSON-compatible formats.
@@ -594,23 +571,6 @@ def samples2xrDataset(samples):
     return ds
 
 
-def netcdf2samples(fname):
-    """
-    Read netcdf file and get sample data
-    Args:
-        path (str): full path to netcdf file
-    Returns:
-        samples (dict): Dictionary containing samples.
-    """
-    ds = xr.open_dataset(fname)
-    samples = {}
-    for key in ds.data_vars.keys():
-        if key != 'sample_index':
-            samples[key] = ds[key].values
-    samples['index'] = ds['sample_index'].values
-    return samples
-
-
 
 # Function to transform the parameter space
 def transform_space(parameters, trans_direction, pert_stra=False, vari=False):
@@ -665,90 +625,6 @@ def transform_space(parameters, trans_direction, pert_stra=False, vari=False):
         raise Exception("transformation not found")
 
     return safe_pars
-
-
-
-def pbs(obs, pred, R):
-    """
-    PBS: Implmentation of the Particle Batch Smoother
-    Inputs:
-        obs: Observation vector (m x 1 array)
-        pred: Predicted observation ensemble matrix (m x N array)
-        r_cov: Observation error covariance 'matrix' (m x 1 array, or scalar)
-    Outputs:
-        w: Posterior weights (N x 1 array)
-    Dimensions:
-        ens_mem is the number of ensemble members and m is the number
-        of observations.
-
-    Here we have implemented the particle batch smoother, which is
-    a batch-smoother version of the particle filter (i.e. a particle filter
-    without resampling), described in Margulis et al.
-    (2015, doi: 10.1175/JHM-D-14-0177.1). As such, this routine can also be
-    used for particle filtering with sequential data assimilation. This scheme
-    is obtained by using a particle (mixture of Dirac delta functions)
-    representation of the prior and applying this directly to Bayes theorem. In
-    other words, it is just an application of importance sampling with the
-    prior as the proposal density (importance distribution). It is also the
-    same as the Generalized Likelihood Uncertainty Estimation (GLUE) technique
-    (with a formal Gaussian likelihood)which is widely used in hydrology.
-
-    This particular scheme assumes that the observation errors are additive
-    Gaussian white noise (uncorrelated in time and space). The "logsumexp"
-    trick is used to deal with potential numerical issues with floating point
-    operations that occur when dealing with ratios of likelihoods that vary by
-    many orders of magnitude.
-
-    Based on a previous version from  K. Aalstad (14.12.2020), revised by Ruitang
-    """
-    # TODO: Implement an option for correlated observation errors if R is
-    #      specified as a matrix (this would slow down this function).
-    # TODO: Consier other likelihoods and observation models.
-    # TODO: Look into iterative versions of importance sampling.
-
-    # Check if R is a list, convert it to a numpy array if so
-    R = np.array(R) if isinstance(R, list) else R
-    pred = np.array(pred) if isinstance(pred, list) else pred
-    # Dimensions.
-    n_obs = np.size(obs)  # Number of obs
-    ens_mem = np.shape(pred)[-1]
-
-    # Checks on the observation error covariance matrix.
-    if np.size(R) == 1:
-        R = R * np.ones(n_obs)
-    elif np.size(R) == n_obs:
-        pass
-    else:
-        raise Exception('r_cov must be a scalar, m x 1 vector.')
-
-    # Residual and log-likelihood
-    if n_obs == 1:
-        residual = obs - pred
-        llh = -0.5 * ((residual**2) * (1/R))
-    else:
-        #pdb.set_trace()
-        residual = np.array(obs) - np.array(pred)
-        llh = -0.5 * (1/R.flatten()) @ (residual**2)
-
-    # Log of normalizing constant
-    # A properly scaled version of this could be output for model comparison.
-    log_z = special.logsumexp(llh)  # from scipy.special import logsumexp
-
-    # Weights
-    logw = llh - log_z  # Log of posterior weights
-    weights = np.exp(logw)  # Posterior weights
-    
-    if np.shape(weights)[-1] == ens_mem and np.round(np.sum(weights), 10) == 1:
-        pass
-    else:
-        raise Exception('Something wrong with the PBS')
-
-    weights = np.squeeze(weights)  # Remove axes of length one
-
-    Neff = 1/np.sum(weights**2)
-    Neff = np.round(Neff)
-
-    return weights, Neff
 
 
 # Adapted PBS ( AMIS) , Ruitang revising from the original code by K. Aalstad (22.02.2025)
@@ -808,13 +684,7 @@ def AMIS(obs, pred, R, prim, pric, propm, propc, props):
         Ne_valid = pred_valid.shape[1]
         phi = np.zeros([Ne_valid, Nl])
         lsepsi = np.zeros([Ne_valid, Nl])
-        # cy = np.linalg.det(2 * np.pi * np.diag(R)) ** (-0.5)
-        # cy = np.linalg.det(2 * np.pi * np.diagflat(R)) ** (-0.5)
-        # c0 = np.linalg.det(2 * np.pi * pric) ** (-0.5)
-        # b = cy * c0
 
-        # phi = np.zeros([Ne, Nl])  # negative log of target
-        # lsepsi = np.zeros([Ne, Nl])  # logsumexp of the DM proposal
         for ell in range(Nl):
             # Terms related to the target
             propell = props_valid[:, :, ell]  # Np x Ne_valid
@@ -823,8 +693,6 @@ def AMIS(obs, pred, R, prim, pric, propm, propc, props):
             phi0ell = 0.5 * np.sum((A0ell.T) * B.T, 1)
             predell = pred_valid[:, :, ell]  # No x Ne_valid
             residuell = (obs.flatten() - predell.T).T  # No x Ne_valid
-            #residuell = (obs - predell).T  # No x Ne_valid
-            #pdb.set_trace()
             phidell = 0.5 * (1 / R.flatten()) @ (residuell ** 2)  # Ne
             phi[:, ell] = phi0ell + phidell
 
@@ -840,10 +708,7 @@ def AMIS(obs, pred, R, prim, pric, propm, propc, props):
                     raise np.linalg.LinAlgError("Invalid proposal covariance")
 
                 lcj = -0.5 * logdet
-                # cj = np.linalg.det(2 * np.pi * Cj) ** (-0.5)
-                # lcj = np.log(cj)
                 Aj = (propell.T - mj).T
-                # B = np.linalg.solve(Cj, Aj)
                 try:
                     B = np.linalg.solve(Cj, Aj)
                 except np.linalg.LinAlgError:
@@ -889,31 +754,6 @@ def AMIS(obs, pred, R, prim, pric, propm, propc, props):
 
         # Effective sample size
         Neff = 1.0 / np.sum(w**2)
-        # #logwt = np.log(b) - phi - lsepsi #TODO check the location
-        # #logwt = logwt.flatten('F')  # Purposely flattening column major order
-        # logwt = - phi - lsepsi
-        # logwt = logwt.flatten('F')  # Purposely flattening column major order
-        # lwtx = np.max(logwt)
-        # lselwt = lwtx + np.log(np.sum(np.exp(logwt - lwtx)))
-        # logNlNe = np.log(Nl * Ne)
-        # logZ = -logNlNe + lselwt  # Log model evidence
-        # logw_valid = np.exp(logwt - logNlNe - logZ)
-        # # Fill the weights array, zero for NaNs
-        # w[valid_idx] = logw_valid
-        # w[~valid_idx] = 0.0
-        # # Normalize just in case
-        # w_sum = np.sum(w)
-        # if w_sum > 0:
-        #     w /= w_sum
-        # else:
-        #     # All weights zero
-        #     w[:] = 1.0 / Ne
-        # # logw = logwt - logNlNe - logZ
-        # # w = np.exp(logw)
-        # #w = np.exp(logw.reshape(Ne, Nl)[:, -1])  # Now w.shape = (20,)
-        # #pdb.set_trace()
-        # Neff = 1 / np.sum(w ** 2)
-
     except Exception:
         print(traceback.format_exc())
         return np.zeros(Ne), np.nan
@@ -921,6 +761,7 @@ def AMIS(obs, pred, R, prim, pric, propm, propc, props):
     return w, Neff
 
 
+# The main function to compute the calving flux for a group of glaciers, which is called by the single glacier function
 def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                      prms_from_reg_priors=False, prms_from_glac_cal=False, ignore_nan=True, debug=True,
                      invert_standard=False,
@@ -990,17 +831,6 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
     gcm_lr, gcm_dates = gcm.importGCMvarnearestneighbor_xarray(gcm.lr_fn, gcm.lr_vn, main_glac_rgi, dates_table)
 
     # ===== CALIBRATE ALL THE GLACIERS AT ONCE =====
-    #pdb.set_trace()
-    # check the type of the modelprms_MB_FA
-    print("Type of modelprms_MB_FA:", type(modelprms_MB_FA))
-    print("Contents of modelprms_MB_FA:", repr(modelprms_MB_FA))  # Show raw format
-    print("=================================================")
-    #modelprms_MB_FA = ast.literal_eval(modelprms_MB_FA)  # Converts string to dictionary
-
-    print(type(modelprms_MB_FA))  # Should be a dictionary
-    print(modelprms_MB_FA)  # Print to see the content
-    #pdb.set_trace()
-
     calving_k = modelprms_MB_FA['tau'] # calving parameter, in k_calving called calving_k, in SermQ called tau, but using the same name calving_k
     index_particles = modelprms_MB_FA['index']
     output_cns = ['RGIId', 'calving_k', 'calving_thick', 'calving_flux_Gta_inv', 'calving_flux_Gta', 'no_errors', 'oggm_dynamics','length_change_m','length_change_rate_myr_dLdt','velocity_at_calvingfront_myr','thickness_at_calvingfront_m','width_at_calvingfront_m','volume_bsl_m3','volume_bwl_m3']
@@ -1019,23 +849,16 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
     output_df['volume_bsl_m3'] = [None] * output_df.shape[0]  # Initialize with None
     output_df['volume_bwl_m3'] = [None] * output_df.shape[0]  # Initialize with None
     # ===== RUN REGRESSION CALIBRATION ===== 
-    # print('============================= run reg_calving_flux =============================')
-    # print('********** main glacier rgi ********** is :',main_glac_rgi)
     for nglac in np.arange(main_glac_rgi.shape[0]):
-        # print("*********************** The",nglac,"glacier ***********************")  
-        # print('\n',main_glac_rgi.loc[main_glac_rgi.index.values[nglac],'RGIId'])
-#        if main_glac_rgi.loc[nglac,'RGIId'] in ['RGI60-09.00855']:
         
         # Select subsets of data
         glacier_rgi_table = main_glac_rgi.loc[main_glac_rgi.index.values[nglac], :]
         glacier_str = '{0:0.5f}'.format(glacier_rgi_table['RGIId_float'])
         if do_DA_calib_Paralle:
             k_str=glacier_str+"_"+f"{index_particles:.0f}"
-            # set the suffix of each iteration
-            #file_suffix = '_'+str(index_particles) #TODO we save the file_suffix in the glacier directory here, incase, we can solve the repeat download problems for each iteration and each parameters
+            # TODO we save the file_suffix in the glacier directory here, incase, we can solve the repeat download problems for each iteration and each parameters
             file_suffix = ''
         else:
-            #k_str = ''
             file_suffix = ''
         try:
             gdir = single_flowline_glacier_directory_with_calving(glacier_str, 
@@ -1045,7 +868,6 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
             print("**********Something is wrong with single_flowline_glacier_directory_with_calving in Reg_calving_flux**********")
             print(traceback.format_exc())
 
-        #print("contents of gdir are",os.listdir(gdir.dir))
         
         gdir.is_tidewater = True
         cfg.PARAMS['use_kcalving_for_inversion'] = True
@@ -1089,9 +911,7 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
             # ----- Model parameters -----
             # Use most likely parameters from initial calibration to force the mass balance gradient for the inversion (the initial value?）
             kp_value = modelprms_MB_FA['kp']
-            #print("the initial kp_value from the emulator is:",kp_value)
             tbias_value = modelprms_MB_FA['tbias']
-            #print("the initial tbias value from the emulator is:",tbias_value)
             ddfsnow_value = modelprms_MB_FA['ddfsnow']
             ddfice_value = ddfsnow_value/pygem_prms.ddfsnow_iceratio
                 
@@ -1137,17 +957,7 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                                          debug_refreeze=pygem_prms.debug_refreeze,
                                          fls=fls, option_areaconstant=True,
                                          inversion_filter=False)
-            #print("mbmod_inv is:",mbmod_inv)
             h, w = gdir.get_inversion_flowline_hw()
-            #print("the surface elevation (m a.b.s.l) is:",h)
-            #print("the width (m) is:",w)
-            #            if debug:
-            #                mb_t0 = (mbmod_inv.get_annual_mb(h, year=0, fl_id=0, fls=fls) * cfg.SEC_IN_YEAR * 
-            #                         pygem_prms.density_ice / pygem_prms.density_water) 
-            #                plt.plot(mb_t0, h, '.')
-            #                plt.ylabel('Elevation')
-            #                plt.xlabel('Mass balance (mwea)')
-            #                plt.show()
                                 
             # ----- CALVING -----
             # Number of years (for OGGM's run_until_and_store)
@@ -1155,24 +965,17 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                 nyears = int(dates_table.shape[0]/12)
             else:
                 assert True==False, 'Adjust nyears for non-monthly timestep'
-            #print("nyears is (int(dates_table.shape[0]/12)) :",nyears)
             mb_years=np.arange(nyears)
-            #print("mb_years is:",mb_years)
 
             # Perform inversion
             # - find_inversion_calving_from_any_mb will do the inversion with calving, but if it fails
             #   then it will do the inversion assuming land-terminating
             if invert_standard:
-                #print("start do the apparent mb from any mb:")
-                #print("invert_standard is True")
                 apparent_mb_from_any_mb(gdir, mb_model=mbmod_inv, mb_years=np.arange(nyears),filesuffix=file_suffix)
-                #print("apparent mb from any mb is done")
                 tasks.prepare_for_inversion(gdir,filesuffix=file_suffix)
                 tasks.mass_conservation_inversion(gdir, glen_a=cfg.PARAMS['glen_a']*glen_a_multiplier, fs=fs,filesuffix=file_suffix)
             else:
                 try:
-                    # print("invert_standard is False & The find_inversion_calving_from_any_mb start")
-                    # print("⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅")
                     # TODO , Set multiple choices for calving law, if None, it's k_calving, if fa_sermeq_speed_law_inv, then SERMeQ
                     out_calving = find_inversion_calving_from_any_mb(gdir, mb_model= mbmod_inv, mb_years=mb_years,
                                                                     glen_a=cfg.PARAMS['glen_a']*glen_a_multiplier, fs=fs,calving_law_inv = None,
@@ -1180,12 +983,9 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                                                                     hindcast=pygem_prms.hindcast,debug=pygem_prms.debug_mb,
                                                                     debug_refreeze=pygem_prms.debug_refreeze,option_areaconstant=True,
                                                                     inversion_filter=False,filesuffix=file_suffix)
-                    # print("The find_inversion_calving_from_any_mb end")
-                    # print("the out claving is:",out_calving)
                 except:
                     print("Something wrong with the find_inversion_calving_from_any_mb")
-                    print(traceback.format_exc())
-                #print("the calving_flux is",out_calving['calving_flux']   
+                    print(traceback.format_exc()) 
             # ------ MODEL WITH EVOLVING AREA ------
             # tasks.init_present_time_glacier(gdir,filesuffix=file_suffix) # adds bins below
             geometry_valid = True
@@ -1248,26 +1048,11 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
             rho = cfg.PARAMS['ice_density']
             rho_o = cfg.PARAMS['ocean_density'] # Ocean density, must be >= ice density
             water_level = out_calving ['calving_water_level']
-            #water_level = -thick0/4 if thick0 > 8*th else 0
-            # if gdir.is_tidewater:
-            #     if water_level is None:
-            #         water_level = -thick0/4 if thick0 > 8*th else 0
-            #     else:
-            #         water_level = water_level
             if th < (1-rho/rho_o)*thick0:
                 print ("Warning: The terminus of this glacier is floating")
                 # record in the log file
                 #log_floating_warning(glacier_str)  # logs to separate file only
                 gl_logger.log_floating_warning(glacier_str)  # logs to separate file only
-            #     water_level = th - (1-rho/rho_o)*thick0
-            # elif th > 0.3*thick0:
-            #     water_level = th - 0.3*thick0
-            # else:
-            #     water_level = 0
-            # vmin, vmax = cfg.PARAMS['free_board_marine_terminating']
-            # water_level = utils.clip_scalar(0, th - vmax, th - vmin)
-
-            # print('at the moment water level is :',water_level)
             # print("------------------ after the thickness inversion with calving, run the dynamics ------------------")
             # record the terminus floating status
             record_floating_terminus(glacier_str, th, thick0, water_level, rho, rho_o,index_particles,
@@ -1302,40 +1087,19 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                 ev_model.mb_model.glac_wide_area_annual[-1] = diag.area_m2[-1]
                 
                 # Record frontal ablation for tidewater glaciers and update total mass balance
-                #print("gdir.is_tidewater is:",gdir.is_tidewater)
-                #pdb.set_trace()
                 if gdir.is_tidewater:
                     try:
                         # Glacier-wide frontal ablation (m3 w.e.)
                         # - note: diag.calving_m3 is cumulative calving
-                        #if debug:
-                        #    print('\n\ndiag.calving_m3:', diag.calving_m3.values)
-                        #    print('calving_m3_since_y0:', ev_model.calving_m3_since_y0)
                         save_path_figure_glac = Path(save_path_figure_glac)
                         save_path_figure_calving = os.path.join(save_path_figure_glac, f"{index_particles}")
 
                         if Visualize_Index:
                             if not os.path.exists(save_path_figure_calving):
                                 os.makedirs(save_path_figure_calving)
-                        #print("the calving in the diag is :",diag.calving_m3)
-                        # plot the timeseries of calving_m3
-                        # print("****************Figure************************")
-                        # print("Visualize_Index is:",Visualize_Index)
-                        #pdb.set_trace()
-                        # if Visualize_Index :
-                        #     print("****************Figure************************")
-                        #     Visualization_timeseries.plot_timeseries(calving_m3=diag.calving_m3,save_name='Timeseries of accumulated calving flux (m³)',
-                        #                                             save_path= save_path_figure_calving)
                         # TODO: Actually calving_m3_monthly here is not annual, it's the timeseries of the model step, monthly/annual, to revise the name later
                         calving_m3_monthly = (diag.calving_m3.values[1:] - diag.calving_m3.values[0:-1]) 
                         #pygem_prms.density_ice / pygem_prms.density_water)
-                        # plot the timeseries of calving_m3_monthly
-                        # if Visualize_Index :
-                        #     Visualization_timeseries.plot_timeseries_Numpy(data = calving_m3_monthly, start_date='2000-01-01', end_date='2019-12-31',
-                        #                                                 save_name='Timeseries of calving',save_path=save_path_figure_calving, Y_label='calving flux (m³ a⁻¹)', F_title='Time Series')
-                        #print("calving_m3_monthly is:",calving_m3_monthly)
-                        # print("the frontalablation is updated totally :",calving_m3_monthly.shape[0])
-                        # print(calving_m3_monthly.shape[0],len(ev_model.mb_model.glac_wide_frontalablation))
                         for n in np.arange(calving_m3_monthly.shape[0]):
                             ev_model.mb_model.glac_wide_frontalablation[n] = calving_m3_monthly[n]*pygem_prms.density_ice / pygem_prms.density_water
 
@@ -1344,13 +1108,6 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                         ev_model.mb_model.glac_wide_massbaltotal = (
                                 ev_model.mb_model.glac_wide_massbaltotal  - ev_model.mb_model.glac_wide_frontalablation)
                         
-                        #                    if debug:
-                        #                        print('avg calving_m3:', calving_m3_monthly.sum() / nyears)
-                        #                        print('avg frontal ablation [Gta]:', 
-                        #                              np.round(ev_model.mb_model.glac_wide_frontalablation.sum() / 1e9 / nyears,4))
-                        #                        print('avg frontal ablation [Gta]:', 
-                        #                              np.round(ev_model.calving_m3_since_y0 * pygem_prms.density_ice / 1e12 / nyears,4))
-                        #print("model mass balance total is:",ev_model.mb_model.glac_wide_massbaltotal)
                         # ====== Output of calving ======
                         out_calving_forward = {}
                         # area_m2
@@ -1525,16 +1282,7 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                                                     massbal_total_Gta_timeseries = out_calving_forward.get('massbal_total_Gta_timeseries', None) 
                                                     )
                         
-                        
-                        # output_df.loc[nglac,'calving_flux_Gta'] = calving_flux_Gta
-                        # output_df.loc[nglac,'calving_thick'] = out_calving_forward['calving_front_thick']
-                        # output_df.loc[nglac,'no_errors'] = 1
-                        # output_df.loc[nglac,'oggm_dynamics'] = 1
-                        # print("nglac:", nglac)
-                        # print("length_change_m is :",out_calving_forward['length_change_m'])
-                        # print("length_change_m length:", len(out_calving_forward['length_change_m']))
-                        # output_df.loc[nglac,'length_change_m'] = out_calving_forward['length_change_m']
-                        # output_df.loc[nglac,'length_change_rate_myr_dLdt'] = out_calving_forward['length_change_rate_myr_dLdt']
+                    
                         
                         if debug:               
                             print('OGGM dynamics + SERMeQ, tau:', np.round(calving_k,4), 'glen_a:', np.round(glen_a_multiplier,2))                 
@@ -1562,53 +1310,47 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                     if debug:
                         print('OGGM dynamics failed, using mass redistribution curves')
                         print(traceback.format_exc())
-                                                    # Mass redistribution curves glacier dynamics model
-                        # #                     ev_model = MassRedistributionCurveModel(
-                        # #                                     nfls, mb_model=mbmod, y0=0,
-                        # #                                     glen_a=cfg.PARAMS['glen_a']*glen_a_multiplier, fs=fs,
-                        # #                                     is_tidewater=gdir.is_tidewater,
-                        # #                                     water_level=water_level
-                        # #                                     )
-                        # #                     _, diag = ev_model.run_until_and_store(nyears)
-                        # #                     ev_model.mb_model.glac_wide_volume_annual = diag.volume_m3.values
-                        # #                     ev_model.mb_model.glac_wide_area_annual = diag.area_m2.values
-                            
-                        # #                     # Record frontal ablation for tidewater glaciers and update total mass balance
-                        # #                     # Update glacier-wide frontal ablation (m3 w.e.)
-                        # #                     ev_model.mb_model.glac_wide_frontalablation = ev_model.mb_model.glac_bin_frontalablation.sum(0)
-                        # #                     # Update glacier-wide total mass balance (m3 w.e.)
-                        # #                     ev_model.mb_model.glac_wide_massbaltotal = (
-                        # #                             ev_model.mb_model.glac_wide_massbaltotal - ev_model.mb_model.glac_wide_frontalablation)
+                    # Mass redistribution curves glacier dynamics model
+                    ev_model = MassRedistributionCurveModel(
+                                    nfls, mb_model=mbmod, y0=0,
+                                    glen_a=cfg.PARAMS['glen_a']*glen_a_multiplier, fs=fs,
+                                    is_tidewater=gdir.is_tidewater,
+                                    water_level=water_level
+                                    )
+                    _, diag = ev_model.run_until_and_store(nyears)
+                    ev_model.mb_model.glac_wide_volume_annual = diag.volume_m3.values
+                    ev_model.mb_model.glac_wide_area_annual = diag.area_m2.values
+    
+                    # Record frontal ablation for tidewater glaciers and update total mass balance
+                    # Update glacier-wide frontal ablation (m3 w.e.)
+                    ev_model.mb_model.glac_wide_frontalablation = ev_model.mb_model.glac_bin_frontalablation.sum(0)
+                    # Update glacier-wide total mass balance (m3 w.e.)
+                    ev_model.mb_model.glac_wide_massbaltotal = (
+                            ev_model.mb_model.glac_wide_massbaltotal - ev_model.mb_model.glac_wide_frontalablation)
 
-                        # #                     calving_flux_km3a = (ev_model.mb_model.glac_wide_frontalablation.sum() * pygem_prms.density_water / 
-                        # #                                          pygem_prms.density_ice / nyears / 1e9)
-
-                        # # #                    if debug:
-                        # # #                        print('avg frontal ablation [Gta]:', 
-                        # # #                              np.round(ev_model.mb_model.glac_wide_frontalablation.sum() / 1e9 / nyears,4))
-                        # # #                        print('avg frontal ablation [Gta]:', 
-                        # # #                              np.round(ev_model.calving_m3_since_y0 * pygem_prms.density_ice / 1e12 / nyears,4))
-                                            
-                        # #                     # Output of calving
-                        # #                     out_calving_forward = {}
-                        # #                     # calving flux (km3 ice/yr)
-                        # #                     out_calving_forward['calving_flux'] = calving_flux_km3a
-                        # #                     # calving flux (Gt/yr)
-                        # #                     calving_flux_Gta = out_calving_forward['calving_flux'] * pygem_prms.density_ice / pygem_prms.density_water
-                        # #                     # calving front thickness at start of simulation
-                        # #                     thick = nfls[0].thick
-                        # #                     last_idx = np.nonzero(thick)[0][-1]
-                        # #                     out_calving_forward['calving_front_thick'] = thick[last_idx]
-                                            
-                        # #                     # Record in dataframe
-                        # #                     output_df.loc[nglac,'calving_flux_Gta'] = calving_flux_Gta
-                        # #                     output_df.loc[nglac,'calving_thick'] = out_calving_forward['calving_front_thick']
-                        # #                     output_df.loc[nglac,'no_errors'] = 1
-                                            
-                        # #                     if debug:          
-                        # #                         print('Mass Redistribution curve, calving_k:', np.round(calving_k,1), 'glen_a:', np.round(glen_a_multiplier,2))                       
-                        # #                         print('    calving front thickness [m]:', np.round(out_calving_forward['calving_front_thick'],0))
-                        # #                         print('    calving flux model [Gt/yr]:', np.round(calving_flux_Gta,5))
+                    calving_flux_km3a = (ev_model.mb_model.glac_wide_frontalablation.sum() * pygem_prms.density_water / 
+                                            pygem_prms.density_ice / nyears / 1e9)
+                    
+                    # Output of calving
+                    out_calving_forward = {}
+                    # calving flux (km3 ice/yr)
+                    out_calving_forward['calving_flux'] = calving_flux_km3a
+                    # calving flux (Gt/yr)
+                    calving_flux_Gta = out_calving_forward['calving_flux'] * pygem_prms.density_ice / pygem_prms.density_water
+                    # calving front thickness at start of simulation
+                    thick = nfls[0].thick
+                    last_idx = np.nonzero(thick)[0][-1]
+                    out_calving_forward['calving_front_thick'] = thick[last_idx]
+                    
+                    # Record in dataframe
+                    output_df.loc[nglac,'calving_flux_Gta'] = calving_flux_Gta
+                    output_df.loc[nglac,'calving_thick'] = out_calving_forward['calving_front_thick']
+                    output_df.loc[nglac,'no_errors'] = 1
+                    
+                    if debug:          
+                        print('Mass Redistribution curve, calving_k:', np.round(calving_k,1), 'glen_a:', np.round(glen_a_multiplier,2))                       
+                        print('    calving front thickness [m]:', np.round(out_calving_forward['calving_front_thick'],0))
+                        print('    calving flux model [Gt/yr]:', np.round(calving_flux_Gta,5))
 
 
             if calc_mb_geo_correction:
@@ -1629,25 +1371,12 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                     mb_mwea_fa_asl_geo_correction = mb_mwea_fa_asl_geo_correction_max
                     
                 # Below sea-level correction due to calving that geodetic mass balance doesn't see
-#                print('test:', mbmod.glac_bin_icethickness_annual.shape, height_asl.shape, bin_area_lost.shape)
-#                height_bsl = mbmod.glac_bin_icethickness_annual - height_asl
                 
                 # Area for retreat
                 if debug:
-#                    print('\n----- area calcs -----')
-#                    print(mbmod.glac_bin_area_annual[bin_last_idx:,0])
-#                    print(mbmod.glac_bin_icethickness_annual[bin_last_idx:,0])
-#                    print(mbmod.glac_bin_area_annual[bin_last_idx:,-2])
-#                    print(mbmod.glac_bin_icethickness_annual[bin_last_idx:,-2])
-#                    print(mbmod.heights.shape, mbmod.heights[bin_last_idx:])
                     print('  mb_mwea_fa_asl_geo_correction:', np.round(mb_mwea_fa_asl_geo_correction,2))
-#                    print('  mb_mwea_fa_asl_geo_correction:', mb_mwea_fa_asl_geo_correction)
-#                    print(glacier_rgi_table, glacier_rgi_table['Area'])
-                    
-                    
+                       
                 output_df.loc[nglac,'mb_mwea_fa_asl_lost'] = mb_mwea_fa_asl_geo_correction
-            #
-            # print("out_calving_forward is :",out_calving_forward)
 
             if out_calving_forward is None:
                 output_df.loc[nglac,['calving_k', 'calving_thick', 'calving_flux_Gta', 'no_errors','length_change_m',
@@ -1760,58 +1489,8 @@ def processing_parameters(model_function,kwargs,modelprms_MB_FA):
             "traceback": traceback.format_exc(),
         }
 
-    # try:
-    #     if logger:   
-    #         logger.info(f"Processing sample: {modelprms_MB_FA}")
-        
-    #     output_df, reg_calving_gta_mod_good,_ , mb_years,mb_obs_mwea,mb_obs_mwea_err= model_function(modelprms_MB_FA = modelprms_MB_FA, 
-    #                                                                                                  do_DA_calib_Paralle = True, **kwargs)
-        
-    #     # Convert dates_table (DataFrame) to a structured NumPy array
-    #     mb_years_np = mb_years
-    #     # Create the output dictionary
-    #     out_dict =  {
-    #                 'modelprms_MB_FA_value' : modelprms_MB_FA,
-    #                 'calving_gta_average_regionalsum': reg_calving_gta_mod_good,
-    #                 'length_change_m_timeseries': output_df['length_change_m'].tolist(),
-    #                 'length_change_rate_myr_dLdt': output_df['length_change_rate_myr_dLdt'].tolist(),
-    #                 'calving_thick': output_df['calving_thick'].tolist(),
-    #                 'calving_flux_Gta_average': output_df['calving_flux_Gta'].tolist(),
-    #                 'calving_flux_Gta_timeseries':output_df['calving_flux_Gta_timeseries'].tolist(),
-    #                 'massbal_clim_mwea': output_df['massbal_clim_mwea'].tolist(),
-    #                 'massbal_total_mwea': output_df['massbal_total_mwea'].tolist(),
-    #                 'massbal_clim_Gta': output_df['massbal_clim_Gta'].tolist(),
-    #                 'massbal_total_Gta': output_df['massbal_total_Gta'].tolist(),
-    #                 'massbal_clim_mwea_timeseries': output_df['massbal_clim_mwea_timeseries'].tolist(),
-    #                 'massbal_total_mwea_timeseries': output_df['massbal_total_mwea_timeseries'].tolist(),
-    #                 'massbal_clim_Gta_timeseries': output_df['massbal_clim_Gta_timeseries'].tolist(),
-    #                 'massbal_total_Gta_timeseries': output_df['massbal_total_Gta_timeseries'].tolist(),
-    #                 'velocity_at_calvingfront_myr': output_df['velocity_at_calvingfront_myr'].tolist(),
-    #                 'thickness_at_calvingfront_m': output_df['thickness_at_calvingfront_m'].tolist(),
-    #                 'width_at_calvingfront_m': output_df['width_at_calvingfront_m'].tolist(),
-    #                 'volume_bsl_m3': output_df['volume_bsl_m3'].tolist(),
-    #                 'volume_bwl_m3': output_df['volume_bwl_m3'].tolist(),
-    #                 'frontal_ablation_mwea': output_df['frontal_ablation_mwea'].tolist(),
-    #                 'frontal_ablation_mwea_timeseries': output_df['frontal_ablation_mwea_timeseries'].tolist(),
-    #                 'area_km2_timeseries': output_df['area_km2_timeseries'].tolist(),
-    #                 'mb_years': mb_years_np,  # Add structured NumPy array of dates_table,
-    #                 'mb_obs_mwea': mb_obs_mwea,
-    #                 'mb_obs_mwea_err': mb_obs_mwea_err
-    #                 }
-    #     if logger:
-    #         logger.info(f"Completed sample: {modelprms_MB_FA}")
-    #     return out_dict
-    # except Exception as e:
-    #     error_msg = f"Error processing sample {modelprms_MB_FA}: {str(e)}"
-    #     if logger:
-    #         logger.error(error_msg)
-    #         logger.exception("Full error traceback:")
-    #     else:
-    #         print(error_msg)
-    #         print(f"Error type: {type(e).__name__}")
-    #     raise  # Re-raise the exception after logging
 
-
+# the function for paralle running and visualizing the relationship between parameter and model output
 def Visualize_parameter_paralle (model_function = None, parameters_dict = None,calibrate_timeseries = False,
                                  rgiid_ind = None, Visual_index = False, N_iteration = None,
                                  store_result =False,save_path_figure_glac = None,
@@ -1939,13 +1618,6 @@ def Visualize_parameter_paralle (model_function = None, parameters_dict = None,c
                 for item in modelprms_data
             ]
 
-            # Handle structured arrays like 'dates_table'
-            # if 'dates_table' in output_data:
-            #     dates_table_serializable = [
-            #         {name: row[name].item() if isinstance(row[name], np.generic) else row[name] for name in output_data['dates_table'].dtype.names}
-            #         for row in output_data['dates_table']
-            #     ]
-            #     output_data['dates_table'] = dates_table_serializable
 
             # Convert other NumPy arrays and handle NumPy-specific types
             output_data_serializable = {
@@ -2028,14 +1700,9 @@ def Visualize_parameter_paralle (model_function = None, parameters_dict = None,c
     for k in index_particles:
         #os.rmdir(pygem_prms.oggm_gdir_fp + str(k))
         shutil.rmtree(pygem_prms.oggm_gdir_fp + rgiid_ind_float+'_'+f"{k:.0f}" )  # Use rmtree to remove non-empty directories
-    # for folder in glob.glob(os.path.join(pygem_prms.oggm_gdir_fp, rgiid_ind_float + '_*')):
-    #     shutil.rmtree(folder, ignore_errors=True)
-    #plt.show()
     if calibrate_timeseries:
         # save the output as hpf5 file
-        # Define output file path
-        # output_folder_model = os.path.join(output_fp, 'modeloutput')  # Assuming `pygem_prms.output_fp` exists
-        # output_folder_params = os.path.join(output_fp, 'parameter')
+        # Define output file path)
         output_folder_model = os.path.join(save_path_modeloutput_glac,'Prior') 
         output_folder_params =os.path.join(save_path_parameter_glac,'Prior')  
         # Ensure directories exist
@@ -2050,7 +1717,6 @@ def Visualize_parameter_paralle (model_function = None, parameters_dict = None,c
         # # Save to JSON
             try:
                 # Save modelprms_MB_FA_value to JSON
-                #pdb.set_trace()
                 with open(output_fp_params, "w") as f:
                     json.dump(modelprms_data_serializable, f, indent=4)
                 
@@ -2066,7 +1732,6 @@ def Visualize_parameter_paralle (model_function = None, parameters_dict = None,c
             with open(f"{output_folder_params}/prior_params_samples_{rgiid_ind}_{N_iteration}.json", "w") as f:
                 json.dump(prior_samples_serializable , f, indent=4)
     
-
         #return prior_samples, output_data
         return output_data
     else:
@@ -2075,6 +1740,7 @@ def Visualize_parameter_paralle (model_function = None, parameters_dict = None,c
     
 
 
+# the main function for the mass balance and frontal ablation/length change model, the coupling of PyGEM, OGGM, SERMeQ
 def Model_MB_FA_RT(model_function = reg_calving_flux,parameters_dict= None,rgiid_ind = None,
                    main_glac_rgi = None, fa_glac_data_reg= None,ignore_nan=False,
                    calibrate_timeseries =True,store_monthly_step=False, return_all = False,
@@ -2200,11 +1866,6 @@ def Model_MB_FA_RT(model_function = reg_calving_flux,parameters_dict= None,rgiid
         volume_bwl_model_array_annual = [[np.mean(sublist[i:i + 12]) for i in range(0, len(sublist), 12)] for sublist in volume_bwl_model_array_monthly]
 
 
-        #pdb.set_trace()
-
-        # calving_thickness_model_array_flattend = [sublist[0] for sublist in calving_thickness_model_array]
-        # calving_thickness_model_array_monthly =  calving_thickness_model_array_flattend
-        # calving_thickness_model_array_annual = [[np.mean(sublist[i:i + 12]) for i in range(0, len(sublist), 12)] for sublist in calving_thickness_model_array_monthly]
     else:
         lengthchange_m_TMS_model_array_annual = lengthchange_m_TMS_model_array
         lengthchange_dLdt_model_array_annual = lengthchange_dLdt_model_array
@@ -2413,6 +2074,7 @@ def Model_MB_FA_RT(model_function = reg_calving_flux,parameters_dict= None,rgiid
     
 
 
+# the main function for the calibration of the mass balance and frontal ablation/length change model, the coupling of PyGEM, OGGM, SERMeQ
 def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='',
                         frontalablation_annual_fp = '', frontalablation_annual_fn = '',
                         output_fp='', hugonnet_fp='',hugonnet_fn='',lengthchange_annual_fp='',
@@ -2620,8 +2282,6 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
         rgi_area_dict = dict(zip(main_glac_rgi.RGIId, main_glac_rgi.Area))
         output_df_all['area_km2'] = output_df_all['RGIId'].map(rgi_area_dict)
         # TODO add the observation of mass balance (Climatic mass balance)
-
-
 
         # ----- LOAD DATA ON MB_CLIM CORRECTED FOR FRONTAL ABLATION -----
         # use this to assess reasonableness of results and see if calving_k values affected
@@ -2954,7 +2614,6 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                     else:
                         shrink=max(0.5**j,0.2) # TODO check the shrinkage factor
                         pc = np.copy(priorcov)*shrink
-                    print("pc after AMIS is",pc)
                     # Draw from this Gaussian for the next adaptive iteration
                     # if there will be one
                     #pdb.set_trace()
@@ -2981,9 +2640,6 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
 
                     thetap = transform_space(thetap, 'from_normal')
                     # TODO how to update the ensembel
-                    #Ensemble.iter_update(step, thetap, create=True, iteration=j)
-                    #print("the thetap is ",thetap)
-                    #pdb.set_trace()
                     # exit if not collapsed
                     if not doadapt:
                         break
@@ -3163,23 +2819,6 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                     try:
                         # accoording to the unique counts, and the weights, recoverty the output array 
                         if Visualize_Index:
-
-                            # priod avearge fa/calving_flux Gta  #TODO CHANGE TO THE POSTERIOR
-                            # # Here is for debugging
-                            # # Add debugging before line 2858:
-                            # print(f"calving_flux_Gta_average_model_array_post_repeat shape: {np.shape(calving_flux_Gta_average_model_array_post_repeat)}")
-                            # print(f"calving_flux_Gta_average_model_array_post_repeat type: {type(calving_flux_Gta_average_model_array_post_repeat)}")
-                            # print(f"calving_flux_Gta_average_model_weighted shape: {np.shape(calving_flux_Gta_average_model_weighted)}")
-                            # print(f"calving_flux_Gta_average_model_weighted type: {type(calving_flux_Gta_average_model_weighted)}")
-
-                            # # Check if they're scalars or arrays
-                            # if hasattr(calving_flux_Gta_average_model_weighted, '__len__'):
-                            #     print(f"calving_flux_Gta_average_model_weighted length: {len(calving_flux_Gta_average_model_weighted)}")
-                            # else:
-                            #     print(f"calving_flux_Gta_average_model_weighted is scalar: {calving_flux_Gta_average_model_weighted}")
-
-                            # print(f"fa_gta_obs_ind_array shape: {np.shape(fa_gta_obs_ind_array)}")
-                            # print(f"fa_gta_obs_ind_array type: {type(fa_gta_obs_ind_array)}")
                             Visualization_timeseries.plot_model_vs_observation(np.concatenate([calving_flux_Gta_average_model_array_post_repeat,[[calving_flux_Gta_average_model_weighted]]], axis=0).tolist(),
                                                                             fa_gta_obs_ind_array, plot_type='point', model_label='Modeled frontal ablation (Gt a⁻¹)', obs_label='Observed frontal ablation (Gt a⁻¹)',
                                                                                 model_legends=[f"Particle {i+1}" for i in range(Sample_N)] + ["Weighted Avg"], start_date=2000,
@@ -3415,7 +3054,7 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
             print('Appended new results to existing calibration file.')
 
 
-
+# Main function to run the calibration
 def main():
     """
     Model calibration
@@ -3434,11 +3073,6 @@ def main():
     
     # Set up logging based on user input
     log_level = args.log_level
-    # # get number of jobs #TODO For the parallel processing, need to be fixed
-    # njobs = len(args.rgi_region01)
-    # # number of cores for parallel processing
-    # if args.ncores > 1:
-    #     args.ncores = int(np.min([njobs, args.ncores]))
 
     #%% data paths =====
     # frontalabltion data (20-year averaged data)
@@ -3468,12 +3102,6 @@ def main():
         exit(1)
     else:
         lengthchange_annual_fn = args.lengthchange_annual_fn
-    # output data
-    # base_dir = pygem_prms.main_directory
-    # #output_fp = os.path.join(base_dir, '..', 'calving_data', 'analysis')
-    # #output_fp = os.path.join(base_dir,'Calibration_AMIS_MB_FA_20102019')
-    # output_fp = output_fp
-    # os.makedirs(output_fp, exist_ok=True)
 
     #%% merge input claving datasets ===== #TODO At the moment, they are already merged, but need to be fixed for the future
     #merged_calving_data_fn = merge_data(frontalablation_fp=frontalablation_fp, overwrite=args.overwrite, verbose=args.verbose)
@@ -3496,12 +3124,6 @@ def main():
                       debug = debug,
                       log_level = log_level) 
                       
-                      #= args.Visualize_Index,store_monthly_step = args.store_monthly_step,debug = debug,debug_spc = debug_spc)
-
-    # # calibrate each individual glacier's calving_k parameter #TODO Check the parallel processing
-    # calib_ind_calving_k_partial = partial(calib_ind_calving_k, args=args, frontalablation_fp=frontalablation_fp, frontalablation_fn=merged_calving_data_fn, output_fp=output_fp, hugonnet2021_fp=hugonnet2021_fp)
-    # with multiprocessing.Pool(args.ncores) as p:
-    #     p.map(calib_ind_calving_k_partial, args.rgi_region01)
 
     #%% update the MB  #TODO Check the function for the update_mbdata
     # update reference mass balance data accordingly
