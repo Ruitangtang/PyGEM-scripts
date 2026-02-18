@@ -1,4 +1,5 @@
 {
+    "version": "0.2.0",
     "configurations": [
         {
             "name": "Python Debugger: Current File",
@@ -6,14 +7,36 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "python": "/home/ruitang/miniconda3/envs/oggm_env/bin/python",
+            "env": {
+                "PYTHONPATH": "/home/ruitang/oggm:${workspaceFolder}:/home/ruitang/PyGEM_2023/PyGEM-scripts:${env:PYTHONPATH}"
+            },
             "args": [
-                "-gcm_startyear", "2000",
-                "-gcm_endyear", "2025",
-                "-gcm_name", "CESM2",
-                "-scenario", "ssp126",
-                "-hugonnet_fn", "mass_balance_obs_20002010_task0.csv",
+
+                "-rgi_region01", "07",
+                "-rgi_glac_number", "7.00026",
+                "-ref_startyear", "2000",
+                "-ref_endyear", "2019",
+                "-frontalablation_fn", "frontal_ablation_obs_20002010.csv",
+                "-hugonnet_fn", "mass_balance_obs_20002010.csv",
+                "-lengthchange_annual_fn", "lengthchange_annual_rgi_region01_7_20002020.csv",
+                "-store_monthly_step",
+                "-Visualize_Index",
+                "-v",
+                "-debug"
             ],
         },
 
     ]
 }
+
+                // // "-option_parallels", 
+                // // "-rgi_region01", "7",
+                // // "-rgi_glac_number", "7.01560",
+                // // "-gcm_startyear", "2000",
+                // // "-gcm_endyear", "2100",
+                // // "-gcm_name", "BCC-CSM2-MR",
+                // // "-scenario", "ssp585",
+                // // "-hugonnet_fn", "mass_balance_obs_20002010_task11.csv",
