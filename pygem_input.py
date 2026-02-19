@@ -17,12 +17,12 @@ from pygem.utils._funcs_selectglaciers import get_same_glaciers, glac_num_fromra
 
 #%% ===== MODEL SETUP DIRECTORY =====
 #main_directory = os.getcwd()
-#main_directory = '/home/ruitang/OGGM-Ruitang/Results/Test_KS_1T_24Jun/RGI_7.00025_PBS_Test01/Output/'
+# output_filepath = main_directory
 main_directory = '/home/ruitang/OGGM-Ruitang/Results/Test_KS_Regional_1Apr2025/Output/'
-
 # Output directory
 output_filepath = main_directory
-#output_filepath = main_directory + '/../PyGEM-Test-Simple/Output/'
+
+# record model run date
 model_run_date = datetime.today().strftime('%Y-%m-%d')
 
 #%% ===== GLACIER SELECTION =====
@@ -38,12 +38,6 @@ rgi_glac_number = 'all'
 glac_no_skip = None
 glac_no = None
 #glac_no = ['15.03732'] # Khumbu Glacier
-#glac_no = ['1.10689'] # Columbia Glacier
-#glac_no = ['1.03622'] # LeConte Glacier
-#glac_no = ['1.03377'] #  Dawes Glacier
-#glac_no= ['17.15808']
-#glac_no = ['17.04876'] #  Amalia Glacier
-#glac_no = ['7.00025'] #  Amalia Glacier
 
 if glac_no is not None:
     rgi_regionsO1 = sorted(list(set([int(x.split('.')[0]) for x in glac_no])))
@@ -56,12 +50,9 @@ include_laketerm = False                # Switch to include lake-terminating gla
 include_tidewater = True               # Switch to include marine-terminating glaciers
 include_calving = True
 
-#oggm_base_url = 'https://cluster.klima.uni-bremen.de/~oggm/gdirs/oggm_v1.6/L1-L2_files/elev_bands/'
+
 oggm_base_url = 'https://cluster.klima.uni-bremen.de/~oggm/gdirs/oggm_v1.6/L1-L2_files/2023.2/elev_bands_w_data/'
 
-#oggm_base_url = 'https://cluster.klima.uni-bremen.de/~oggm/gdirs/oggm_v1.6/L1-L2_files/elev_bands/'
-
-#oggm_base_url = 'https://cluster.klima.uni-bremen.de/~oggm/gdirs/oggm_v1.6/L1-L2_files/centerlines'
 logging_level = 'DEBUG'             # DEBUG, INFO, WARNING, ERROR, WORKFLOW, CRITICAL (recommended WORKFLOW)
 oggm_border = 160                      # 10, 80, 160, 240 (recommend 240 if expecting glaciers for long runs where glaciers may grow)
 
@@ -95,11 +86,9 @@ if hindcast:
 
 #%% ===== CALIBRATION OPTIONS =====
 # Calibration option ('emulator', 'MCMC', 'MCMC_fullsim' 'HH2015', 'HH2015mod','PBS')
-option_calibration = 'PBS'
-#option_calibration = 'MCMC'
+option_calibration = 'PBS' # here is it refers to AdaPBS(AMIS), which is a variant of PBS, and the original PBS is not implemented yet.
 # Prior distribution (specify filename or set equal to None)
 priors_reg_fullfn = main_directory + '/../csvs/priors_region.csv'
-#priors_reg_fullfn = main_directory + '/../PyGEM-Test-Simple/Output/calibration/priors_region.csv'
 # Calibration-specific information for each calibration option
 if option_calibration == 'HH2015':
     tbias_init = 0
@@ -196,11 +185,6 @@ elif option_calibration in ['MCMC', 'MCMC_fullsim']:
         tbias_start = tbias_mu      # temperature bias initial chain value
 elif option_calibration == 'PBS':
     # PBS options
-    # pbs_ncpus = 32                  # number of CPUs for PBS job
-    # pbs_walltime = '01:00:00'      # walltime for PBS job
-    # pbs_mem = '16gb'              # memory for PBS job
-    # pbs_queue = 'normal'
-    #           # queue for PBS job
     Neffthrs = 0.1            # threshold for effective sample size
     vars_to_calibrate = ['tbias', 'kp', 'ddfsnow','tau']  # variables to calibrate
     perturbation_strategy = ["logitnormal_mult", "logitnormal_mult", "logitnormal_mult","logitnormal_mult"]  # perturbation strategy # TODO check the distribution of parameters
@@ -216,26 +200,6 @@ elif option_calibration == 'PBS':
     # Transformed priors median, std, lower and upper bounds
     transformed_mean_priors = {'tbias':0.0042, 'kp': -0.56814, 'ddfsnow': -1.35533,'tau' : -0.56} # mean = glogit(pygem_median_priors,pygem_std_priors,pygem_lower_bounds,pygem_upper_bounds)
     transformed_std_priors = {'tbias': 0.25, 'kp': 0.6, 'ddfsnow': 0.4,'tau' : 0.6} # same to pygem_std_priors
-  
-
-    
-    # mean_priors = {'tbias': 0, 'kp': 1, 'ddfsnow': 0.0041,'tau' : 1.5}
-
-    # # priors standard deviation
-    # sd_priors = {'tbias': 1, 'kp': 1.5, 'ddfsnow': 0.0015,'tau' : 1}
-    # mean_errors = {'tbias': 0, 'kp': 0, 'ddfsnow': 0.0041,'tau' : 1.5}
-
-    # # priors standard deviation
-    # sd_errors = {'tbias': 1, 'kp': 1.5, 'ddfsnow': 0.0015,'tau' : 1}
-
-    # # priors lower bounds
-
-    # lower_bounds = {'tbias': -10, 'kp': 0.5, 'ddfsnow': 0,'tau' : 0.5}
-
-    # # priors upper bounds
-    # upper_bounds = {'tbias': 10, 'kp': 1.5, 'ddfsnow': np.inf,'tau' : 3.5}
-
-
 
 
     # Initial parameters (from HH2015)
@@ -254,10 +218,7 @@ elif option_calibration == 'PBS':
 # ----- Calibration Dataset -----
 # Hugonnet geodetic mass balance data
 hugonnet_fp = main_directory + '/../DEMs/Hugonnet2020/'
-#hugonnet_fp = main_directory + '/../PyGEM-Test-Simple/DEMs/Hugonnet2020/'
 hugonnet_fn = 'df_pergla_global_20yr-filled-facorrected_20002010.csv'
-#hugonnet_fn = 'df_pergla_global_20yr-filled-facorrected_20102020.csv'
-#hugonnet_fn = 'df_pergla_global_20yr-filled-facorrected_20002020.csv'
 
 if '-filled' in hugonnet_fn:
     hugonnet_mb_cn = 'mb_mwea'
@@ -319,7 +280,6 @@ else:
     sim_iters = 100                   # number of simulations
 
 # Output filepath of simulations
-#output_sim_fp = output_filepath + 'simulations/'
 output_sim_fp = output_filepath + '/Simulation/' # The path for AMIS simulation
 # Output statistics of simulation (options include any of the following 'mean', 'std', '2.5%', '25%', 'median', '75%', '97.5%')
 sim_stat_cns = ['mean', 'mad', '2.5%', '25%', 'median', '75%', '97.5%', 'std']
@@ -334,10 +294,7 @@ export_extra_vars = True            # Option to export extra variables (temp, pr
 if option_dynamics in ['OGGM', 'MassRedistributionCurves']:
     cfl_number = 0.02
     cfl_number_calving = 0.01
-    #glena_reg_fullfn = main_directory + '/../csvs/glena_region.csv'
     glena_reg_fullfn = main_directory + '/../Regional_glenA/glena_region.csv'
-    #print("glena_reg_fullfn is :",glena_reg_fullfn)
-    #glena_reg_fullfn = main_directory + '/../PyGEM-Test-Simple/Output/calibration/glena_region.csv'
     use_reg_glena = True
     if use_reg_glena:
         assert os.path.exists(glena_reg_fullfn), 'Regional glens a calibration file does not exist.'
@@ -452,7 +409,6 @@ cmip5_fp_fx_ending = '_r0i0p0_fx/'
 
 # CMIP6 (GCM data)
 #cmip6_fp_prefix = main_directory + '/../climate_data/cmip6/'
-#cmip6_fp_prefix = main_directory + '/../../climate_data/cmip6/'
 cmip6_fp_prefix = '/home/ruitang/GeoFag_Ruitang/Test_Tidewater/climate_data/cmip6/'
 # CESM2 Large Ensemble (GCM data)
 #cesm2_fp_var_prefix = main_directory + '/../climate_data/cesm2/'
@@ -479,7 +435,6 @@ gfdl_fp_fx_ending = '_fx/'
 # ----- RGI DATA -----
 # Filepath for RGI files
 #rgi_fp = main_directory + '/../RGI/rgi60/00_rgi60_attribs/'
-#rgi_fp = main_directory + '/../../RGI/rgi60/00_rgi60_attribs/'
 rgi_fp = '/home/ruitang/GeoFag_Ruitang/Test_Tidewater/RGI/rgi60/00_rgi60_attribs/'
 
 assert os.path.exists(rgi_fp), 'RGI filepath does not exist. PyGEM requires RGI data to run.'
@@ -495,7 +450,6 @@ rgi_cols_drop = ['GLIMSId','BgnDate','EndDate','Status','Linkages','Name']
 
 # ----- ADDITIONAL DATA (hypsometry, ice thickness, width, debris) -----
 #h_consensus_fp = main_directory + '/../IceThickness_Farinotti/composite_thickness_RGI60-all_regions/'
-#h_consensus_fp = main_directory + '/../../IceThickness_Farinotti/composite_thickness_RGI60-all_regions/'
 h_consensus_fp = '/home/ruitang/GeoFag_Ruitang/Test_Tidewater/IceThickness_Farinotti/composite_thickness_RGI60-all_regions/'
 
 # Filepath for the hypsometry files
