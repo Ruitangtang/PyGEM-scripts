@@ -13,7 +13,14 @@ curdir=$(pwd)
 
 
 cd $curdir
-path_home="/home/ruitang/OGGM-Ruitang/Results/Test_KS_1T_24Jun/RGI_17.04876_Test02"
+if [ -d $curdir/Output ]; then
+    path_home="$curdir/Output"
+else
+    echo "Directory 'Output' does not exist. Creating it."
+    mkdir Output
+    path_home="$curdir/Output"
+fi
+
 path_log1="$path_home/Step_01.log"
 path_log2="$path_home/Step_02.log"
 path_log3="$path_home/Step_03.log"
