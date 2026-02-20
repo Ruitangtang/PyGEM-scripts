@@ -9,9 +9,8 @@
             "console": "integratedTerminal",
             "justMyCode": false,
             "cwd": "${workspaceFolder}",
-            "python": "/home/ruitang/miniconda3/envs/oggm_env/bin/python",
             "env": {
-                "PYTHONPATH": "/home/ruitang/oggm:${workspaceFolder}:/home/ruitang/PyGEM_2023/PyGEM-scripts:${env:PYTHONPATH}"
+                "PYTHONPATH": "${env:HOME}/oggm:${workspaceFolder}:${env:PYTHONPATH}"
             },
             "args": [
 
