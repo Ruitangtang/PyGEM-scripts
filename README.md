@@ -1,3 +1,132 @@
+<!--HERE GOES THE DESCRIPTION ON HOW TO SETUP CODE AND DATA FOR THE PAPER.-->
+# [Frontalablation_Modeling_SERMeQ_PyGEM_OGGM] v[1.0]
+
+## Description
+This open-source glacier evolution model, written in Python, couples the calving model SERMeQ with the glacier mass-balance models PyGEM and OGGM. Model calibration is performed using an Adapted Particle Batch Smoother. The model timestep is set as monthly.
+
+## Corresponding author
+- Ruitang Yang (ORCID: [0000-0001-5145-940X])
+
+## Requirements and Installation
+
+### Requirements
+- THe model was fully tested on Linux system
+- same to [OGGM](https://docs.oggm.org/en/latest/installing-oggm.html), and the recommended environment file (*.yml) as follows, installed by [conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html) or [mamba](https://anaconda.org/channels/conda-forge/packages/mamba/overview) : (conda/mamba env create -f oggm_env.yml): 
+```yaml
+name: oggm_env
+channels:
+  - conda-forge
+dependencies:
+  - python = 3.11
+  - numpy
+  - scipy
+  - pandas
+  - shapely
+  - matplotlib
+  - Pillow
+  - netcdf4
+  - scikit-image
+  - configobj
+  - xarray
+  - pytest
+  - dask
+  - bottleneck
+  - pyproj
+  - cartopy
+  - geopandas
+  - rasterio
+  - rioxarray
+  - seaborn
+  - pytables
+  - salem
+  - motionless
+  - h5py
+  - pip
+  - pip:
+    - joblib
+    - progressbar2
+    - git+https://github.com/OGGM/pytest-mpl
+    - oggm
+```
+
+### Installation
+- The installation is adapted from the procedures used by [PyGEM](https://pygem.readthedocs.io/en/latest/install_pygem.html) and [OGGM](https://docs.oggm.org/en/latest/installing-oggm.html), and is currently provided as a development installation. It has not yet been integrated into the stable releases of OGGM and PyGEM, but we hope to achieve this in the near future. You need [git](https://git-scm.com/) software.
+
+#### 1. OGGM Install (dev+get access to the OGGM code)
+
+##### activate the env
+```
+conda activate oggm_env
+```
+##### clone the repo
+```
+git clone https://github.com/Ruitangtang/oggm.git
+```
+##### get the update
+```
+cd oggm
+git fetch origin
+```
+##### install the oggm (dev)
+```
+pip install -e .
+```
+##### verification (the oggm version should be the version 1.6+dev)
+```
+cd /tmp
+python -c "
+import oggm
+print('=== FINAL RESULT ===')
+print(f'Version: {oggm.__version__}')
+print(f'Source: {oggm.__file__}')
+"
+```
+##### Test oggm
+```
+pytest.oggm  --disable-warnings
+
+```
+##### load and checkout to the frontal ablation branch
+```
+git fetch --all
+git checkout SERMeQ_RT
+```
+#### 2. PyGEM and PyGEM-script install
+##### PyGEM
+```
+git clone git@github.com:Ruitangtang/PyGEM.git PyGEM_All
+git fetch -all
+git checkout PyGEM_RT
+```
+##### PyGEM-script
+```
+git clone git@github.com:Ruitangtang/PyGEM-scripts.git PyGEM_All
+git fetch -all
+git checkout FA_AdaPBS_RT
+```
+
+### Model input
+- The model inputs follow the configuration used in [PyGEM](https://pygem.readthedocs.io/en/latest/model_inputs.html#model-input-table-target),with the addition of annual time series of terminus position change for tidewater glaciers in Svalbard during the period 2000-2020 from [Li et al.,2024](https://doi.org/10.5194/essd-16-919-2024).
+
+### Model Test
+- The test is for the single glacier test: the Sabinebreen Glacier, Svalbard (RGI60-07.00036)
+- Model input dataset sample
+- all the input data should be under the "Input" folder
+- the output will be under "Output" folder
+
+#### calibration test
+```
+ python -u run_calibration_AMIS_MB_FA_20002010_Parallel_Log_New.py -rgi_region01 07 -rgi_glac_number '7.00036' -ref_startyear 2000 -ref_endyear 2019 -frontalablation_fn "frontal_ablation_obs_20002010.csv" -hugonnet_fn "mass_balance_obs_20002010.csv" -lengthchange_annual_fn "lengthchange_annual_rgi_region01_7_20002020.csv" -store_monthly_step -Visualize_Index -v -debug
+
+```
+#### simulation test 
+
+```
+python -u run_simulation_AMIS_SERMeQ.py -option_parallels -rgi_region01 7 -rgi_glac_number '7.00036'  -gcm_startyear 2000 -gcm_endyear 2100 -gcm_name='NorESM2-MM' -scenario='ssp126' -hugonnet_fn "mass_balance_obs_20002010.csv" -debug
+```
+
+
+
 # PyGEM-scripts
 Python and other scripts that are used for running calibration, simulation, post-processing, etc.  These scripts are meant to be used with the PyGEM repository (https://github.com/drounce/PyGEM) that has all the classes and functions and can be installed via PyPI.  Note that some of the scripts in this repository are hard-coded to specific output or datasets and thus may contain additional scripts that are not required for the typical user. The goal is to remove these over time such that all codes will work for any user; however, this is a work in progress. The primary scripts that we suggest using will be described in this here.
 
