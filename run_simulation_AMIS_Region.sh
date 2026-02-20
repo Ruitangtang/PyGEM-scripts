@@ -2,14 +2,17 @@
 
 SCENARIOS="ssp126 ssp585" # "ssp126 ssp245 ssp370 ssp585"
 # Create output directory if it doesn't exist
-mkdir -p /home/ruitang/OGGM-Ruitang/Results/Test_KS_Regional_1Apr2025/Output/Simulation
+simdir=../Output//Simulation
+if [[ -d $simdir ]]; then
+    mkdir -p $simdir
+fi
 # Start overall timer
 START_TIME_ALL=$(date +%s)
 # Loop over task files from Task0.txt to TaskN.txt, and run simulation for each GCM with different scenario
 for task_id in 7  # Change 0 to however many tasks you want to run, or expand to {0..N}
 do
     # Log file for the current task_id
-    LOGFILE="/home/ruitang/OGGM-Ruitang/Results/Test_KS_Regional_1Apr2025/Output/Simulation/simulation_task${task_id}_log.txt"
+    LOGFILE="${simdir}/simulation_task${task_id}_log.txt"
     
     # Clear previous log file if it exists
     if [ ! -f "$LOGFILE" ]; then
@@ -24,12 +27,12 @@ do
         # Start timer for the individual task
         START_TIME_TASK=$(date +%s)
         # Attempt to run the Python script and capture output
-        if python -u run_simulation_AMIS_MB_FA_RT_MD_Parallel.py \
+        if python -u run_simulation_AMIS_SERMeQ.py \
             -option_parallels \
             -rgi_region01 7 \
             -gcm_startyear 2000 \
             -gcm_endyear 2100 \
-            -gcm_list_fn '/home/ruitang/GeoFag_Ruitang/Test_Tidewater/climate_data/cmip6/gcm_cmip6_list.txt' \
+            -gcm_list_fn '../../Input/climate_data/cmip6/gcm_cmip6_list.txt' \
             -scenario "$scenario" \
             -hugonnet_fn "mass_balance_obs_20002010_task${task_id}.csv" \
             -debug 2>&1 | tee output_log.txt; then
