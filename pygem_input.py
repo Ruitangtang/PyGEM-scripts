@@ -18,9 +18,11 @@ from pygem.utils._funcs_selectglaciers import get_same_glaciers, glac_num_fromra
 #%% ===== MODEL SETUP DIRECTORY =====
 #main_directory = os.getcwd()
 # output_filepath = main_directory
-main_directory = '/home/ruitang/OGGM-Ruitang/Results/Test_KS_Regional_1Apr2025/Output/'
+main_directory = os.getcwd() + '/../Output/'
 # Output directory
 output_filepath = main_directory
+
+input_directory = os.getcwd() + '/../Input/'
 
 # record model run date
 model_run_date = datetime.today().strftime('%Y-%m-%d')
@@ -294,7 +296,7 @@ export_extra_vars = True            # Option to export extra variables (temp, pr
 if option_dynamics in ['OGGM', 'MassRedistributionCurves']:
     cfl_number = 0.02
     cfl_number_calving = 0.01
-    glena_reg_fullfn = main_directory + '/../Regional_glenA/glena_region.csv'
+    glena_reg_fullfn = input_directory + '/Regional_glenA/glena_region.csv'
     use_reg_glena = True
     if use_reg_glena:
         assert os.path.exists(glena_reg_fullfn), 'Regional glens a calibration file does not exist.'
@@ -378,7 +380,7 @@ elif option_refreezing == 'HH2015':
 if ref_gcm_name == 'ERA5':
     #era5_fp = main_directory + '/../climate_data/ERA5/'
     #era5_fp = main_directory + '/../../climate_data/ERA5/'
-    era5_fp = '/home/ruitang/GeoFag_Ruitang/Test_Tidewater/climate_data/ERA5/'
+    era5_fp = input_directory + '/climate_data/ERA5/'
 
     #era5_fp = main_directory + '/../PyGEM-Test-Simple/climate_data/ERA5/'
     era5_temp_fn = 'ERA5_temp_monthly.nc'
@@ -396,46 +398,17 @@ if ref_gcm_name == 'ERA5':
     if option_ablation == 2:
         assert os.path.exists(era5_fp + era5_tempstd_fn), 'ERA5 temperature std filepath does not exist'
 
-# CMIP5 (GCM data)
-#cmip5_fp_var_prefix = main_directory + '/../climate_data/cmip5/'
-cmip5_fp_var_prefix = main_directory + '/../../climate_data/cmip5/'
-
-
-cmip5_fp_var_ending = '_r1i1p1_monNG/'
-#cmip5_fp_fx_prefix = main_directory + '/../climate_data/cmip5/'
-cmip5_fp_fx_prefix = main_directory + '/../../climate_data/cmip5/'
-
-cmip5_fp_fx_ending = '_r0i0p0_fx/'
 
 # CMIP6 (GCM data)
 #cmip6_fp_prefix = main_directory + '/../climate_data/cmip6/'
-cmip6_fp_prefix = '/home/ruitang/GeoFag_Ruitang/Test_Tidewater/climate_data/cmip6/'
-# CESM2 Large Ensemble (GCM data)
-#cesm2_fp_var_prefix = main_directory + '/../climate_data/cesm2/'
-cesm2_fp_var_prefix = main_directory + '/../../climate_data/CESM2/'
-
-cesm2_fp_var_ending = '_mon/'
-#cesm2_fp_fx_prefix = main_directory + '/../climate_data/cesm2/'
-cesm2_fp_fx_prefix = main_directory + '/../../climate_data/CESM2/'
-
-cesm2_fp_fx_ending = '_fx/'
-
-# GFDL SPEAR Large Ensemble (GCM data)
-#gfdl_fp_var_prefix = main_directory + '/../climate_data/gfdl/'
-gfdl_fp_var_prefix = main_directory + '/../../climate_data/gfdl/'
-
-gfdl_fp_var_ending = '_mon/'
-#gfdl_fp_fx_prefix = main_directory + '/../climate_data/gfdl/'
-gfdl_fp_fx_prefix = main_directory + '/../../climate_data/gfdl/'
-
-gfdl_fp_fx_ending = '_fx/'
+cmip6_fp_prefix = input_directory +'climate_data/cmip6/'
 
 
 #%% ===== GLACIER DATA (RGI, ICE THICKNESS, ETC.) =====
 # ----- RGI DATA -----
 # Filepath for RGI files
 #rgi_fp = main_directory + '/../RGI/rgi60/00_rgi60_attribs/'
-rgi_fp = '/home/ruitang/GeoFag_Ruitang/Test_Tidewater/RGI/rgi60/00_rgi60_attribs/'
+rgi_fp = input_directory + '/RGI/rgi60/00_rgi60_attribs/'
 
 assert os.path.exists(rgi_fp), 'RGI filepath does not exist. PyGEM requires RGI data to run.'
 # Column names
@@ -450,7 +423,7 @@ rgi_cols_drop = ['GLIMSId','BgnDate','EndDate','Status','Linkages','Name']
 
 # ----- ADDITIONAL DATA (hypsometry, ice thickness, width, debris) -----
 #h_consensus_fp = main_directory + '/../IceThickness_Farinotti/composite_thickness_RGI60-all_regions/'
-h_consensus_fp = '/home/ruitang/GeoFag_Ruitang/Test_Tidewater/IceThickness_Farinotti/composite_thickness_RGI60-all_regions/'
+h_consensus_fp = input_directory + '/IceThickness_Farinotti/composite_thickness_RGI60-all_regions/'
 
 # Filepath for the hypsometry files
 binsize = 10            # Elevation bin height [m]
