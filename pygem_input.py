@@ -219,8 +219,8 @@ elif option_calibration == 'PBS':
 
 # ----- Calibration Dataset -----
 # Hugonnet geodetic mass balance data
-hugonnet_fp = main_directory + '/../DEMs/Hugonnet2020/'
-hugonnet_fn = 'df_pergla_global_20yr-filled-facorrected_20002010.csv'
+hugonnet_fp = main_directory + '/../Input/Calibration_dataset/massbalance_hugonnet/'
+hugonnet_fn = 'mass_balance_obs_20002010.csv'
 
 if '-filled' in hugonnet_fn:
     hugonnet_mb_cn = 'mb_mwea'
