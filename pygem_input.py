@@ -221,21 +221,21 @@ elif option_calibration == 'PBS':
 # Hugonnet geodetic mass balance data
 hugonnet_fp = main_directory + '/../Input/Calibration_dataset/massbalance_hugonnet/'
 hugonnet_fn = 'mass_balance_obs_20002010.csv'
-
+hugonnet_mb_clim_cn = 'mb_clim_mwea'
+hugonnet_mb_clim_err_cn = 'mb_clim_mwea_err'
+hugonnet_rgi_glacno_cn = 'RGIId'
+hugonnet_mb_cn = 'mb_mwea'
+hugonnet_mb_err_cn = 'mb_mwea_err'
 if '-filled' in hugonnet_fn:
     hugonnet_mb_cn = 'mb_mwea'
     hugonnet_mb_err_cn = 'mb_mwea_err'
-    hugonnet_rgi_glacno_cn = 'RGIId'
     if '-facorrected' in hugonnet_fn:
         hugonnet_mb_clim_cn = 'mb_clim_mwea'
         hugonnet_mb_clim_err_cn = 'mb_clim_mwea_err'
     else:
         hugonnet_mb_clim_cn = 'mb_mwea'
         hugonnet_mb_clim_err_cn = 'mb_mwea_err'
-else:
-    hugonnet_mb_cn = 'dmdtda'
-    hugonnet_mb_err_cn = 'err_dmdtda'
-    hugonnet_rgi_glacno_cn = 'rgiid'
+        
 hugonnet_time1_cn = 't1'
 hugonnet_time2_cn = 't2'
 hugonnet_area_cn = 'area_km2'
@@ -389,14 +389,14 @@ if ref_gcm_name == 'ERA5':
     era5_elev_fn = 'ERA5_geopotential.nc'
     era5_pressureleveltemp_fn = 'ERA5_pressureleveltemp_monthly_2020_2023.nc'
     era5_lr_fn = 'ERA5_lapserates_monthly.nc'
-    assert os.path.exists(era5_fp), 'ERA5 filepath does not exist'
-    assert os.path.exists(era5_fp + era5_temp_fn), 'ERA5 temperature filepath does not exist'
-    assert os.path.exists(era5_fp + era5_prec_fn), 'ERA5 precipitation filepath does not exist'
-    assert os.path.exists(era5_fp + era5_elev_fn), 'ERA5 elevation data does not exist'
+    assert os.path.exists(era5_fp), f"ERA5 filepath does not exist: {os.path.abspath(era5_fp)}"
+    assert os.path.exists(era5_fp + era5_temp_fn), f"ERA5 temperature filepath does not exist: {os.path.abspath(era5_fp + era5_temp_fn)}"
+    assert os.path.exists(era5_fp + era5_prec_fn), f"ERA5 precipitation filepath does not exist: {os.path.abspath(era5_fp + era5_prec_fn)}"
+    assert os.path.exists(era5_fp + era5_elev_fn), f"ERA5 elevation data does not exist: {os.path.abspath(era5_fp + era5_elev_fn)}"
     if not use_constant_lapserate:
-        assert os.path.exists(era5_fp + era5_lr_fn), 'ERA5 lapse rate data does not exist'
+        assert os.path.exists(era5_fp + era5_lr_fn), f"ERA5 lapse rate data does not exist: {os.path.abspath(era5_fp + era5_lr_fn)}"
     if option_ablation == 2:
-        assert os.path.exists(era5_fp + era5_tempstd_fn), 'ERA5 temperature std filepath does not exist'
+        assert os.path.exists(era5_fp + era5_tempstd_fn), f"ERA5 temperature std filepath does not exist: {os.path.abspath(era5_fp + era5_tempstd_fn)}"
 
 
 # CMIP6 (GCM data)
