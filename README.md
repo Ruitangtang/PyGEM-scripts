@@ -45,8 +45,6 @@ dependencies:
   - pip:
     - joblib
     - progressbar2
-    - git+https://github.com/OGGM/pytest-mpl
-    - oggm
 ```
 
 ### Installation
