@@ -53,7 +53,11 @@ import statistic_tool as stats_tl
 
 
 import oggm
-oggm_version = float(oggm.__version__[0:3])
+oggm_version = 1.6
+try:
+    oggm_version = float(oggm.__version__[0:3])
+except:
+    oggm_version = 1.6
 from oggm import cfg
 from oggm import graphics
 from oggm import tasks
@@ -63,7 +67,7 @@ if oggm_version > 1.301:
 else:
     from oggm.core.climate import apparent_mb_from_any_mb # Older Version of OGGM
 from oggm.core.flowline import FluxBasedModel, SemiImplicitModel
-from oggm.core.calving_Jan_Ruitang import CalvingFluxBasedModelJanRt
+from oggm.core.flowline import CalvingFluxBasedModelJanRt
 from oggm.core.inversion_RT_New import find_inversion_calving_from_any_mb
 #from oggm.core.inversion import find_inversion_calving_from_any_mb
 from Visualization_timeseries import plot_timeseries_stats,plot_timeseries_stats_sub

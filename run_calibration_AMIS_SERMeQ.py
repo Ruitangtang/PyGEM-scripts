@@ -8,8 +8,6 @@
 import sys
 import os
 
-sys.path.insert(0, sys.path.append(os.getcwd() + '/../'))
-sys.path.insert(0, sys.path.append(os.getcwd() + '/../PyGEM-scripts'))
 
 try:
     import pygem
@@ -32,11 +30,11 @@ import traceback
 import pdb
 import shutil
 import h5py
+import numpy
 import json
 import logging
 from multiprocessing import Pool, cpu_count, current_process
 from pathlib import Path # Better path handling
-from scipy.special import expit, logit  # Important for transforms!
 # External libraries
 import pandas as pd
 import pickle
@@ -46,6 +44,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 plt.ioff()
 import numpy as np
+from scipy.special import expit, logit  # Important for transforms!
 from scipy.stats import median_abs_deviation, truncnorm, gamma, uniform, norm,lognorm
 import xarray as xr
 from functools import partial
@@ -86,7 +85,7 @@ if oggm_version > 1.301:
 else:
     from oggm.core.climate import apparent_mb_from_any_mb # Older Version of OGGM
 from oggm.core.flowline import FluxBasedModel, SemiImplicitModel
-from oggm.core.calving_Jan_Ruitang import CalvingFluxBasedModelJanRt
+from oggm.core.flowline  import CalvingFluxBasedModelJanRt
 from oggm.core.inversion_RT_New import find_inversion_calving_from_any_mb
 #from oggm.core.inversion import find_inversion_calving_from_any_mb
 
