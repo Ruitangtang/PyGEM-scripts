@@ -10,8 +10,8 @@
 # It's a copy of the run_calibration_AMIS_MB_FA_20002010_Parallel_Log.py, but revising the create/save way of the output csv file so that it can be extended.
 #  And also debug it for the regional running
 import sys
-sys.path.insert(0, '/home/ruitang/PyGEM_2023')
-sys.path.insert(0, '/home/ruitang/PyGEM_2023/PyGEM-scripts')
+sys.path.insert(0, '/home/ruitang/PyGEM_2025/PyGEM/')
+sys.path.insert(0, '/home/ruitang/PyGEM_2025/PyGEM-scripts')
 # Built-in libraries
 import argparse
 import collections
@@ -255,7 +255,7 @@ def record_floating_terminus(glacier_str, th, thick0, water_level, rho, rho_o,in
             return
     print(f"Warning: Terminus of glacier {glacier_str} is floating "
         f"(th={th:.2f}m < {buoyancy_threshold:.2f}m)")
-    
+
     # Early exit if no output directory specified
     if floating_info_fp_glac is None:
         return
