@@ -18,7 +18,7 @@ from pygem.utils._funcs_selectglaciers import get_same_glaciers, glac_num_fromra
 #%% ===== MODEL SETUP DIRECTORY =====
 #main_directory = os.getcwd()
 #main_directory = '/home/ruitang/OGGM-Ruitang/Results/Test_KS_1T_24Jun/RGI_7.00025_PBS_Test01/Output/'
-main_directory = '/home/ruitang/OGGM-Ruitang/Results/Test_KS_Regional_1Apr2025/Output/'
+main_directory = '/cluster/projects/nn11115k/Ruitang/SermeQ_OGGM_PyGEM/Output/'
 
 # Output directory
 output_filepath = main_directory
@@ -253,8 +253,9 @@ elif option_calibration == 'PBS':
 
 # ----- Calibration Dataset -----
 # Hugonnet geodetic mass balance data
-hugonnet_fp = main_directory + '/../DEMs/Hugonnet2020/'
-#hugonnet_fp = main_directory + '/../PyGEM-Test-Simple/DEMs/Hugonnet2020/'
+hugonnet_fp = '/cluster/projects/nn11115k/Ruitang/SermeQ_OGGM_PyGEM/DEMs/Hugonnet2020/'
+
+#hugonnet_fp = main_directory + '/../DEMs/Hugonnet2020/'
 hugonnet_fn = 'df_pergla_global_20yr-filled-facorrected_20002010.csv'
 #hugonnet_fn = 'df_pergla_global_20yr-filled-facorrected_20102020.csv'
 #hugonnet_fn = 'df_pergla_global_20yr-filled-facorrected_20002020.csv'
@@ -335,7 +336,8 @@ if option_dynamics in ['OGGM', 'MassRedistributionCurves']:
     cfl_number = 0.02
     cfl_number_calving = 0.01
     #glena_reg_fullfn = main_directory + '/../csvs/glena_region.csv'
-    glena_reg_fullfn = main_directory + '/../Regional_glenA/glena_region.csv'
+    glena_reg_fullfn = '/cluster/projects/nn11115k/Ruitang/SermeQ_OGGM_PyGEM/Regional_glenA/glena_region.csv'
+    #glena_reg_fullfn = main_directory + '/../Regional_glenA/glena_region.csv'
     #print("glena_reg_fullfn is :",glena_reg_fullfn)
     #glena_reg_fullfn = main_directory + '/../PyGEM-Test-Simple/Output/calibration/glena_region.csv'
     use_reg_glena = True
@@ -421,7 +423,7 @@ elif option_refreezing == 'HH2015':
 if ref_gcm_name == 'ERA5':
     #era5_fp = main_directory + '/../climate_data/ERA5/'
     #era5_fp = main_directory + '/../../climate_data/ERA5/'
-    era5_fp = '/home/ruitang/GeoFag_Ruitang/Test_Tidewater/climate_data/ERA5/'
+    era5_fp = '/cluster/projects/nn11115k/data/PyGEM_input/climate_data/ERA5/'
 
     #era5_fp = main_directory + '/../PyGEM-Test-Simple/climate_data/ERA5/'
     era5_temp_fn = 'ERA5_temp_monthly.nc'
@@ -453,14 +455,14 @@ cmip5_fp_fx_ending = '_r0i0p0_fx/'
 # CMIP6 (GCM data)
 #cmip6_fp_prefix = main_directory + '/../climate_data/cmip6/'
 #cmip6_fp_prefix = main_directory + '/../../climate_data/cmip6/'
-cmip6_fp_prefix = '/home/ruitang/GeoFag_Ruitang/Test_Tidewater/climate_data/cmip6/'
+cmip6_fp_prefix = '/cluster/projects/nn11115k/data/PyGEM_input/climate_data/cmip6/'
 # CESM2 Large Ensemble (GCM data)
 #cesm2_fp_var_prefix = main_directory + '/../climate_data/cesm2/'
-cesm2_fp_var_prefix = main_directory + '/../../climate_data/CESM2/'
+cesm2_fp_var_prefix = '/cluster/projects/nn11115k/data/PyGEM_input/climate_data/cmip6/CESM2'
 
 cesm2_fp_var_ending = '_mon/'
 #cesm2_fp_fx_prefix = main_directory + '/../climate_data/cesm2/'
-cesm2_fp_fx_prefix = main_directory + '/../../climate_data/CESM2/'
+cesm2_fp_fx_prefix = '/cluster/projects/nn11115k/data/PyGEM_input/climate_data/cmip6/CESM2/'
 
 cesm2_fp_fx_ending = '_fx/'
 
@@ -480,7 +482,7 @@ gfdl_fp_fx_ending = '_fx/'
 # Filepath for RGI files
 #rgi_fp = main_directory + '/../RGI/rgi60/00_rgi60_attribs/'
 #rgi_fp = main_directory + '/../../RGI/rgi60/00_rgi60_attribs/'
-rgi_fp = '/home/ruitang/GeoFag_Ruitang/Test_Tidewater/RGI/rgi60/00_rgi60_attribs/'
+rgi_fp = '/cluster/projects/nn11115k/Ruitang/SermeQ_OGGM_PyGEM/RGI/rgi60/00_rgi60_attribs/'
 
 assert os.path.exists(rgi_fp), 'RGI filepath does not exist. PyGEM requires RGI data to run.'
 # Column names
@@ -496,7 +498,7 @@ rgi_cols_drop = ['GLIMSId','BgnDate','EndDate','Status','Linkages','Name']
 # ----- ADDITIONAL DATA (hypsometry, ice thickness, width, debris) -----
 #h_consensus_fp = main_directory + '/../IceThickness_Farinotti/composite_thickness_RGI60-all_regions/'
 #h_consensus_fp = main_directory + '/../../IceThickness_Farinotti/composite_thickness_RGI60-all_regions/'
-h_consensus_fp = '/home/ruitang/GeoFag_Ruitang/Test_Tidewater/IceThickness_Farinotti/composite_thickness_RGI60-all_regions/'
+h_consensus_fp = '/cluster/projects/nn11115k/data/PyGEM_input/IceThickness/IceThickness_Farinotti/composite_thickness_RGI60-all_regions/'
 
 # Filepath for the hypsometry files
 binsize = 10            # Elevation bin height [m]
