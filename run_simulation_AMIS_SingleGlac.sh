@@ -2,15 +2,15 @@
 
 SCENARIOS="ssp126 ssp585" # "ssp126 ssp245 ssp370 ssp585"
 # Create output directory if it doesn't exist
-mkdir -p /home/ruitang/OGGM-Ruitang/Results/Test_KS_Regional_1Apr2025/Output/Simulation
+mkdir -p /cluster/projects/nn11115k/Ruitang/SermeQ_OGGM_PyGEM/Output/Simulation
 # Start overall timer
 START_TIME_ALL=$(date +%s)
 # Loop over task files from Task0.txt to TaskN.txt, and run simulation for each GCM with different scenario
-GLACIERS=('7.00026') # List of glacier IDs to process ('7.00026' '7.00224' '7.00276' '7.00471')
+GLACIERS=('7.00315') # List of glacier IDs to process ('7.00026' '7.00224' '7.00276' '7.00471')
 for glac_id in "${GLACIERS[@]}"  # Change 1 glacier to however many glaciers you want to run, or expand to {'7.00026','7.00224','7,00276','7,00471'}
 do
     # Log file for the current task_id
-    LOGFILE="/home/ruitang/OGGM-Ruitang/Results/Test_KS_Regional_1Apr2025/Output/Simulation/simulation_Glac${glac_id}_log.txt"
+    LOGFILE="/cluster/projects/nn11115k/Ruitang/SermeQ_OGGM_PyGEM/Output/Simulation/simulation_Glac${glac_id}_log.txt"
     
     # Initialize or clear log file
     echo "Log file created: $LOGFILE" > "$LOGFILE"
@@ -26,7 +26,7 @@ do
             -rgi_glac_number "$glac_id" \
             -gcm_startyear 2000 \
             -gcm_endyear 2100 \
-            -gcm_list_fn '/home/ruitang/GeoFag_Ruitang/Test_Tidewater/climate_data/cmip6/gcm_cmip6_list.txt' \
+            -gcm_list_fn '/cluster/projects/nn11115k/Ruitang/SermeQ_OGGM_PyGEM/cmip6_list/gcm_cmip6_list.txt' \
             -scenario "$scenario" \
             -hugonnet_fn "mass_balance_obs_20002010.csv" \
             -debug 2>&1 | tee output_log.txt; then
