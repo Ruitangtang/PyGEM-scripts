@@ -31,7 +31,7 @@ import json
 import logging
 from multiprocessing import Pool, cpu_count, current_process
 from pathlib import Path # Better path handling
-from scipy.special import expit, logit  # Important for transforms!
+from scipy.special import expit, logit,logsumexp  # Important for transforms!
 # External libraries
 import pandas as pd
 import pickle
@@ -751,6 +751,122 @@ def pbs(obs, pred, R):
     return weights, Neff
 
 
+def regularize_proposal_covariance(
+        covariance,
+        prior_covariance,
+        minimum_prior_variance=1e-3):
+    """Regularize a proposal covariance in prior-whitened space."""
+
+    covariance = np.asarray(
+        covariance,
+        dtype=float,
+    ).copy()
+
+    prior_covariance = np.asarray(
+        prior_covariance,
+        dtype=float,
+    )
+
+    if covariance.shape != prior_covariance.shape:
+        raise ValueError(
+            "Proposal and prior covariance shapes differ: "
+            f"{covariance.shape} and {prior_covariance.shape}."
+        )
+
+    if not np.all(np.isfinite(covariance)):
+        raise ValueError(
+            "Proposal covariance contains non-finite values."
+        )
+
+    if not np.all(np.isfinite(prior_covariance)):
+        raise ValueError(
+            "Prior covariance contains non-finite values."
+        )
+
+    if minimum_prior_variance <= 0:
+        raise ValueError(
+            "minimum_prior_variance must be positive."
+        )
+
+    covariance = 0.5 * (
+        covariance
+        + covariance.T
+    )
+
+    prior_covariance = 0.5 * (
+        prior_covariance
+        + prior_covariance.T
+    )
+
+    try:
+        prior_cholesky = np.linalg.cholesky(
+            prior_covariance
+        )
+    except np.linalg.LinAlgError as err:
+        raise ValueError(
+            "Prior covariance must be positive definite."
+        ) from err
+
+    dimension = covariance.shape[0]
+
+    prior_cholesky_inverse = np.linalg.solve(
+        prior_cholesky,
+        np.eye(dimension),
+    )
+
+    covariance_whitened = (
+        prior_cholesky_inverse
+        @ covariance
+        @ prior_cholesky_inverse.T
+    )
+
+    covariance_whitened = 0.5 * (
+        covariance_whitened
+        + covariance_whitened.T
+    )
+
+    eigenvalues, eigenvectors = np.linalg.eigh(
+        covariance_whitened
+    )
+
+    regularized_eigenvalues = np.maximum(
+        eigenvalues,
+        minimum_prior_variance,
+    )
+
+    covariance_whitened_regularized = (
+        eigenvectors
+        @ np.diag(regularized_eigenvalues)
+        @ eigenvectors.T
+    )
+
+    covariance_regularized = (
+        prior_cholesky
+        @ covariance_whitened_regularized
+        @ prior_cholesky.T
+    )
+
+    covariance_regularized = 0.5 * (
+        covariance_regularized
+        + covariance_regularized.T
+    )
+
+    if not np.all(np.isfinite(covariance_regularized)):
+        raise ValueError(
+            "Regularized covariance contains non-finite values."
+        )
+
+    try:
+        np.linalg.cholesky(
+            covariance_regularized
+        )
+    except np.linalg.LinAlgError as err:
+        raise ValueError(
+            "Regularized covariance is not positive definite."
+        ) from err
+
+    return covariance_regularized
+
 # Adapted PBS ( AMIS) , Ruitang revising from the original code by K. Aalstad (22.02.2025)
 def AMIS(obs, pred, R, prim, pric, propm, propc, props):
     """
@@ -792,131 +908,186 @@ def AMIS(obs, pred, R, prim, pric, propm, propc, props):
     elif np.size(R) != No:
         raise ValueError("R must be scalar or match number of observations")
 
-    # Initialize
-    w = np.zeros(Ne)
+    # Always preserve the original Ne × Nl layout
+    w_full = np.zeros((Ne, Nl), dtype=float)
     Neff = 0.0
     try:
-        # Identify ensembles with any NaNs
-        nan_mask = np.any(np.isnan(pred), axis=(0, 2))  # shape: (Ne,)
-        valid_idx = ~nan_mask
-        if not np.any(valid_idx):
-            # All ensembles are invalid
-            return w, np.nan
-        # Only keep valid ensemble members for computation
-        pred_valid = pred[:, valid_idx, :]
-        props_valid = props[:, valid_idx, :]
-        Ne_valid = pred_valid.shape[1]
-        phi = np.zeros([Ne_valid, Nl])
-        lsepsi = np.zeros([Ne_valid, Nl])
-        # cy = np.linalg.det(2 * np.pi * np.diag(R)) ** (-0.5)
-        # cy = np.linalg.det(2 * np.pi * np.diagflat(R)) ** (-0.5)
-        # c0 = np.linalg.det(2 * np.pi * pric) ** (-0.5)
-        # b = cy * c0
+        # Track validity for each (member, iteration) pair
+        valid_pair = (
+            np.all(np.isfinite(pred), axis=0)
+            & np.all(np.isfinite(props), axis=0)
+        )
 
-        # phi = np.zeros([Ne, Nl])  # negative log of target
-        # lsepsi = np.zeros([Ne, Nl])  # logsumexp of the DM proposal
+        if valid_pair.shape != (Ne, Nl):
+            raise RuntimeError(
+                "Unexpected AMIS validity-mask shape: "
+                f"{valid_pair.shape}, expected {(Ne, Nl)}"
+            )
+
+        if not np.any(valid_pair):
+            return w_full.flatten(order="F"), 0.0
+
+        # Preserve the complete Ne × Nl layout
+        phi = np.full((Ne, Nl),np.nan,dtype=float,)
+        lsepsi = np.full((Ne, Nl),np.nan,dtype=float,)
+
         for ell in range(Nl):
-            # Terms related to the target
-            propell = props_valid[:, :, ell]  # Np x Ne_valid
+            # Valid members for this specific iteration
+            valid_ell = valid_pair[:, ell]
+
+            if not np.any(valid_ell):
+                continue
+
+            # Parameters from valid pairs in this iteration
+            propell = props[:, valid_ell, ell]
+
+            # Prior contribution
             A0ell = (propell.T - prim).T
             B = np.linalg.solve(pric, A0ell)
-            phi0ell = 0.5 * np.sum((A0ell.T) * B.T, 1)
-            predell = pred_valid[:, :, ell]  # No x Ne_valid
-            residuell = (obs.flatten() - predell.T).T  # No x Ne_valid
-            #residuell = (obs - predell).T  # No x Ne_valid
-            #pdb.set_trace()
-            phidell = 0.5 * (1 / R.flatten()) @ (residuell ** 2)  # Ne
-            phi[:, ell] = phi0ell + phidell
 
-            psij = np.zeros([Ne_valid, Nl])
+            phi0ell = 0.5 * np.sum(A0ell.T * B.T,axis=1,)
+
+            # Observation contribution
+            predell = pred[:, valid_ell, ell]
+
+            residuell = (obs.flatten() - predell.T).T
+
+            phidell = (0.5* (1 / R.flatten())@ (residuell**2))
+
+            # Restore results to original member positions
+            phi[valid_ell, ell] = phi0ell + phidell
+
+            n_valid_ell = int(np.count_nonzero(valid_ell))
+
+            # Evaluate every valid sample from iteration ell under
+            # every AMIS proposal distribution.
+            log_q_components = np.empty((n_valid_ell, Nl),dtype=float,)
+
             for j in range(Nl):
                 mj = propm[:, j]
-                Cj = propc[:, :, j]
-                # --- REGULARIZATION ---
-                eps = 1e-6 * np.trace(Cj) / Cj.shape[0]
-                Cj = Cj + eps * np.eye(Cj.shape[0])
-                sign, logdet = np.linalg.slogdet(2 * np.pi * Cj)
-                if sign <= 0 or not np.isfinite(logdet):
-                    raise np.linalg.LinAlgError("Invalid proposal covariance")
+                Cj = np.array(
+                    propc[:, :, j],
+                    dtype=float,
+                    copy=True,)
 
-                lcj = -0.5 * logdet
-                # cj = np.linalg.det(2 * np.pi * Cj) ** (-0.5)
-                # lcj = np.log(cj)
-                Aj = (propell.T - mj).T
-                # B = np.linalg.solve(Cj, Aj)
+                if not np.all(np.isfinite(Cj)):
+                    raise RuntimeError(
+                        "Stored proposal covariance contains "
+                        "non-finite values.")
+
+                if not np.allclose(
+                    Cj,
+                    Cj.T,
+                    rtol=1e-10,
+                    atol=1e-12,
+                ):
+                    raise RuntimeError("Stored proposal covariance is not symmetric.")
+
                 try:
-                    B = np.linalg.solve(Cj, Aj)
-                except np.linalg.LinAlgError:
-                    B = np.linalg.lstsq(Cj, Aj, rcond=None)[0]
-                psi = 0.5 * np.sum((Aj.T) * B.T, 1)
-                psi = psi - lcj
-                psij[:, j] = psi
-            psijx = np.max(psij, axis=1)  # Ne
-            psijs = (psij.T - psijx).T  # Ne x Nl
-            lsepsiell = psijx + np.log(np.sum(np.exp(psijs), 1))
-            lsepsi[:, ell] = lsepsiell
+                    proposal_cholesky = np.linalg.cholesky(Cj)
+                except np.linalg.LinAlgError as err:
+                    raise RuntimeError(
+                        "Stored proposal covariance is not "
+                        "positive definite."
+                    ) from err
+
+                parameter_offset = (propell.T - mj).T
+
+                whitened_offset = np.linalg.solve(proposal_cholesky,parameter_offset,)
+
+                quadratic_term = 0.5 * np.sum(whitened_offset**2,axis=0,)
+
+                dimension = Cj.shape[0]
+
+                log_determinant = (
+                    2.0
+                    * np.sum(
+                        np.log(
+                            np.diag(proposal_cholesky)
+                        )
+                    )
+                )
+
+                log_normalization = -0.5 * (
+                    dimension * np.log(2.0 * np.pi)
+                    + log_determinant
+                )
+
+                log_q_components[:, j] = (
+                    log_normalization
+                    - quadratic_term
+                )
+
+            # Equal mixture because every iteration draws Ne samples
+            lsepsiell = (
+                logsumexp(
+                    log_q_components,
+                    axis=1,
+                )
+                - np.log(Nl)
+            )
+
+            # lsepsi now stores the AMIS log-mixture density
+            lsepsi[valid_ell, ell] = lsepsiell
 
         # Combine terms
         logwt = -phi - lsepsi          # shape (Ne, Nl)
-
-        # Identify valid ensemble-iteration pairs
-        valid = np.isfinite(logwt)
-
-        # Initialize weights
-        w = np.zeros_like(logwt)
+        # Only valid and finite pairs can receive weight
+        valid = (
+            valid_pair
+            & np.isfinite(logwt)
+        )
 
         if not np.any(valid):
-            # All failed → return safely
-            return w.flatten('F'), 0.0
+            return w_full.flatten(order="F"), 0.0
 
-        # Work only on valid entries
         logwt_valid = logwt[valid]
 
-        # Numerically stable normalization
-        lwtx = np.max(logwt_valid)
-        lse = lwtx + np.log(np.sum(np.exp(logwt_valid - lwtx)))
+        # Normalization for posterior importance weights
+        log_weight_normalizer = logsumexp(
+            logwt_valid
+        )
 
-        logNlNe = np.log(np.sum(valid))
-        logZ = -logNlNe + lse
+        if not np.isfinite(log_weight_normalizer):
+            return np.zeros(Ne * Nl), 0.0
 
-        logw_valid = logwt_valid - logNlNe - logZ
+        logw_valid = (
+            logwt_valid
+            - log_weight_normalizer
+        )
 
-        # Assign back
-        w[valid] = np.exp(logw_valid)
+        w_full[valid] = np.exp(
+            logw_valid
+        )
 
-        # Flatten column-major (AMIS requirement)
-        w = w.flatten('F')
+        # Evidence estimator uses all attempted samples.
+        # Invalid simulations have zero target weight but still count.
+        logZ = (
+            log_weight_normalizer
+            - np.log(Ne * Nl)
+        )
 
-        # Effective sample size
+        # Match propsall reshaping order
+        w = w_full.flatten(order="F")
+
+        w_sum = float(np.sum(w))
+
+        if not np.isfinite(w_sum) or w_sum <= 0:
+            return np.zeros(
+                Ne * Nl,
+                dtype=float,
+            ), 0.0
+
+        w = w / w_sum
+
         Neff = 1.0 / np.sum(w**2)
-        # #logwt = np.log(b) - phi - lsepsi #TODO check the location
-        # #logwt = logwt.flatten('F')  # Purposely flattening column major order
-        # logwt = - phi - lsepsi
-        # logwt = logwt.flatten('F')  # Purposely flattening column major order
-        # lwtx = np.max(logwt)
-        # lselwt = lwtx + np.log(np.sum(np.exp(logwt - lwtx)))
-        # logNlNe = np.log(Nl * Ne)
-        # logZ = -logNlNe + lselwt  # Log model evidence
-        # logw_valid = np.exp(logwt - logNlNe - logZ)
-        # # Fill the weights array, zero for NaNs
-        # w[valid_idx] = logw_valid
-        # w[~valid_idx] = 0.0
-        # # Normalize just in case
-        # w_sum = np.sum(w)
-        # if w_sum > 0:
-        #     w /= w_sum
-        # else:
-        #     # All weights zero
-        #     w[:] = 1.0 / Ne
-        # # logw = logwt - logNlNe - logZ
-        # # w = np.exp(logw)
-        # #w = np.exp(logw.reshape(Ne, Nl)[:, -1])  # Now w.shape = (20,)
-        # #pdb.set_trace()
-        # Neff = 1 / np.sum(w ** 2)
 
     except Exception:
         print(traceback.format_exc())
-        return np.zeros(Ne), np.nan
+        return np.zeros(
+            Ne * Nl,
+            dtype=float,
+        ), 0.0
 
     return w, Neff
 
@@ -1891,6 +2062,18 @@ def Visualize_parameter_paralle (model_function = None, parameters_dict = None,c
                 # Unwrap parallel outputs (NEW, REQUIRED)
                 # ----------------------------------------
                 success_flags = np.array([res["success"] for res in output])
+                failed_idx = np.flatnonzero(~success_flags)
+                for idx in failed_idx:
+                    result = output[idx]
+                    main_logger.error(
+                        "Failed ensemble member: "
+                        "glacier=%s index=%d parameters=%r error=%s\n%s",
+                        rgiid_ind,
+                        idx,
+                        prior_samples_list[idx],
+                        result.get("error"),
+                        result.get("traceback"),
+                    )
 
                 if not success_flags.any():
                     raise RuntimeError(
@@ -2903,10 +3086,60 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                     print('Neff: {Neff_k} in j:{j}'.format(Neff_k=int(Neff_k),j=j))
                     print('Weights_k is :', Weights_k)
 
-                    diversity = Neff_k/Ne
+                    w = Weights_k.flatten(order="F")
+                    thetap = propsall[:, :, ells]
+
+                    expected_nw = int(
+                        thetap.shape[1]
+                        * thetap.shape[2]
+                    )
+
+                    # Define Nw before using it
+                    Nw = expected_nw
+
+                    if w.size != Nw:
+                        raise RuntimeError(
+                            "AMIS weight/proposal mismatch: "
+                            f"weights={w.size}, "
+                            f"expected={Nw}, "
+                            f"proposal_shape={thetap.shape}"
+                        )
+
+                    if not np.all(np.isfinite(w)):
+                        raise RuntimeError(
+                            "AMIS returned non-finite weights."
+                        )
+
+                    if np.any(w < 0):
+                        raise RuntimeError(
+                            "AMIS returned negative weights."
+                        )
+
+                    w_sum = float(np.sum(w))
+
+                    if not np.isfinite(w_sum) or w_sum <= 0:
+                        raise RuntimeError(
+                            "AMIS returned no usable ensemble members."
+                        )
+
+                    # Normalize before using weights for sampling
+                    w /= w_sum
+
+                    if (
+                        not np.isfinite(Neff_k)
+                        or Neff_k <= 0
+                        or Neff_k > Nw * (1 + 1e-12)
+                    ):
+                        raise RuntimeError(
+                            "Invalid AMIS effective sample size: "
+                            f"Neff={Neff_k}, Nw={Nw}"
+                        )
+
+                    # Normalized ESS uses all accumulated AMIS samples
+                    diversity = Neff_k / Nw
+
                     doadapt = diversity < adapt_thresh
-                    notlast = (j+1) < max_iterations
-                    w = Weights_k.flatten('F') #TODO check the shape of the Weights_k, does it need to be flatten
+                    notlast = (j + 1) < max_iterations
 
                     # ==== save the parameters and Weights and Neff ====
                     # Dictionary to store dataset names and corresponding data arrays
@@ -2929,47 +3162,101 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
 
                     # ==== Can instead always set clip to 1 if you don't want to clip
                     doclip = doadapt and notlast
+
                     if doclip:
-                        clip = int(np.round(adapt_thresh*Ne))
-                        ws = -np.sort(-w)
-                        wc = ws[clip-1]
-                        nonzero = wc > 0
-                        if nonzero:
-                            toclip = w > wc
-                            w[toclip] = wc
-                            w = w/np.sum(w)
+                        clip = int(
+                            np.ceil(
+                                adapt_thresh * Nw
+                            )
+                        )
+
+                        clip = max(
+                            1,
+                            min(clip, Nw),
+                        )
+
+                        sorted_weights = np.sort(w)[::-1]
+                        clipping_threshold = (
+                            sorted_weights[clip - 1]
+                        )
+
+                        if clipping_threshold > 0:
+                            w = np.minimum(
+                                w,
+                                clipping_threshold,
+                            )
+
+                            w /= np.sum(w)
                         else:
                             doclip = False
 
-                    Nw = np.size(w)
                     pinds = np.arange(Nw)
-                    reinds = np.random.choice(pinds, Ne, p=w)
-                    thetap = propsall[:, :, ells]
-                    thetap = np.reshape(thetap, [Np, Nw], order='F')
+
+                    reinds = np.random.choice(
+                        pinds,
+                        size=Ne,
+                        replace=True,
+                        p=w,
+                    )
+
+                    thetap = np.reshape(
+                        thetap,
+                        (Np, Nw),
+                        order="F",
+                    )
+
+                    # Apply the AMIS-weighted resampling indices
                     thetap = thetap[:, reinds]
-                    pm = np.mean(thetap, axis=1)
+
+                    if thetap.shape != (Np, Ne):
+                        raise RuntimeError(
+                            "Unexpected resampled proposal shape: "
+                            f"found={thetap.shape}, expected={(Np, Ne)}"
+                        )
+
+                    pm = np.mean(
+                        thetap,
+                        axis=1,
+                    )
                     if doclip:
-                        A = (thetap.T-pm).T
-                        pc = (A@A.T)/Ne
+                        parameter_anomalies = (
+                            thetap.T - pm
+                        ).T
+
+                        pc_raw = (
+                            parameter_anomalies
+                            @ parameter_anomalies.T
+                        ) / Ne
                     else:
-                        shrink=max(0.5**j,0.2) # TODO check the shrinkage factor
-                        pc = np.copy(priorcov)*shrink
-                    print("pc after AMIS is",pc)
+                        shrink = max(
+                            0.5**j,
+                            0.2,
+                        )
+
+                        pc_raw = (
+                            np.copy(priorcov)
+                            * shrink
+                        )
+
+                    pc = regularize_proposal_covariance(
+                        covariance=pc_raw,
+                        prior_covariance=priorcov,
+                        minimum_prior_variance=1e-3,
+                    )
+                    # print("pc after AMIS is",pc)
+
                     # Draw from this Gaussian for the next adaptive iteration
                     # if there will be one
                     #pdb.set_trace()
                     if doadapt and notlast:
 
-                        while True:
-                            try:
-                                L = np.linalg.cholesky(pc)
-                                break
-                            except np.linalg.LinAlgError:
-                                pc = ct.cov_nearest(pc, method="clipped")
-                                L = np.linalg.cholesky(pc)
-                                print("np.linalg.LinAlgError in cholesky")
-                                #pdb.set_trace()
-                                break
+                        try:
+                            L = np.linalg.cholesky(pc)
+                        except np.linalg.LinAlgError as err:
+                            raise RuntimeError(
+                                "Regularized AMIS proposal covariance "
+                                "failed Cholesky decomposition."
+                            ) from err
 
                         Z = np.random.randn(Np, Ne)
                         thetap = (pm+(L@Z).T).T
