@@ -1,6 +1,6 @@
 """Calibrate the four parameters (kp,tbias, ddfsnow, tau) by the AMIS methods """
 # Default climate data is ERA5;
-# Modified based on the run_calibration_frontalablation.py 
+# Modified based on the run_calibration_frontalablation.py
 # The code is hard coded to run the calibration for the period 2000-2010, and validation period is 2010-2020
 # Revised by Ruitang Yang, supported by Kristoffer and Matvey on 30 Dec 2024
 
@@ -35,6 +35,7 @@ import json
 import logging
 from multiprocessing import Pool, cpu_count, current_process
 from pathlib import Path # Better path handling
+
 # External libraries
 import pandas as pd
 import pickle
@@ -68,7 +69,7 @@ from pygem.massbalance import PyGEMMassBalance
 from pygem.glacierdynamics import MassRedistributionCurveModel
 from pygem.oggm_compat import single_flowline_glacier_directory
 from pygem.oggm_compat import single_flowline_glacier_directory_with_calving
-from pygem.shop import debris, mbdata, icethickness 
+from pygem.shop import debris, mbdata, icethickness
 from pygem import class_climate
 import Visualization_timeseries as Visualization_timeseries
 
@@ -163,28 +164,28 @@ if not os.path.exists(floating_info_fp):
 #set the log file
 def setup_worker_logger(save_path_log=None,log_level=None):
     """Set up a separate logger for each worker process with a unique log file.
-    
+
     Args:
         save_path_log (str or Path): Directory where worker logs should be stored
         log_level (str): Logging level (e.g., 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL')
-        
+
     Returns:
         logging.Logger: Configured logger instance for the current worker
     """
     worker_id = current_process().name  # e.g., 'ForkPoolWorker-1'
     logger = logging.getLogger(worker_id)
-    
+
     # Return existing logger if already configured
     if logger.handlers:
         return logger
-    
+
     # Convert to Path and ensure directory exists
     log_dir = Path(save_path_log)
     log_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Create worker-specific log file
     worker_log_path = log_dir / f"worker_{worker_id}.log"
-    
+
     # Configure handler
     handler = logging.FileHandler(
         filename=worker_log_path,
@@ -195,12 +196,12 @@ def setup_worker_logger(save_path_log=None,log_level=None):
         datefmt='%Y-%m-%d %H:%M:%S'
     )
     handler.setFormatter(formatter)
-    
+
     # Configure logger
     logger.addHandler(handler)
     logger.setLevel(getattr(logging, log_level))
     logger.propagate = False  # Prevent duplicate logging from root logger
-    
+
     return logger
 
 # Function to log floating terminus warnings
@@ -252,14 +253,14 @@ def record_floating_terminus(glacier_str, th, thick0, water_level, rho, rho_o,in
     if glacier_str is None or th is None or thick0 is None or water_level is None or rho is None or rho_o is None or index_particles is None:
         print("Error: Missing required parameters for recording floating terminus information.")
         return
-  
+
     buoyancy_threshold = (1 - rho / rho_o) * thick0
 
     if th >= buoyancy_threshold:
             return
     print(f"Warning: Terminus of glacier {glacier_str} is floating "
         f"(th={th:.2f}m < {buoyancy_threshold:.2f}m)")
-    
+
     # Early exit if no output directory specified
     if floating_info_fp_glac is None:
         return
@@ -273,17 +274,17 @@ def record_floating_terminus(glacier_str, th, thick0, water_level, rho, rho_o,in
         header = "glacier_id,iteration,particle_index,th,thick0,water_level\n"
         data_row = (f"{glacier_str},{iteration},{index_particles},"
                     f"{th:.2f},{thick0:.2f},{water_level:.2f}\n")
-        
+
         # Write to file
         try:
             # Check if file exists to determine if header is needed
             write_header = not os.path.exists(filepath)
-            
+
             with open(filepath, "a", encoding="utf-8") as f:
                 if write_header:
                     f.write(header)
                 f.write(data_row)
-                
+
         except (IOError, OSError) as e:
             print(f"Error writing floating terminus data for {glacier_str}: {e}")
 
@@ -361,11 +362,11 @@ def getparser():
     # add arguments
         # Logging group
     logging_group = parser.add_argument_group('Logging options')
-    logging_group.add_argument('--log_level', 
+    logging_group.add_argument('--log_level',
                             default='INFO',
                             choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
                             help='Set the logging level (default: INFO)')
-    logging_group.add_argument('--log-file', 
+    logging_group.add_argument('--log-file',
                             default=None,
                             help='Path to the log file (default: None)')
     # add arguments
@@ -415,7 +416,7 @@ def getparser():
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Flag for verbose')
     parser.add_argument('-o', '--overwrite', action='store_true',
-                        help='Flag to overwrite existing calibrated frontal ablation datasets')  
+                        help='Flag to overwrite existing calibrated frontal ablation datasets')
     parser.add_argument('-store_monthly_step', action='store_true',
                         help='Flag to store the monthly step results')
     parser.add_argument('-Visualize_Index', action='store_true',
@@ -425,8 +426,8 @@ def getparser():
     parser.add_argument('-ref_startyear', action='store', type=int, default=pygem_prms.ref_startyear,
                         help='reference period starting year for calibration (typically 2000)')
     parser.add_argument('-ref_endyear', action='store', type=int, default=pygem_prms.ref_endyear,
-                        help='reference period ending year for calibration (typically 2019)')  
-    
+                        help='reference period ending year for calibration (typically 2019)')
+
     return parser
 
 
@@ -435,17 +436,17 @@ def convert_to_serializable(obj):
     """
     Recursively convert non-serializable objects to JSON-compatible formats.
     """
-    if isinstance(obj, np.ndarray):  
+    if isinstance(obj, np.ndarray):
         return obj.tolist()  # Convert NumPy array to list
-    if isinstance(obj, np.generic):  
+    if isinstance(obj, np.generic):
         return obj.item()  # Convert NumPy scalar to int/float
-    if isinstance(obj, (date, datetime, np.datetime64)):  
+    if isinstance(obj, (date, datetime, np.datetime64)):
         return str(obj)  # Convert date/datetime64 to string
-    if isinstance(obj, dict):  
+    if isinstance(obj, dict):
         return {k: convert_to_serializable(v) for k, v in obj.items()}  # Recursively convert dict
-    if isinstance(obj, (list, set, tuple)):  
+    if isinstance(obj, (list, set, tuple)):
         return [convert_to_serializable(i) for i in obj]  # Convert iterable to list
-    if isinstance(obj, (int, float, str, bool, type(None))):  
+    if isinstance(obj, (int, float, str, bool, type(None))):
         return obj  # Keep basic types unchanged
 
     return str(obj)  # Fallback conversion to string
@@ -469,17 +470,17 @@ def gexpit(xt, xmin, xmax):
 def Transform_norm (Median, Std,Min,Max,N,name_para, Visual_Index = False):
     """
     # Example how to generate a ensemble paritcles of logit-normal prior
-    Median=Median # prior median 
+    Median=Median # prior median
     Std=Std # Spread (defined in transformed space, tune this to what looks nice)
-    Min=Min # Minimum value 
+    Min=Min # Minimum value
     Max=Max  # Max value (don't make this too small!)
     """
     Ne=N # number of particles
     ddfprit=glogit(Median,Min,Max)+Std*np.random.randn(Ne) # Transformed (normal) prior
     ddfpri=gexpit(ddfprit,Min,Max) # Actual logit-normal prior in model (PyGEM) space
-    
 
-    
+
+
     if Visual_Index:
         ddfprit_mean = glogit(Median,Min,Max)
         ddfprit_std = Std
@@ -500,7 +501,7 @@ def Transform_norm (Median, Std,Min,Max,N,name_para, Visual_Index = False):
         plt.hist(ddfprit,bins=30, density=True, alpha=0.6)
         plt.title(f" transformed {name_para} (normal)")
         plt.show()
-    
+
     return ddfpri
 
 
@@ -524,33 +525,33 @@ def sample_prior(N = 1000, Visualize = False):
     tbias_bndlow = -10   # Lower bound
     tbias_bndhigh = 10   # Upper bound
     samples["tbias"] = Transform_norm (tbias_med, tbias_sigma,tbias_bndlow,tbias_bndhigh,N,'Tbias',Visual_Index = Visualize)
-        
+
     # kp
     kp_med = 2.17         # Median
     kp_sigma = 0.6      # Standard deviation
     kp_bndlow = 0   # Lower bound
     kp_bndhigh = 6   # Upper bound
     samples["kp"] = Transform_norm (kp_med, kp_sigma,kp_bndlow,kp_bndhigh,N,'kp',Visual_Index = Visualize)
-    
+
     # ddfsnow
     ddfsnow_med = 0.0041         # Median
     ddfsnow_sigma = 0.4      # Standard deviation
     ddfsnow_bndlow = 0   # Lower bound
     ddfsnow_bndhigh = 0.02   # Upper bound
     samples["ddfsnow"] = Transform_norm (ddfsnow_med, ddfsnow_sigma,ddfsnow_bndlow,ddfsnow_bndhigh,N,'ddfsnow',Visual_Index = Visualize)
-     
+
     # tau
     tau_med = 1.453         # Median
     tau_sigma = 0.6      # Standard deviation
     tau_bndlow = 0   # Lower bound
     tau_bndhigh = 4   # Upper bound
     samples["tau"] = Transform_norm (tau_med, tau_sigma,tau_bndlow,tau_bndhigh,N,'tau',Visual_Index = Visualize)
-    
+
     # Index
-    samples["index"]=np.arange(N)   
-    
+    samples["index"]=np.arange(N)
+
     return samples
-    
+
 
 # The function to convert a dictionary to a Xarray
 def samples2xrDataset(samples):
@@ -631,6 +632,122 @@ def transform_space(parameters, trans_direction, pert_stra=False, vari=False):
     return safe_pars
 
 
+def regularize_proposal_covariance(
+        covariance,
+        prior_covariance,
+        minimum_prior_variance=1e-3):
+    """Regularize a proposal covariance in prior-whitened space."""
+
+    covariance = np.asarray(
+        covariance,
+        dtype=float,
+    ).copy()
+
+    prior_covariance = np.asarray(
+        prior_covariance,
+        dtype=float,
+    )
+
+    if covariance.shape != prior_covariance.shape:
+        raise ValueError(
+            "Proposal and prior covariance shapes differ: "
+            f"{covariance.shape} and {prior_covariance.shape}."
+        )
+
+    if not np.all(np.isfinite(covariance)):
+        raise ValueError(
+            "Proposal covariance contains non-finite values."
+        )
+
+    if not np.all(np.isfinite(prior_covariance)):
+        raise ValueError(
+            "Prior covariance contains non-finite values."
+        )
+
+    if minimum_prior_variance <= 0:
+        raise ValueError(
+            "minimum_prior_variance must be positive."
+        )
+
+    covariance = 0.5 * (
+        covariance
+        + covariance.T
+    )
+
+    prior_covariance = 0.5 * (
+        prior_covariance
+        + prior_covariance.T
+    )
+
+    try:
+        prior_cholesky = np.linalg.cholesky(
+            prior_covariance
+        )
+    except np.linalg.LinAlgError as err:
+        raise ValueError(
+            "Prior covariance must be positive definite."
+        ) from err
+
+    dimension = covariance.shape[0]
+
+    prior_cholesky_inverse = np.linalg.solve(
+        prior_cholesky,
+        np.eye(dimension),
+    )
+
+    covariance_whitened = (
+        prior_cholesky_inverse
+        @ covariance
+        @ prior_cholesky_inverse.T
+    )
+
+    covariance_whitened = 0.5 * (
+        covariance_whitened
+        + covariance_whitened.T
+    )
+
+    eigenvalues, eigenvectors = np.linalg.eigh(
+        covariance_whitened
+    )
+
+    regularized_eigenvalues = np.maximum(
+        eigenvalues,
+        minimum_prior_variance,
+    )
+
+    covariance_whitened_regularized = (
+        eigenvectors
+        @ np.diag(regularized_eigenvalues)
+        @ eigenvectors.T
+    )
+
+    covariance_regularized = (
+        prior_cholesky
+        @ covariance_whitened_regularized
+        @ prior_cholesky.T
+    )
+
+    covariance_regularized = 0.5 * (
+        covariance_regularized
+        + covariance_regularized.T
+    )
+
+    if not np.all(np.isfinite(covariance_regularized)):
+        raise ValueError(
+            "Regularized covariance contains non-finite values."
+        )
+
+    try:
+        np.linalg.cholesky(
+            covariance_regularized
+        )
+    except np.linalg.LinAlgError as err:
+        raise ValueError(
+            "Regularized covariance is not positive definite."
+        ) from err
+
+    return covariance_regularized
+
 # Adapted PBS ( AMIS) , Ruitang revising from the original code by K. Aalstad (22.02.2025)
 def AMIS(obs, pred, R, prim, pric, propm, propc, props):
     """
@@ -672,95 +789,186 @@ def AMIS(obs, pred, R, prim, pric, propm, propc, props):
     elif np.size(R) != No:
         raise ValueError("R must be scalar or match number of observations")
 
-    # Initialize
-    w = np.zeros(Ne)
+    # Always preserve the original Ne × Nl layout
+    w_full = np.zeros((Ne, Nl), dtype=float)
     Neff = 0.0
     try:
-        # Identify ensembles with any NaNs
-        nan_mask = np.any(np.isnan(pred), axis=(0, 2))  # shape: (Ne,)
-        valid_idx = ~nan_mask
-        if not np.any(valid_idx):
-            # All ensembles are invalid
-            return w, np.nan
-        # Only keep valid ensemble members for computation
-        pred_valid = pred[:, valid_idx, :]
-        props_valid = props[:, valid_idx, :]
-        Ne_valid = pred_valid.shape[1]
-        phi = np.zeros([Ne_valid, Nl])
-        lsepsi = np.zeros([Ne_valid, Nl])
+        # Track validity for each (member, iteration) pair
+        valid_pair = (
+            np.all(np.isfinite(pred), axis=0)
+            & np.all(np.isfinite(props), axis=0)
+        )
+
+        if valid_pair.shape != (Ne, Nl):
+            raise RuntimeError(
+                "Unexpected AMIS validity-mask shape: "
+                f"{valid_pair.shape}, expected {(Ne, Nl)}"
+            )
+
+        if not np.any(valid_pair):
+            return w_full.flatten(order="F"), 0.0
+
+        # Preserve the complete Ne × Nl layout
+        phi = np.full((Ne, Nl),np.nan,dtype=float,)
+        lsepsi = np.full((Ne, Nl),np.nan,dtype=float,)
 
         for ell in range(Nl):
-            # Terms related to the target
-            propell = props_valid[:, :, ell]  # Np x Ne_valid
+            # Valid members for this specific iteration
+            valid_ell = valid_pair[:, ell]
+
+            if not np.any(valid_ell):
+                continue
+
+            # Parameters from valid pairs in this iteration
+            propell = props[:, valid_ell, ell]
+
+            # Prior contribution
             A0ell = (propell.T - prim).T
             B = np.linalg.solve(pric, A0ell)
-            phi0ell = 0.5 * np.sum((A0ell.T) * B.T, 1)
-            predell = pred_valid[:, :, ell]  # No x Ne_valid
-            residuell = (obs.flatten() - predell.T).T  # No x Ne_valid
-            phidell = 0.5 * (1 / R.flatten()) @ (residuell ** 2)  # Ne
-            phi[:, ell] = phi0ell + phidell
 
-            psij = np.zeros([Ne_valid, Nl])
+            phi0ell = 0.5 * np.sum(A0ell.T * B.T,axis=1,)
+
+            # Observation contribution
+            predell = pred[:, valid_ell, ell]
+
+            residuell = (obs.flatten() - predell.T).T
+
+            phidell = (0.5* (1 / R.flatten())@ (residuell**2))
+
+            # Restore results to original member positions
+            phi[valid_ell, ell] = phi0ell + phidell
+
+            n_valid_ell = int(np.count_nonzero(valid_ell))
+
+            # Evaluate every valid sample from iteration ell under
+            # every AMIS proposal distribution.
+            log_q_components = np.empty((n_valid_ell, Nl),dtype=float,)
+
             for j in range(Nl):
                 mj = propm[:, j]
-                Cj = propc[:, :, j]
-                # --- REGULARIZATION ---
-                eps = 1e-6 * np.trace(Cj) / Cj.shape[0]
-                Cj = Cj + eps * np.eye(Cj.shape[0])
-                sign, logdet = np.linalg.slogdet(2 * np.pi * Cj)
-                if sign <= 0 or not np.isfinite(logdet):
-                    raise np.linalg.LinAlgError("Invalid proposal covariance")
+                Cj = np.array(
+                    propc[:, :, j],
+                    dtype=float,
+                    copy=True,)
 
-                lcj = -0.5 * logdet
-                Aj = (propell.T - mj).T
+                if not np.all(np.isfinite(Cj)):
+                    raise RuntimeError(
+                        "Stored proposal covariance contains "
+                        "non-finite values.")
+
+                if not np.allclose(
+                    Cj,
+                    Cj.T,
+                    rtol=1e-10,
+                    atol=1e-12,
+                ):
+                    raise RuntimeError("Stored proposal covariance is not symmetric.")
+
                 try:
-                    B = np.linalg.solve(Cj, Aj)
-                except np.linalg.LinAlgError:
-                    B = np.linalg.lstsq(Cj, Aj, rcond=None)[0]
-                psi = 0.5 * np.sum((Aj.T) * B.T, 1)
-                psi = psi - lcj
-                psij[:, j] = psi
-            psijx = np.max(psij, axis=1)  # Ne
-            psijs = (psij.T - psijx).T  # Ne x Nl
-            lsepsiell = psijx + np.log(np.sum(np.exp(psijs), 1))
-            lsepsi[:, ell] = lsepsiell
+                    proposal_cholesky = np.linalg.cholesky(Cj)
+                except np.linalg.LinAlgError as err:
+                    raise RuntimeError(
+                        "Stored proposal covariance is not "
+                        "positive definite."
+                    ) from err
+
+                parameter_offset = (propell.T - mj).T
+
+                whitened_offset = np.linalg.solve(proposal_cholesky,parameter_offset,)
+
+                quadratic_term = 0.5 * np.sum(whitened_offset**2,axis=0,)
+
+                dimension = Cj.shape[0]
+
+                log_determinant = (
+                    2.0
+                    * np.sum(
+                        np.log(
+                            np.diag(proposal_cholesky)
+                        )
+                    )
+                )
+
+                log_normalization = -0.5 * (
+                    dimension * np.log(2.0 * np.pi)
+                    + log_determinant
+                )
+
+                log_q_components[:, j] = (
+                    log_normalization
+                    - quadratic_term
+                )
+
+            # Equal mixture because every iteration draws Ne samples
+            lsepsiell = (
+                logsumexp(
+                    log_q_components,
+                    axis=1,
+                )
+                - np.log(Nl)
+            )
+
+            # lsepsi now stores the AMIS log-mixture density
+            lsepsi[valid_ell, ell] = lsepsiell
 
         # Combine terms
         logwt = -phi - lsepsi          # shape (Ne, Nl)
-
-        # Identify valid ensemble-iteration pairs
-        valid = np.isfinite(logwt)
-
-        # Initialize weights
-        w = np.zeros_like(logwt)
+        # Only valid and finite pairs can receive weight
+        valid = (
+            valid_pair
+            & np.isfinite(logwt)
+        )
 
         if not np.any(valid):
-            # All failed → return safely
-            return w.flatten('F'), 0.0
+            return w_full.flatten(order="F"), 0.0
 
-        # Work only on valid entries
         logwt_valid = logwt[valid]
 
-        # Numerically stable normalization
-        lwtx = np.max(logwt_valid)
-        lse = lwtx + np.log(np.sum(np.exp(logwt_valid - lwtx)))
+        # Normalization for posterior importance weights
+        log_weight_normalizer = logsumexp(
+            logwt_valid
+        )
 
-        logNlNe = np.log(np.sum(valid))
-        logZ = -logNlNe + lse
+        if not np.isfinite(log_weight_normalizer):
+            return np.zeros(Ne * Nl), 0.0
 
-        logw_valid = logwt_valid - logNlNe - logZ
+        logw_valid = (
+            logwt_valid
+            - log_weight_normalizer
+        )
 
-        # Assign back
-        w[valid] = np.exp(logw_valid)
+        w_full[valid] = np.exp(
+            logw_valid
+        )
 
-        # Flatten column-major (AMIS requirement)
-        w = w.flatten('F')
+        # Evidence estimator uses all attempted samples.
+        # Invalid simulations have zero target weight but still count.
+        logZ = (
+            log_weight_normalizer
+            - np.log(Ne * Nl)
+        )
 
-        # Effective sample size
+        # Match propsall reshaping order
+        w = w_full.flatten(order="F")
+
+        w_sum = float(np.sum(w))
+
+        if not np.isfinite(w_sum) or w_sum <= 0:
+            return np.zeros(
+                Ne * Nl,
+                dtype=float,
+            ), 0.0
+
+        w = w / w_sum
+
         Neff = 1.0 / np.sum(w**2)
+
     except Exception:
         print(traceback.format_exc())
-        return np.zeros(Ne), np.nan
+        return np.zeros(
+            Ne * Nl,
+            dtype=float,
+        ), 0.0
 
     return w, Neff
 
@@ -773,7 +981,7 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                      do_DA_calib_Paralle = False,save_path_figure_glac =None,log_level = 'INFO',floating_info_fp_glac=None):
     """
     Compute the calving flux for a group of glaciers # TODO Currently, it is called by single glacier
-    
+
     Parameters
     ----------
     main_glac_rgi : pd.DataFrame
@@ -803,13 +1011,13 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
     log_level : str
         Set the logging level (default: INFO), can be DEBUG, INFO, WARNING, ERROR, CRITICAL
         It is used to set the log level of the logger, and control the output of the log file and the print hints
-    
+
 
     Returns
     -------
     output_df : pd.DataFrame
         Dataframe containing information pertaining to each glacier's calving flux
-    """    
+    """
     # ===== TIME PERIOD =====
     dates_table = modelsetup.datesmodelrun(
             startyear=pygem_prms.ref_startyear, endyear=pygem_prms.ref_endyear, spinupyears=pygem_prms.ref_spinupyears,
@@ -844,7 +1052,7 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
     output_df['calving_thick'] = np.nan
     output_df['calving_flux_Gta'] = np.nan
     output_df['oggm_dynamics'] = 0
-    output_df['mb_mwea_fa_asl_lost'] = 0 
+    output_df['mb_mwea_fa_asl_lost'] = 0
     output_df['length_change_rate_myr_dLdt'] = [None] * output_df.shape[0]  # Initialize with None
     output_df['length_change_m'] = [None] * output_df.shape[0]  # Initialize with None
     output_df['velocity_at_calvingfront_myr'] = [None] * output_df.shape[0]  # Initialize with None
@@ -852,9 +1060,9 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
     output_df['width_at_calvingfront_m'] = [None] * output_df.shape[0]  # Initialize with None
     output_df['volume_bsl_m3'] = [None] * output_df.shape[0]  # Initialize with None
     output_df['volume_bwl_m3'] = [None] * output_df.shape[0]  # Initialize with None
-    # ===== RUN REGRESSION CALIBRATION ===== 
+    # ===== RUN REGRESSION CALIBRATION =====
     for nglac in np.arange(main_glac_rgi.shape[0]):
-        
+
         # Select subsets of data
         glacier_rgi_table = main_glac_rgi.loc[main_glac_rgi.index.values[nglac], :]
         glacier_str = '{0:0.5f}'.format(glacier_rgi_table['RGIId_float'])
@@ -865,14 +1073,14 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
         else:
             file_suffix = ''
         try:
-            gdir = single_flowline_glacier_directory_with_calving(glacier_str, 
+            gdir = single_flowline_glacier_directory_with_calving(glacier_str,
                                                                 logging_level='DEBUG',
                                                                 reset=reset_gdir,k_calving_str=k_str)
         except:
             print("**********Something is wrong with single_flowline_glacier_directory_with_calving in Reg_calving_flux**********")
             print(traceback.format_exc())
 
-        
+
         gdir.is_tidewater = True
         cfg.PARAMS['use_kcalving_for_inversion'] = True
         cfg.PARAMS['use_kcalving_for_run'] = True
@@ -884,7 +1092,7 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
         except:
             fls = None
             print(traceback.format_exc())
-              
+
         # Add climate data to glacier directory
         gdir.historical_climate = {'elev': gcm_elev[nglac],
                                    'temp': gcm_temp[nglac,:],
@@ -894,9 +1102,9 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
         gdir.dates_table = dates_table
         #TODO, the calibration data could be loaded just once, and then used for different parameter sets
         # ----- load the calibration data (climatic mass balance)
-        mbdata_fn = gdir.get_filepath('mb_obs')   
+        mbdata_fn = gdir.get_filepath('mb_obs')
         with open(mbdata_fn, 'rb') as f:
-            gdir.mbdata = pickle.load(f)      
+            gdir.mbdata = pickle.load(f)
         # Non-tidewater glaciers
         if not gdir.is_tidewater:
             # Load data
@@ -908,35 +1116,35 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
             assert 'mb_clim_mwea' in gdir.mbdata.keys(), 'include_frontalablation is set as true, but fontal ablation has yet to be calibrated.'
             mb_obs_mwea = gdir.mbdata['mb_clim_mwea']
             mb_obs_mwea_err = gdir.mbdata['mb_clim_mwea_err']
-        
+
         # ----- Invert ice thickness and run simulation ------
         if (fls is not None) and (glacier_area.sum() > 0):
-            
+
             # ----- Model parameters -----
             # Use most likely parameters from initial calibration to force the mass balance gradient for the inversion (the initial value?）
             kp_value = modelprms_MB_FA['kp']
             tbias_value = modelprms_MB_FA['tbias']
             ddfsnow_value = modelprms_MB_FA['ddfsnow']
             ddfice_value = ddfsnow_value/pygem_prms.ddfsnow_iceratio
-                
+
             # Otherwise use input parameters
             if kp_value is None:
                 kp_value = pygem_prms.kp
             if tbias_value is None:
                 tbias_value = pygem_prms.tbias
-            
+
             # Set model parameters
             modelprms = {'kp': kp_value,
                          'tbias': tbias_value,
                          'ddfsnow': ddfsnow_value,
                          'ddfice': ddfice_value,
                          'tsnow_threshold':  pygem_prms.tsnow_threshold ,
-                         'precgrad': pygem_prms.precgrad}              
-                
+                         'precgrad': pygem_prms.precgrad}
+
             # Calving and dynamic parameters
             cfg.PARAMS['calving_k'] = calving_k
             cfg.PARAMS['inversion_calving_k'] = cfg.PARAMS['calving_k']
-            
+
             if pygem_prms.use_reg_glena:
                 glena_df = pd.read_csv(pygem_prms.glena_reg_fullfn)
                 glena_idx = np.where(glena_df.O1Region == glacier_rgi_table.O1Region)[0][0]
@@ -947,8 +1155,8 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                 glen_a_multiplier = pygem_prms.glen_a_multiplier
 
             # set the fs = None here and read it in the inversion_RT_New.py
-            fs = None    
-            
+            fs = None
+
             # CFL number (may use different values for calving to prevent errors)
             if not glacier_rgi_table['TermType'] in [1,5] or not pygem_prms.include_calving:
                 cfg.PARAMS['cfl_number'] = pygem_prms.cfl_number
@@ -962,7 +1170,7 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                                          fls=fls, option_areaconstant=True,
                                          inversion_filter=False)
             h, w = gdir.get_inversion_flowline_hw()
-                                
+
             # ----- CALVING -----
             # Number of years (for OGGM's run_until_and_store)
             if pygem_prms.timestep == 'monthly':
@@ -989,7 +1197,7 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                                                                     inversion_filter=False,filesuffix=file_suffix)
                 except:
                     print("Something wrong with the find_inversion_calving_from_any_mb")
-                    print(traceback.format_exc()) 
+                    print(traceback.format_exc())
             # ------ MODEL WITH EVOLVING AREA ------
             # tasks.init_present_time_glacier(gdir,filesuffix=file_suffix) # adds bins below
             geometry_valid = True
@@ -1069,7 +1277,7 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                                       is_tidewater=gdir.is_tidewater,
                                       water_level=water_level
                                       )
-            
+
             try:
                 # print("***********************do the dynamic running with calving***********************")
                 # print("nyears is :",nyears)
@@ -1089,7 +1297,7 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                 # print("the volume_3 in the diag is :",diag.volume_m3)
                 ev_model.mb_model.glac_wide_volume_annual[-1] = diag.volume_m3[-1]
                 ev_model.mb_model.glac_wide_area_annual[-1] = diag.area_m2[-1]
-                
+
                 # Record frontal ablation for tidewater glaciers and update total mass balance
                 if gdir.is_tidewater:
                     try:
@@ -1102,7 +1310,7 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                             if not os.path.exists(save_path_figure_calving):
                                 os.makedirs(save_path_figure_calving)
                         # TODO: Actually calving_m3_monthly here is not annual, it's the timeseries of the model step, monthly/annual, to revise the name later
-                        calving_m3_monthly = (diag.calving_m3.values[1:] - diag.calving_m3.values[0:-1]) 
+                        calving_m3_monthly = (diag.calving_m3.values[1:] - diag.calving_m3.values[0:-1])
                         #pygem_prms.density_ice / pygem_prms.density_water)
                         for n in np.arange(calving_m3_monthly.shape[0]):
                             ev_model.mb_model.glac_wide_frontalablation[n] = calving_m3_monthly[n]*pygem_prms.density_ice / pygem_prms.density_water
@@ -1111,7 +1319,7 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
 
                         ev_model.mb_model.glac_wide_massbaltotal = (
                                 ev_model.mb_model.glac_wide_massbaltotal  - ev_model.mb_model.glac_wide_frontalablation)
-                        
+
                         # ====== Output of calving ======
                         out_calving_forward = {}
                         # area_m2
@@ -1146,7 +1354,7 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                         # calving flux (Gt/yr)
                         #calving_flux_Gta = out_calving_forward['calving_flux'] * pygem_prms.density_ice / pygem_prms.density_water
                         calving_flux_Gta = out_calving_forward['calving_flux'] *1e9* pygem_prms.density_ice / 1e12
-                        out_calving_forward['calving_flux_Gta_timeseries'] = calving_m3_monthly*pygem_prms.density_ice/1e12              
+                        out_calving_forward['calving_flux_Gta_timeseries'] = calving_m3_monthly*pygem_prms.density_ice/1e12
                         # calving front thickness at start of simulation
                         #TODO check the last_idx should be the same to the calving law
                         thick = nfls[0].thick
@@ -1173,7 +1381,7 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                             #     Visualization_timeseries.plot_timeseries_List(data = length_change_m_annual, start_year=2000, ylabel= 'length change (m a⁻¹)', xlabel='Year',
                             #                                                 title='Annual timeseries of length change',save_path=save_path_figure_calving,
                             #                                                 save_name='Annual timeseries of length change')
-                        
+
                         ## Generate the monthly/annual lenge_change_rate_myr_dLdt, velocity at the calving front #TODO At the moment, the monthly/annual length change rate and velicity are repeated in the function calib_ind_PBS_MB_FA_RT, which could be optimized later
                         if store_monthly_step:
                             length_change_rate_myr_dLdt_monthly = diag.length_change_rate_myr.values[1:]
@@ -1196,7 +1404,7 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                             #                                                 ylabel='Velocity at the calving front (m a⁻¹)',xlabel= 'Year',
                             #                                                 title='Annual timeseries of velocity at the calving front',save_path=save_path_figure_calving,
                             #                                                 save_name='Annual timeseries of velocity at the calving front')
-                        
+
                         #TODO Check the index, [:-1]should be the start of each time step, and [1:] should be the end of each time step
                         out_calving_forward['length_change_rate_myr_dLdt'] = diag.length_change_rate_myr.values[1:]
                         out_calving_forward['velocity_at_calvingfront_myr'] = diag.velocity_at_calving_front_myr.values[1:]
@@ -1210,24 +1418,24 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                         # Plot the timeseries of glacier profile
                         # Visualization_timeseries.plot_timeseries_profile(gdir=gdir, filesuffix ='', save_path=save_path_figure_calving,save_name ='Glacier profile',
                         #                                                 xlabel='Distance along the flowline (m)')
-                        
+
                         #%% Plot the snapshot of each January about the glacier profile
                         # generate selected time list
                         # Define the start and end dates
-                        # Visualization_timeseries.plot_time_series_snapshots(gdir=gdir,filesuffix ='', sel_times=None,n_year =1,variable='thickness_m', group='fl_0', 
-                        #         ylabel='Elevation (m a.s.l.)', xlabel='Distance along the flowline (m)', title='Time Series Snapshots', 
+                        # Visualization_timeseries.plot_time_series_snapshots(gdir=gdir,filesuffix ='', sel_times=None,n_year =1,variable='thickness_m', group='fl_0',
+                        #         ylabel='Elevation (m a.s.l.)', xlabel='Distance along the flowline (m)', title='Time Series Snapshots',
                         #         save_path=save_path_figure_calving,save_name='Timeseries snapshot of selected year')
-                        
+
                         #%% Plot the animate gif of each month about the glacier profile
                         # if Visualize_Index:
-                        #     Visualization_timeseries.animate_time_series(gdir=gdir, filesuffix ='', variable='thickness_m', group='fl_0',interval=400, ylabel='Elevation (m a.s.l.)', 
+                        #     Visualization_timeseries.animate_time_series(gdir=gdir, filesuffix ='', variable='thickness_m', group='fl_0',interval=400, ylabel='Elevation (m a.s.l.)',
                         #                                                 xlabel='Distance along the flowline (m)', title='Elevation Changes Animate', save_path=save_path_figure_calving,
                         #                                                 save_name='Animate timeseries of monthly glacier profile')
-                        
-                        
+
+
                         # Record in dataframe
                         # Using apply to set complex data
-                        def update_row(row, index, calving_flux_Gta, calving_thick, length_change_m, 
+                        def update_row(row, index, calving_flux_Gta, calving_thick, length_change_m,
                                        length_change_rate_myr_dLdt,calving_flux_Gta_timeseries,velocity_at_calvingfront_myr,
                                        thickness_at_calvingfront_m,width_at_calvingfront_m,massbal_clim_mwea,massbal_total_mwea,
                                        massbal_clim_mwea_timeseries,massbal_total_mwea_timeseries,volume_bsl_m3,volume_bwl_m3,
@@ -1258,11 +1466,11 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                                 row['massbal_clim_Gta_timeseries'] = massbal_clim_Gta_timeseries
                                 row['massbal_total_Gta_timeseries'] = massbal_total_Gta_timeseries
                             return row
-                        
+
 
                         # Apply the update function to each row
-                        output_df = output_df.apply(update_row, axis=1, 
-                                                    index=nglac, 
+                        output_df = output_df.apply(update_row, axis=1,
+                                                    index=nglac,
                                                     calving_flux_Gta=calving_flux_Gta,
                                                     calving_thick=out_calving_forward['calving_front_thick'],
                                                     length_change_m=out_calving_forward['length_change_m'].tolist(),  # Convert to list
@@ -1270,7 +1478,7 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                                                     calving_flux_Gta_timeseries=out_calving_forward['calving_flux_Gta_timeseries'].tolist(),
                                                     velocity_at_calvingfront_myr=out_calving_forward['velocity_at_calvingfront_myr'].tolist(),
                                                     thickness_at_calvingfront_m = out_calving_forward['thickness_at_calvingfront_m'].tolist(),
-                                                    width_at_calvingfront_m = out_calving_forward['width_at_calvingfront_m'].tolist(),  
+                                                    width_at_calvingfront_m = out_calving_forward['width_at_calvingfront_m'].tolist(),
                                                     massbal_clim_mwea = out_calving_forward['massbal_clim_mwea'].tolist(),
                                                     massbal_total_mwea = out_calving_forward['massbal_total_mwea'].tolist(),
                                                     massbal_clim_mwea_timeseries = out_calving_forward['massbal_clim_mwea_timeseries'].tolist(),
@@ -1283,13 +1491,13 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                                                     massbal_clim_Gta = out_calving_forward.get('massbal_clim_Gta', None),
                                                     massbal_total_Gta = out_calving_forward.get('massbal_total_Gta', None),
                                                     massbal_clim_Gta_timeseries = out_calving_forward.get('massbal_clim_Gta_timeseries', None),
-                                                    massbal_total_Gta_timeseries = out_calving_forward.get('massbal_total_Gta_timeseries', None) 
+                                                    massbal_total_Gta_timeseries = out_calving_forward.get('massbal_total_Gta_timeseries', None)
                                                     )
-                        
-                    
-                        
-                        if debug:               
-                            print('OGGM dynamics + SERMeQ, tau:', np.round(calving_k,4), 'glen_a:', np.round(glen_a_multiplier,2))                 
+
+
+
+                        if debug:
+                            print('OGGM dynamics + SERMeQ, tau:', np.round(calving_k,4), 'glen_a:', np.round(glen_a_multiplier,2))
                             # print('    calving front thickness [m]:', np.round(out_calving_forward['calving_front_thick'],1))
                             # print('    calving flux model multiple-average [Gt/yr]:', np.round(calving_flux_Gta,5))
                             # print('    length change [m] timeseries:', np.round(out_calving_forward['length_change_m'],2))
@@ -1308,7 +1516,7 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                             # print('frontal ablation model timeseries [m w.e. per year]:', np.round(out_calving_forward['frontal_ablation_mwea_timeseries'],5))
                     except:
                         print(traceback.format_exc())
-                
+
             except:
                 if gdir.is_tidewater:
                     if debug:
@@ -1324,7 +1532,7 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                     _, diag = ev_model.run_until_and_store(nyears)
                     ev_model.mb_model.glac_wide_volume_annual = diag.volume_m3.values
                     ev_model.mb_model.glac_wide_area_annual = diag.area_m2.values
-    
+
                     # Record frontal ablation for tidewater glaciers and update total mass balance
                     # Update glacier-wide frontal ablation (m3 w.e.)
                     ev_model.mb_model.glac_wide_frontalablation = ev_model.mb_model.glac_bin_frontalablation.sum(0)
@@ -1332,9 +1540,9 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                     ev_model.mb_model.glac_wide_massbaltotal = (
                             ev_model.mb_model.glac_wide_massbaltotal - ev_model.mb_model.glac_wide_frontalablation)
 
-                    calving_flux_km3a = (ev_model.mb_model.glac_wide_frontalablation.sum() * pygem_prms.density_water / 
+                    calving_flux_km3a = (ev_model.mb_model.glac_wide_frontalablation.sum() * pygem_prms.density_water /
                                             pygem_prms.density_ice / nyears / 1e9)
-                    
+
                     # Output of calving
                     out_calving_forward = {}
                     # calving flux (km3 ice/yr)
@@ -1345,20 +1553,20 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                     thick = nfls[0].thick
                     last_idx = np.nonzero(thick)[0][-1]
                     out_calving_forward['calving_front_thick'] = thick[last_idx]
-                    
+
                     # Record in dataframe
                     output_df.loc[nglac,'calving_flux_Gta'] = calving_flux_Gta
                     output_df.loc[nglac,'calving_thick'] = out_calving_forward['calving_front_thick']
                     output_df.loc[nglac,'no_errors'] = 1
-                    
-                    if debug:          
-                        print('Mass Redistribution curve, calving_k:', np.round(calving_k,1), 'glen_a:', np.round(glen_a_multiplier,2))                       
+
+                    if debug:
+                        print('Mass Redistribution curve, calving_k:', np.round(calving_k,1), 'glen_a:', np.round(glen_a_multiplier,2))
                         print('    calving front thickness [m]:', np.round(out_calving_forward['calving_front_thick'],0))
                         print('    calving flux model [Gt/yr]:', np.round(calving_flux_Gta,5))
 
 
             if calc_mb_geo_correction:
-                # Mass balance correction from mass loss above sea level due to calving retreat 
+                # Mass balance correction from mass loss above sea level due to calving retreat
                 #  (i.e., what the geodetic signal should see)
                 last_yr_idx = np.where(mbmod.glac_wide_area_annual > 0)[0][-1]
                 if last_yr_idx == mbmod.glac_bin_area_annual.shape[1]-1:
@@ -1367,19 +1575,19 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                 bin_area_lost = mbmod.glac_bin_area_annual[bin_last_idx:,0] - mbmod.glac_bin_area_annual[bin_last_idx:,-2]
                 height_asl = mbmod.heights - water_level
                 height_asl[mbmod.heights<0] = 0
-                mb_mwea_fa_asl_geo_correction = ((bin_area_lost * height_asl[bin_last_idx:]).sum() / 
+                mb_mwea_fa_asl_geo_correction = ((bin_area_lost * height_asl[bin_last_idx:]).sum() /
                                         mbmod.glac_wide_area_annual[0] *
                                         pygem_prms.density_ice / pygem_prms.density_water / nyears)
                 mb_mwea_fa_asl_geo_correction_max = 0.3*gta_to_mwea(calving_flux_Gta, glacier_rgi_table['Area']*1e6)
                 if mb_mwea_fa_asl_geo_correction > mb_mwea_fa_asl_geo_correction_max:
                     mb_mwea_fa_asl_geo_correction = mb_mwea_fa_asl_geo_correction_max
-                    
+
                 # Below sea-level correction due to calving that geodetic mass balance doesn't see
-                
+
                 # Area for retreat
                 if debug:
                     print('  mb_mwea_fa_asl_geo_correction:', np.round(mb_mwea_fa_asl_geo_correction,2))
-                       
+
                 output_df.loc[nglac,'mb_mwea_fa_asl_lost'] = mb_mwea_fa_asl_geo_correction
 
             if out_calving_forward is None:
@@ -1392,7 +1600,7 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                                      'massbal_total_Gta_timeseries']] = (np.nan, np.nan, np.nan, 0,np.nan,np.nan,np.nan,np.nan,np.nan,
                                                                          np.nan,np.nan,np.nan,np.nan,np.nan,np.nan,np.nan,np.nan,np.nan,
                                                                          np.nan,np.nan,np.nan,np.nan,np.nan)
-                
+
     # Remove glaciers that failed to run
     if fa_glac_data_reg is None:
         reg_calving_gta_obs_good = None
@@ -1408,22 +1616,22 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
     else:
         reg_calving_gta_mod_good = output_df.calving_flux_Gta.sum()
         reg_calving_gta_obs_good = fa_glac_data_reg['fa_gta_obs'].sum()
-            
+
     return output_df, reg_calving_gta_mod_good, reg_calving_gta_obs_good,mb_years,mb_obs_mwea,mb_obs_mwea_err
 
 
 # the function for paralle running
 def processing_parameters(model_function,kwargs,modelprms_MB_FA):
     """Process model parameters with configurable logging
-    
+
     Args:
         model_function: The model function to execute
         kwargs: Dictionary of keyword arguments including logging parameters
         modelprms_MB_FA: Model parameters to process
-        
+
     Returns:
         dict: Dictionary containing all model outputs
-        
+
     Raises:
         Exception: Propagates any exceptions from model execution with logging
     """
@@ -1436,7 +1644,7 @@ def processing_parameters(model_function,kwargs,modelprms_MB_FA):
             log_level=log_level
         )
         logger.debug(f"Processing modelprms_MB_FA={modelprms_MB_FA}")
-    
+
     try:
         output_df, reg_calving_gta_mod_good, _, mb_years, mb_obs_mwea, mb_obs_mwea_err = (
             model_function(
@@ -1502,7 +1710,7 @@ def Visualize_parameter_paralle (model_function = None, parameters_dict = None,c
                                  save_path_log_glac = None,log_level = None,floating_info_fp_glac=None, **kwargs):
     """
         This function is used to visulize the relationship between parameter k and model_functions, copy from def Visualize_parameter, revised for
-    paralle computing 
+    paralle computing
 
     Args:
         model_function: the function to be calibrated, the function should return the output of the model
@@ -1524,7 +1732,7 @@ def Visualize_parameter_paralle (model_function = None, parameters_dict = None,c
         The model ouput of the paralle computing for the model_function with the parameters_dict
 
 
-    # the prior modelprms_MB_FA is the parameter of the model_function (Tbias,kb,ddfsnow,tau,Index) 
+    # the prior modelprms_MB_FA is the parameter of the model_function (Tbias,kb,ddfsnow,tau,Index)
     #Sample_N = pygem_prms.pbs_sample_no
     #prior_samples = sample_prior(Sample_N)
     """
@@ -1547,19 +1755,19 @@ def Visualize_parameter_paralle (model_function = None, parameters_dict = None,c
             # Main process logging setup
             main_logger = logging.getLogger('main')
             main_logger.setLevel(log_level)
-            
+
             # Proper path joining using pathlib
             main_log_path = Path(save_path_log_glac) / 'main_process.log'
             main_handler = logging.FileHandler(main_log_path)
-            
+
             # Clear existing handlers to avoid duplicates
             main_logger.handlers = []
             main_logger.addHandler(main_handler)
-            
+
             # Formatting
             formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
             main_handler.setFormatter(formatter)
-            
+
             main_logger.info("Starting parallel processing...")
             kwargs['save_path_figure_glac'] = save_path_figure_glac
             # kwargs['save_path_parameter_glac'] = save_path_parameter_glac
@@ -1574,6 +1782,18 @@ def Visualize_parameter_paralle (model_function = None, parameters_dict = None,c
                 # Unwrap parallel outputs (NEW, REQUIRED)
                 # ----------------------------------------
                 success_flags = np.array([res["success"] for res in output])
+                failed_idx = np.flatnonzero(~success_flags)
+                for idx in failed_idx:
+                    result = output[idx]
+                    main_logger.error(
+                        "Failed ensemble member: "
+                        "glacier=%s index=%d parameters=%r error=%s\n%s",
+                        rgiid_ind,
+                        idx,
+                        prior_samples_list[idx],
+                        result.get("error"),
+                        result.get("traceback"),
+                    )
 
                 if not success_flags.any():
                     raise RuntimeError(
@@ -1590,7 +1810,7 @@ def Visualize_parameter_paralle (model_function = None, parameters_dict = None,c
 
                 # Extract only successful data dicts
                 output_success = [res["data"] for res in output if res["success"]]
-                
+
             # Ensure output is not empty
             if not output_success:
                 raise ValueError("Processing function returned an empty output. Check 'process_func' or 'prior_samples'.")
@@ -1626,9 +1846,9 @@ def Visualize_parameter_paralle (model_function = None, parameters_dict = None,c
             # Convert other NumPy arrays and handle NumPy-specific types
             output_data_serializable = {
                 key: (
-                    value.tolist() if isinstance(value, np.ndarray) else 
-                    [{k: (v.item() if isinstance(v, (np.generic, np.ndarray)) else v) for k, v in row.items()} for row in value] 
-                    if isinstance(value, list) and isinstance(value[0], dict) else 
+                    value.tolist() if isinstance(value, np.ndarray) else
+                    [{k: (v.item() if isinstance(v, (np.generic, np.ndarray)) else v) for k, v in row.items()} for row in value]
+                    if isinstance(value, list) and isinstance(value[0], dict) else
                     (value.item() if isinstance(value, np.generic) else value)
                 )
                 for key, value in output_data.items() if key != 'modelprms_MB_FA_value'
@@ -1668,7 +1888,7 @@ def Visualize_parameter_paralle (model_function = None, parameters_dict = None,c
         reg_calving_gta_mod_good = []
         for i, modelprms_mb_fa in enumerate(modelprms_MB_FA):
             _, reg_calving_gta_mod_good[i],_ = model_function(modelprms_MB_FA = modelprms_mb_fa, **kwargs)
-    
+
     # Visualize the relationship and save the figure
     if Visual_index:
         data_visulization = {
@@ -1681,7 +1901,7 @@ def Visualize_parameter_paralle (model_function = None, parameters_dict = None,c
             'dLdt': lengthchange_rate_dLdt,
             'massbal_clim': massbal_clim
         }
-        
+
         # Call the plot function
         #TODO add the function plot_and_save_relationship in Visulization_timeseries
         Visualization_timeseries.plot_and_save_relationship(data =data_visulization, parameters = ['Tbias','kp','ddfsnow','tau'], result = 'calving_gta_average', save_path =save_path_figure_glac)
@@ -1707,8 +1927,8 @@ def Visualize_parameter_paralle (model_function = None, parameters_dict = None,c
     if calibrate_timeseries:
         # save the output as hpf5 file
         # Define output file path)
-        output_folder_model = os.path.join(save_path_modeloutput_glac,'Prior') 
-        output_folder_params =os.path.join(save_path_parameter_glac,'Prior')  
+        output_folder_model = os.path.join(save_path_modeloutput_glac,'Prior')
+        output_folder_params =os.path.join(save_path_parameter_glac,'Prior')
         # Ensure directories exist
         os.makedirs(output_folder_model, exist_ok=True)
         os.makedirs(output_folder_params, exist_ok=True)
@@ -1723,25 +1943,25 @@ def Visualize_parameter_paralle (model_function = None, parameters_dict = None,c
                 # Save modelprms_MB_FA_value to JSON
                 with open(output_fp_params, "w") as f:
                     json.dump(modelprms_data_serializable, f, indent=4)
-                
+
                 with open(output_fp_prior, "w") as f:
                     json.dump(output_data_serializable, f, indent=4)
             except:
                 print(f"Error saving output to {output_fp_prior}")
                 print(traceback.format_exc())
-            
+
             #pdb.set_trace()
             prior_samples_serializable = {key: value.tolist() for key, value in prior_samples.items()}
 
             with open(f"{output_folder_params}/prior_params_samples_{rgiid_ind}_{N_iteration}.json", "w") as f:
                 json.dump(prior_samples_serializable , f, indent=4)
-    
+
         #return prior_samples, output_data
         return output_data
     else:
         #return prior_samples, reg_calving_gta_mod_good
         return reg_calving_gta_mod_good
-    
+
 
 
 # the main function for the mass balance and frontal ablation/length change model, the coupling of PyGEM, OGGM, SERMeQ
@@ -1764,7 +1984,7 @@ def Model_MB_FA_RT(model_function = reg_calving_flux,parameters_dict= None,rgiid
     ignore_nan : bool, optional
     calibrate_timeseries : bool, optional
     store_monthly_step : bool, optional
-    return_all : bool, optional, if True, the function will return all the output of the model_function, the default is False, 
+    return_all : bool, optional, if True, the function will return all the output of the model_function, the default is False,
         just returned the output for the calibration
     N_iteration : srt , str(int), optional, the number of the iterations for AMIS In the calibration
     save_path_figure_glac : str, optional, the path to store the figures
@@ -1808,26 +2028,26 @@ def Model_MB_FA_RT(model_function = reg_calving_flux,parameters_dict= None,rgiid
     calving_thickness_model_array = output_prior['calving_thick']
     mb_obs_mwea = output_prior['mb_obs_mwea'][0] #TODO chekck the mass balance data should be the climatic mass balance
     mb_obs_mwea_err = output_prior['mb_obs_mwea_err'][0] # [0], the observation are the same for all the particles
-    #pdb.set_trace() 
+    #pdb.set_trace()
     #output_folder_model  = os.path.join(save_path_modeloutput, glacier_str.split('.')[0].zfill(2))
     if store_monthly_step:
         # Flatten the nested lists
         lengthchange_m_TMS_model_array_flattened = [sublist[0] for sublist in lengthchange_m_TMS_model_array]
         lengthchange_m_TMS_model_array_monthly =  lengthchange_m_TMS_model_array_flattened
         lengthchange_m_TMS_model_array_annual = [[np.mean(sublist[i:i + 12]) for i in range(0, len(sublist), 12)] for sublist in lengthchange_m_TMS_model_array_monthly]
-        
+
         lengthchange_dLdt_model_array_flattened = [sublist[0] for sublist in lengthchange_dLdt_model_array]
         lengthchange_dLdt_model_array_monthly =  lengthchange_dLdt_model_array_flattened
         lengthchange_dLdt_model_array_annual = [[np.mean(sublist[i:i + 12]) for i in range(0, len(sublist), 12)] for sublist in lengthchange_dLdt_model_array_monthly]
-        
+
         calving_flux_Gta_TMS_model_array_flattened = [sublist[0] for sublist in calving_flux_Gta_TMS_model_array]
         calving_flux_Gta_TMS_model_array_monthly =  calving_flux_Gta_TMS_model_array_flattened
         calving_flux_Gta_TMS_model_array_annual = [[np.sum(sublist[i:i + 12]) for i in range(0, len(sublist), 12)] for sublist in calving_flux_Gta_TMS_model_array_monthly]
-        
+
         massbalclim_TMS_model_array_flattened = [sublist[0] for sublist in massbalclim_TMS_model_array]
         massbalclim_TMS_model_array_monthly =  massbalclim_TMS_model_array_flattened
         massbalclim_TMS_model_array_annual = [[np.mean(sublist[i:i + 12]) for i in range(0, len(sublist), 12)] for sublist in massbalclim_TMS_model_array_monthly]
-        
+
         massbaltotal_TMS_model_array_flattened = [sublist[0] for sublist in massbaltotal_TMS_model_array]
         massbaltotal_TMS_model_array_monthly =  massbaltotal_TMS_model_array_flattened
         massbaltotal_TMS_model_array_annual = [[np.mean(sublist[i:i + 12]) for i in range(0, len(sublist), 12)] for sublist in massbaltotal_TMS_model_array_monthly]
@@ -1888,8 +2108,8 @@ def Model_MB_FA_RT(model_function = reg_calving_flux,parameters_dict= None,rgiid
 
 
     #%% Run the particle batch smoother/AMIS
-    
-    # ===== Prepare the input for particle batch smoother as the m*1/m*N array ===== 
+
+    # ===== Prepare the input for particle batch smoother as the m*1/m*N array =====
 
     # ===== Model =====
     # ----Convert and transpose lengthchange_m_TMS_model_array_annual if necessary
@@ -1897,7 +2117,7 @@ def Model_MB_FA_RT(model_function = reg_calving_flux,parameters_dict= None,rgiid
     if lengthchange_m_TMS_model_array_annual.ndim == 2:
         lengthchange_m_TMS_model_array_annual = lengthchange_m_TMS_model_array_annual.T
 
-    # ----Convert and transpose lengthchange_dLdt_model_array_annual if necessary                
+    # ----Convert and transpose lengthchange_dLdt_model_array_annual if necessary
     # Ensure lengthchange_dLdt_model_array_annual is properly shaped before transposing
     lengthchange_dLdt_model_array_annual = np.asarray(lengthchange_dLdt_model_array_annual)
     if lengthchange_dLdt_model_array_annual.ndim == 2:
@@ -1912,7 +2132,7 @@ def Model_MB_FA_RT(model_function = reg_calving_flux,parameters_dict= None,rgiid
     massbalclim_TMS_model_array_annual = np.asarray(massbalclim_TMS_model_array_annual)
     if massbalclim_TMS_model_array_annual.ndim == 2:
         massbalclim_TMS_model_array_annual = massbalclim_TMS_model_array_annual.T
-    
+
     # # ----Convert and transpose massbaltotal_TMS_model_array_annual if necessary
     massbaltotal_TMS_model_array_annual = np.asarray(massbaltotal_TMS_model_array_annual)
     if massbaltotal_TMS_model_array_annual.ndim == 2:
@@ -1936,7 +2156,7 @@ def Model_MB_FA_RT(model_function = reg_calving_flux,parameters_dict= None,rgiid
     #---- Convert and transpose area_km2_timeseries_model_array_annual if necessary
     area_km2_TMS_model_array_annual = np.asarray(area_km2_TMS_model_array_annual)
     if area_km2_TMS_model_array_annual.ndim == 2:
-        area_km2_TMS_model_array_annual = area_km2_TMS_model_array_annual.T    
+        area_km2_TMS_model_array_annual = area_km2_TMS_model_array_annual.T
 
     #---- Convert and transpose velocity_at_calvingfront_model_array_annual if necessary
     velocity_at_calvingfront_model_array_annual = np.asarray(velocity_at_calvingfront_model_array_annual)
@@ -1968,14 +2188,14 @@ def Model_MB_FA_RT(model_function = reg_calving_flux,parameters_dict= None,rgiid
     lengthchange_dLdt_model_array_annual = np.clip(lengthchange_dLdt_model_array_annual, min_length_change_myr, max_length_change_myr)
 
 
-    
+
     # === store the model output
     if store_result:
 
         # store the monthly results
         if store_monthly_step:
 
-            # remove outliers based on the length change rate 
+            # remove outliers based on the length change rate
             lengthchange_dLdt_model_array_monthly = np.array(lengthchange_dLdt_model_array_monthly)
             lengthchange_m_TMS_model_array_monthly = np.array(lengthchange_m_TMS_model_array_monthly)
             calving_flux_Gta_TMS_model_array_monthly = np.array(calving_flux_Gta_TMS_model_array_monthly)
@@ -2075,7 +2295,7 @@ def Model_MB_FA_RT(model_function = reg_calving_flux,parameters_dict= None,rgiid
         )
     else:
         return lengthchange_dLdt_model_array_annual, calving_flux_Gta_TMS_model_array_annual,calving_flux_Gta_average_model_array,massbalclim_TMS_model_array_annual,massbalclim_model_array,mb_obs_mwea,mb_obs_mwea_err
-    
+
 
 
 # the main function for the calibration of the mass balance and frontal ablation/length change model, the coupling of PyGEM, OGGM, SERMeQ
@@ -2127,7 +2347,7 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
     else:
         rgi_glac_number_single = None
     # ===== Load mass balance and frontal ablation data, and length change data =====
-    #Load calving glacier data (20 years averaged data,i.e. one value for the 20-year period) ===== 
+    #Load calving glacier data (20 years averaged data,i.e. one value for the 20-year period) =====
     fa_glac_data = pd.read_csv(frontalablation_fp + frontalablation_fn)
     # Load the annual frontal ablation data #TODO At the moment, we don't have the annual frontal ablation data, so we use the 20-year averaged data
     csv_path_FA_annual = frontalablation_annual_fp + frontalablation_annual_fn
@@ -2140,7 +2360,7 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
     #TODO Check the dataset, which should be the climatic mass balance, not the total mass balance
     mb_data = pd.read_csv(hugonnet_fp + hugonnet_fn)
     fa_glac_data['O1Region'] = [int(x.split('-')[1].split('.')[0]) for x in fa_glac_data.RGIId.values]
-    #Load lenght change data ===== 
+    #Load lenght change data =====
     #TODO Set the condition for calibtation variables, calibrate FA or dLdt or both, and the condition for monthly or annual calibration
     lengthchange_annual_data = pd.read_csv(lengthchange_annual_fp + lengthchange_annual_fn)
     lengthchange_annual_data['O1Region'] = [int(x.split('-')[1].split('.')[0]) for x in lengthchange_annual_data.RGIId.values]
@@ -2180,21 +2400,21 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
         for nglac, rgiid in enumerate(fa_glac_data_reg.RGIId):
             # Avoid regional data and observations from multiple RGIIds (len==14)
             if not fa_glac_data_reg.loc[nglac,'RGIId'] == 'all' and len(fa_glac_data_reg.loc[nglac,'RGIId']) == 14:
-                fa_glac_data_reg.loc[nglac,'glacno'] = (str(int(rgiid.split('-')[1].split('.')[0])) + '.' + 
+                fa_glac_data_reg.loc[nglac,'glacno'] = (str(int(rgiid.split('-')[1].split('.')[0])) + '.' +
                                                         rgiid.split('-')[1].split('.')[1])
-                
+
         for nglac, rgiid in enumerate(lengthchange_annual_data_reg.RGIId):
             # Avoid regional data and observations from multiple RGIIds (len==14)
             if not lengthchange_annual_data_reg.loc[nglac,'RGIId'] == 'all' and len(lengthchange_annual_data_reg.loc[nglac,'RGIId']) == 14:
-                lengthchange_annual_data_reg.loc[nglac,'glacno'] = (str(int(rgiid.split('-')[1].split('.')[0])) + '.' + 
+                lengthchange_annual_data_reg.loc[nglac,'glacno'] = (str(int(rgiid.split('-')[1].split('.')[0])) + '.' +
                                                         rgiid.split('-')[1].split('.')[1])
         if frontalablation_annual_data is not None:
             fa_annual_data_reg = frontalablation_annual_data.loc[frontalablation_annual_data['O1Region'] == reg, :].copy()
-            fa_annual_data_reg.reset_index(inplace=True, drop=True)       
+            fa_annual_data_reg.reset_index(inplace=True, drop=True)
             for nglac, rgiid in enumerate(fa_annual_data_reg.RGIId):
                 # Avoid regional data and observations from multiple RGIIds (len==14)
                 if not fa_annual_data_reg.loc[nglac,'RGIId'] == 'all' and len(fa_annual_data_reg.loc[nglac,'RGIId']) == 14:
-                    fa_annual_data_reg.loc[nglac,'glacno'] = (str(int(rgiid.split('-')[1].split('.')[0])) + '.' + 
+                    fa_annual_data_reg.loc[nglac,'glacno'] = (str(int(rgiid.split('-')[1].split('.')[0])) + '.' +
                                                             rgiid.split('-')[1].split('.')[1])
             fa_annual_data_reg = fa_annual_data_reg.dropna(axis=0, subset=['glacno'])
             fa_annual_data_reg.reset_index(inplace=True, drop=True)
@@ -2220,7 +2440,7 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
         else:
             #TODO Set the condition for calibtation variables, calibrate FA or dLdt or both;Maybe add the regional mass balance total, climatic mass balance here we assume all glaciers has the MB data
             glacno_reg_wdata_FA = sorted(list(fa_glac_data_reg.glacno.values)) # 20 years averaged data
-            glacno_reg_wdata_dLdt_annual = sorted(list(lengthchange_annual_data_reg.glacno.values)) # annuall timeseries data       
+            glacno_reg_wdata_dLdt_annual = sorted(list(lengthchange_annual_data_reg.glacno.values)) # annuall timeseries data
             glacno_reg_wdata = sorted(list(set(glacno_reg_wdata_FA).intersection(set(glacno_reg_wdata_dLdt_annual))))
             # glacno_reg_wdata = sorted(list(set(glacno_reg_wdata_FA_annual).intersection(set(glacno_reg_wdata_dLdt_annual))))
         print('glacno_reg_wdata:', glacno_reg_wdata)
@@ -2252,24 +2472,24 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
             print('mb_clim_max:', np.round(mb_clim_reg_max,2))
 
         # ===== Calibrate individuals =====
-        
+
         #%% Prepare the output dataframe
-        output_cns = ['RGIId', 'calving_k', 'calving_k_nmad', 'calving_thick', 'calving_flux_Gta', 'fa_gta_obs', 'fa_gta_obs_unc', 'fa_gta_max', 
-                        'no_errors', 'oggm_dynamics', 
+        output_cns = ['RGIId', 'calving_k', 'calving_k_nmad', 'calving_thick', 'calving_flux_Gta', 'fa_gta_obs', 'fa_gta_obs_unc', 'fa_gta_max',
+                        'no_errors', 'oggm_dynamics',
                         'mb_clim_gta', 'mb_total_gta', 'mb_clim_mwea', 'mb_total_mwea','length_change_ma_obs',
                         'length_change_ma_obs_unc']
-        
+
         output_df_all = pd.DataFrame(np.zeros((main_glac_rgi.shape[0],len(output_cns))), columns=output_cns)
         output_df_all['RGIId'] = main_glac_rgi.RGIId
         output_df_all['calving_k_nmad'] = 0
 
         #%%
-        # Load observations 
+        # Load observations
         fa_obs_dict = dict(zip(fa_glac_data_reg.RGIId, fa_glac_data_reg['fa_gta_obs']))
         fa_obs_unc_dict = dict(zip(fa_glac_data_reg.RGIId, fa_glac_data_reg['fa_gta_obs_unc']))
         lengthchange_obs_dict = dict(zip(lengthchange_annual_data_reg.RGIId, lengthchange_annual_data_reg['dLdt_m_per_yr']))
         lengthchange_obs_unc_dict = dict(zip(lengthchange_annual_data_reg.RGIId, lengthchange_annual_data_reg['dLdt_m_per_yr_unc']))
-        # Set the output of the model, about the observations 
+        # Set the output of the model, about the observations
         output_df_all['fa_gta_obs'] = output_df_all['RGIId'].map(fa_obs_dict)
         output_df_all['fa_gta_obs_unc'] = output_df_all['RGIId'].map(fa_obs_unc_dict)
         output_df_all['length_change_ma_obs'] = output_df_all['RGIId'].map(lengthchange_obs_dict)
@@ -2280,7 +2500,7 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
             fa_obs_unc_annual_dict = dict(zip(fa_annual_data_reg.RGIId, fa_annual_data_reg['fa_Gta_unc_annual']))
             output_df_all['fa_gta_obs_annual'] = output_df_all['RGIId'].map(fa_obs_annual_dict)
             output_df_all['fa_gta_obs_unc_annual'] = output_df_all['RGIId'].map(fa_obs_unc_annual_dict)
-        
+
         #fa_glacname_dict = dict(zip(fa_glac_data_reg.RGIId, fa_glac_data_reg.glacier_name))
         #output_df_all['name'] = output_df_all['RGIId'].map(fa_glacname_dict)
         rgi_area_dict = dict(zip(main_glac_rgi.RGIId, main_glac_rgi.Area))
@@ -2308,7 +2528,7 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
         output_df_all['mb_clim_mwea'] = output_df_all['mb_clim_mwea_obs']
         output_df_all['mb_total_mwea'] = output_df_all['mb_total_mwea_obs']
         output_df_all['fa_gta_max'] = output_df_all['fa_gta_obs']
-        
+
         output_df_badmbclim = output_df_all.loc[output_df_all.mb_clim_mwea_obs > mb_clim_reg_3std_max]
         # Correct by using mean + 3std as maximum climatic mass balance
         if output_df_badmbclim.shape[0] > 0:
@@ -2323,9 +2543,9 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                     mb_clim_gta = mwea_to_gta(mb_clim_mwea, area_m2)
 
                     mb_total_gta = output_df_all.loc[nglac,'mb_total_gta_obs']
-            
+
                     fa_gta_max = mb_clim_gta - mb_total_gta
-                
+
                     output_df_all.loc[nglac,'fa_gta_max'] = fa_gta_max
                     output_df_all.loc[nglac,'mb_clim_mwea'] = mb_clim_mwea
                     output_df_all.loc[nglac,'mb_clim_gta'] = mb_clim_gta
@@ -2392,7 +2612,7 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                     fa_glac_data_ind.loc[0,'fa_gta_obs'] = fa_gta_max
 
 
-                
+
                 # ===== generate the particles =====
                 max_iterations = pygem_prms.max_iterations
                 if (max_iterations < 1 ):
@@ -2403,11 +2623,11 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                 for j in range(max_iterations): #TODO DO THE APATED CALIBRATION HERE
                     #Sample the parameters
                     print("the iteration is ",j)
-                    #pdb.set_trace()    
+                    #pdb.set_trace()
                     # Generate the parameters
                     if j == 0:
                         # generate the parameters from the prior distribution
-                        
+
                         parameters_dict = sample_prior(Sample_N)
                     else:
                         #Sample_N = Ne
@@ -2416,7 +2636,7 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                         parameters_values = thetap
                         parameters_dict = {key: value for key, value in zip(parameters_keys, parameters_values)}
                         parameters_dict['index'] = np.arange(Sample_N)
-                            
+
 
                     # Run the coupled model (PyGEM_OGGM_SERMeQ)
                     lengthchange_dLdt_model_array_annual, calving_flux_Gta_TMS_model_array_annual,calving_flux_Gta_average_model_array,massbalclim_TMS_model_array_annual,massbalclim_model_array,mb_obs_mwea,mb_obs_mwea_err = Model_MB_FA_RT(model_function = reg_calving_flux,parameters_dict= parameters_dict,
@@ -2430,8 +2650,8 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                     #---- maskout the inf or -inf value based on the length change #TODO  Revise it , if it's inf, a specific number , e.g. 5000
                     lengthchange_dLdt_model_array_annual = np.clip(lengthchange_dLdt_model_array_annual, min_length_change_myr, max_length_change_myr)
                     # ==== generate the array as the input for AMIS
-                    #pdb.set_trace() # for 20-year 
-                    lengthchange_dLdt_MB_model_array_annual_array = np.concatenate((lengthchange_dLdt_model_array_annual,massbalclim_model_array.T),axis = 0)                    
+                    #pdb.set_trace() # for 20-year
+                    lengthchange_dLdt_MB_model_array_annual_array = np.concatenate((lengthchange_dLdt_model_array_annual,massbalclim_model_array.T),axis = 0)
                     lengthchange_dLdt_model_array_annual_00_10 = lengthchange_dLdt_model_array_annual[:10,:]
                     lengthchange_dLdt_model_array_annual_11_20 = lengthchange_dLdt_model_array_annual[10:20,:]
                     massbalclim_TMS_model_array_annual_00_10 = massbalclim_TMS_model_array_annual[:10,:]
@@ -2440,7 +2660,7 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                     massbalclim_model_array_11_20 = np.expand_dims(np.nanmean(massbalclim_TMS_model_array_annual_11_20, axis=0),axis =1)
                     lengthchange_dLdt_MB_model_array_annual_array_00_10 = np.concatenate((lengthchange_dLdt_model_array_annual_00_10,massbalclim_model_array_00_10.T),axis = 0)
                     lengthchange_dLdt_MB_model_array_annual_array_11_20 = np.concatenate((lengthchange_dLdt_model_array_annual_11_20,massbalclim_model_array_11_20.T),axis = 0)
-                    
+
 
                     # ===== Observations =====
                     # ----onvert to NumPy array and ensure proper shape of the observations #TODO At the moment, the calibration is based on the length change (TMS), the mass balance (multiple year average), and more choice can be added in the future
@@ -2450,7 +2670,7 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                         lengthchange_dLdt_obs_ind_array = np.array(lengthchange_dLdt_obs_ind).reshape(len(lengthchange_dLdt_obs_ind),1)
                         mb_obs_mwea_ind_array = np.asarray(mb_obs_mwea).reshape(-1, 1)
                         fa_gta_obs_ind_array = np.asarray(fa_gta_obs_ind).reshape(-1, 1)
-                        
+
                         # ----square of uncertainty of observations
                         lengthchnage_dLdt_unc_obs_ind_2_array = np.square(np.asarray(lengthchnage_dLdt_unc_obs_ind)).reshape(-1, 1)
                         mb_obs_mwea_err_2_array = np.square(np.asarray(mb_obs_mwea_err)).reshape(-1, 1)
@@ -2458,7 +2678,7 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                         if frontalablation_annual_data is not None:
                             fa_annual_data_obs_ind_array = np.array(fa_annual_data_obs_ind).reshape(len(fa_annual_data_obs_ind),1)
                             fa_annual_data_obs_unc_2_array = np.square(np.asarray(fa_annual_data_obs_unc_ind)).reshape(-1, 1)
-                        #TODO At the momment, the calibration based on the length change, the mass balance, and the frontal ablation is not considered, and 
+                        #TODO At the momment, the calibration based on the length change, the mass balance, and the frontal ablation is not considered, and
                         # for the length change, the first 10 years + the 10-year averages as the calibration data, and the last 10 years as the validation data,
                         # but for the future, it should has more flexiale choices, and the timeseries of mass balance and the frontal ablation should be considered as well.
                         # 10-years annual length change and the 10-year average climatic mass balance
@@ -2495,7 +2715,7 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
 
                     # generate the proposal (array)
                     if j == 0:
-                        parameters_dict_noIndex = {key: value for key, value in parameters_dict.items() if key != "index"} 
+                        parameters_dict_noIndex = {key: value for key, value in parameters_dict.items() if key != "index"}
                         # print("Original Dictionary Keys:", parameters_dict.keys())
                         # print("Updated Dictionary Keys:", parameters_dict_noIndex.keys())
                         # pdb.set_trace()
@@ -2504,7 +2724,7 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                         proposal_model = thetap
                     #pdb.set_trace()
                     proposal = transform_space(proposal_model, 'to_normal') # TODO check the function glogit, how to deal with four parameters
-                    
+
                     vars_to_perturbate = pygem_prms.vars_to_calibrate
                     priormean = np.zeros(len(vars_to_perturbate)) #TODO Should be the transformed values
                     priorsd = np.zeros(len(vars_to_perturbate))
@@ -2513,11 +2733,11 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                         priormean[count] = pygem_prms.transformed_mean_priors[var]
                         priorsd[count] = pygem_prms.transformed_std_priors[var]
                         priorcov = np.diag(priorsd**2)
-                    
+
                     #pdb.set_trace()
                     # interation
                     if j == 0:
-                        
+
                         No = np.size(observations_sbst_masked) # TODO Check the dimention, here is the number of observations, should be 11, 10 for the length change and 1 for the mass balance
                         Ne = proposal.shape[1]
                         Nl = pygem_prms.max_iterations
@@ -2551,7 +2771,7 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                         predicted_padded = np.full((predicted.shape[0], n_expected), np.nan)
                         predicted_padded[:, :min(n_actual, n_expected)] = predicted[:, :min(n_actual, n_expected)]
                         predicted = predicted_padded
-                    
+
                     predall[:, :, j] = predicted
                     ells = np.arange(j+1)
                     obs = observations_sbst_masked
@@ -2567,10 +2787,60 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                     print('Neff: {Neff_k} in j:{j}'.format(Neff_k=int(Neff_k),j=j))
                     print('Weights_k is :', Weights_k)
 
-                    diversity = Neff_k/Ne
+                    w = Weights_k.flatten(order="F")
+                    thetap = propsall[:, :, ells]
+
+                    expected_nw = int(
+                        thetap.shape[1]
+                        * thetap.shape[2]
+                    )
+
+                    # Define Nw before using it
+                    Nw = expected_nw
+
+                    if w.size != Nw:
+                        raise RuntimeError(
+                            "AMIS weight/proposal mismatch: "
+                            f"weights={w.size}, "
+                            f"expected={Nw}, "
+                            f"proposal_shape={thetap.shape}"
+                        )
+
+                    if not np.all(np.isfinite(w)):
+                        raise RuntimeError(
+                            "AMIS returned non-finite weights."
+                        )
+
+                    if np.any(w < 0):
+                        raise RuntimeError(
+                            "AMIS returned negative weights."
+                        )
+
+                    w_sum = float(np.sum(w))
+
+                    if not np.isfinite(w_sum) or w_sum <= 0:
+                        raise RuntimeError(
+                            "AMIS returned no usable ensemble members."
+                        )
+
+                    # Normalize before using weights for sampling
+                    w /= w_sum
+
+                    if (
+                        not np.isfinite(Neff_k)
+                        or Neff_k <= 0
+                        or Neff_k > Nw * (1 + 1e-12)
+                    ):
+                        raise RuntimeError(
+                            "Invalid AMIS effective sample size: "
+                            f"Neff={Neff_k}, Nw={Nw}"
+                        )
+
+                    # Normalized ESS uses all accumulated AMIS samples
+                    diversity = Neff_k / Nw
+
                     doadapt = diversity < adapt_thresh
-                    notlast = (j+1) < max_iterations
-                    w = Weights_k.flatten('F') #TODO check the shape of the Weights_k, does it need to be flatten
+                    notlast = (j + 1) < max_iterations
 
                     # ==== save the parameters and Weights and Neff ====
                     # Dictionary to store dataset names and corresponding data arrays
@@ -2593,46 +2863,101 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
 
                     # ==== Can instead always set clip to 1 if you don't want to clip
                     doclip = doadapt and notlast
+
                     if doclip:
-                        clip = int(np.round(adapt_thresh*Ne))
-                        ws = -np.sort(-w)
-                        wc = ws[clip-1]
-                        nonzero = wc > 0
-                        if nonzero:
-                            toclip = w > wc
-                            w[toclip] = wc
-                            w = w/np.sum(w)
+                        clip = int(
+                            np.ceil(
+                                adapt_thresh * Nw
+                            )
+                        )
+
+                        clip = max(
+                            1,
+                            min(clip, Nw),
+                        )
+
+                        sorted_weights = np.sort(w)[::-1]
+                        clipping_threshold = (
+                            sorted_weights[clip - 1]
+                        )
+
+                        if clipping_threshold > 0:
+                            w = np.minimum(
+                                w,
+                                clipping_threshold,
+                            )
+
+                            w /= np.sum(w)
                         else:
                             doclip = False
 
-                    Nw = np.size(w)
                     pinds = np.arange(Nw)
-                    reinds = np.random.choice(pinds, Ne, p=w)
-                    thetap = propsall[:, :, ells]
-                    thetap = np.reshape(thetap, [Np, Nw], order='F')
+
+                    reinds = np.random.choice(
+                        pinds,
+                        size=Ne,
+                        replace=True,
+                        p=w,
+                    )
+
+                    thetap = np.reshape(
+                        thetap,
+                        (Np, Nw),
+                        order="F",
+                    )
+
+                    # Apply the AMIS-weighted resampling indices
                     thetap = thetap[:, reinds]
-                    pm = np.mean(thetap, axis=1)
+
+                    if thetap.shape != (Np, Ne):
+                        raise RuntimeError(
+                            "Unexpected resampled proposal shape: "
+                            f"found={thetap.shape}, expected={(Np, Ne)}"
+                        )
+
+                    pm = np.mean(
+                        thetap,
+                        axis=1,
+                    )
                     if doclip:
-                        A = (thetap.T-pm).T
-                        pc = (A@A.T)/Ne
+                        parameter_anomalies = (
+                            thetap.T - pm
+                        ).T
+
+                        pc_raw = (
+                            parameter_anomalies
+                            @ parameter_anomalies.T
+                        ) / Ne
                     else:
-                        shrink=max(0.5**j,0.2) # TODO check the shrinkage factor
-                        pc = np.copy(priorcov)*shrink
+                        shrink = max(
+                            0.5**j,
+                            0.2,
+                        )
+
+                        pc_raw = (
+                            np.copy(priorcov)
+                            * shrink
+                        )
+
+                    pc = regularize_proposal_covariance(
+                        covariance=pc_raw,
+                        prior_covariance=priorcov,
+                        minimum_prior_variance=1e-3,
+                    )
+                    # print("pc after AMIS is",pc)
+
                     # Draw from this Gaussian for the next adaptive iteration
                     # if there will be one
                     #pdb.set_trace()
                     if doadapt and notlast:
 
-                        while True:
-                            try:
-                                L = np.linalg.cholesky(pc)
-                                break
-                            except np.linalg.LinAlgError:
-                                pc = ct.cov_nearest(pc, method="clipped")
-                                L = np.linalg.cholesky(pc)
-                                print("np.linalg.LinAlgError in cholesky")
-                                #pdb.set_trace()
-                                break
+                        try:
+                            L = np.linalg.cholesky(pc)
+                        except np.linalg.LinAlgError as err:
+                            raise RuntimeError(
+                                "Regularized AMIS proposal covariance "
+                                "failed Cholesky decomposition."
+                            ) from err
 
                         Z = np.random.randn(Np, Ne)
                         thetap = (pm+(L@Z).T).T
@@ -2657,7 +2982,7 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                     #transform the array to the parameters dictionary by adding the Index
                     parameters_dict_post = {key: value for key, value in zip(parameters_keys, param_post_array)}
                     parameters_dict_post['index'] = np.arange(Sample_N)
-                    
+
                     #store the posterior of parameters
                     output_folder_params_poster = os.path.join(save_path_parameter_glac, 'Poster')
                     # Ensure directories exist
@@ -2665,7 +2990,7 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                     output_filename_params_poster = f'calibration_poster_Params_{rgiid_ind}.json'
                     output_fp_params = os.path.join(output_folder_params_poster, output_filename_params_poster)
 
-                    # Save to JSON  
+                    # Save to JSON
                     #pdb.set_trace()
                     with open(output_fp_params, "w") as f:
                         #json.dump(modelprms_data_serializable, f, indent=4)
@@ -2677,12 +3002,12 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                                         "std": np.std(param_post_array, axis=1),
                                         "min": np.min(param_post_array, axis=1),
                                         "max": np.max(param_post_array, axis=1),
-                                        "median": np.median(param_post_array, axis=1), 
+                                        "median": np.median(param_post_array, axis=1),
                                         "IQR": np.percentile(param_post_array, 75, axis=1) - np.percentile(param_post_array, 25, axis=1),
                                         "MAD": median_abs_deviation(param_post_array, axis=1),
                                         "skewness": skew(param_post_array, axis=1),
                                         "kurtosis": kurtosis(param_post_array, axis=1)}
-                    
+
                     output_folder_post_params_statis = os.path.join(save_path_parameter_glac)  # Assuming `pygem_prms.output_fp` exists
                     # Check if directory exists, otherwise create it
                     if not os.path.exists(output_folder_post_params_statis):
@@ -2697,7 +3022,7 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                     # ==== unique the posterior parameters, and save the unique parameters
                     param_post_array_unique,unique_indices,unique_counts = np.unique(param_post_array, axis = 1,return_index=True, return_counts=True)
                     param_post_array_unique_dic = {key: value for key, value in zip(parameters_keys, param_post_array_unique)}
-                    param_post_array_unique_dic['index'] = np.arange(param_post_array_unique.shape[1]) 
+                    param_post_array_unique_dic['index'] = np.arange(param_post_array_unique.shape[1])
                     output_folder_post_params_unique = os.path.join(save_path_parameter_glac,'Poster','Unique')
                     Weights_unique = unique_counts/np.sum(unique_counts)
                     # Ensure directories exist
@@ -2710,30 +3035,30 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
 
                     # ==== save the unique parameters, indices and the counts and weights in json
                     output_data_dict_unique_Info = {
-                                            'parameters_array': param_post_array_unique, 
+                                            'parameters_array': param_post_array_unique,
                                             'unique_indices': unique_indices,
                                             'unique_counts': unique_counts,
                                             'weights_array': Weights_unique
                                             }
                     output_filename_params_unique_Info = f'calibration_poster_Params_unique_{rgiid_ind}_Info.json'
-                    output_fp_params_unique_Info = os.path.join(output_folder_post_params_unique, output_filename_params_unique_Info)                    
+                    output_fp_params_unique_Info = os.path.join(output_folder_post_params_unique, output_filename_params_unique_Info)
                     # Save to JSON
                     with open(output_fp_params_unique_Info, "w") as f:
                         json.dump(output_data_dict_unique_Info, f, indent=4, default=convert_to_serializable)
-                    
+
 
                     #%%
                     # ==== recall the model to compute the model output based on the post parameters
                                         # Run the coupled model (PyGEM_OGGM_SERMeQ)
-                    (lengthchange_dLdt_model_array_annual_post, lengthchange_m_TMS_model_array_annual_post, 
+                    (lengthchange_dLdt_model_array_annual_post, lengthchange_m_TMS_model_array_annual_post,
                     calving_flux_Gta_TMS_model_array_annual_post,massbalclim_TMS_model_array_annual_post,massbaltotal_TMS_model_array_annual_post,
                     massbalclim_TMS_model_array_annual_gta_post,massbaltotal_TMS_model_array_annual_gta_post,
                     FA_mwea_TMS_model_array_annual_post,area_km2_TMS_model_array_annual_post,velocity_at_calvingfront_model_array_annual_post,thickness_at_calvingfront_model_array_annual_post,
-                    width_at_calvingfront_model_array_annual_post, volume_bsl_model_array_annual_post, 
-                    volume_bwl_model_array_annual_post,calving_flux_Gta_average_model_array_post, 
+                    width_at_calvingfront_model_array_annual_post, volume_bsl_model_array_annual_post,
+                    volume_bwl_model_array_annual_post,calving_flux_Gta_average_model_array_post,
                     calving_thickness_model_array_post, massbalclim_model_array_post,
                     massbaltotal_model_array_post, massbalclim_model_array_gta_post,
-                    massbaltotal_model_array_gta_post,FA_mwea_average_model_array_post, 
+                    massbaltotal_model_array_gta_post,FA_mwea_average_model_array_post,
                     mb_obs_mwea, mb_obs_mwea_err
                     ) = Model_MB_FA_RT(model_function=reg_calving_flux,
                                     parameters_dict=param_post_array_unique_dic,
@@ -2774,7 +3099,7 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                     massbalclim_TMS_model_annual_gta_weighted = np.average(massbalclim_TMS_model_array_annual_gta_post,axis =1,weights = Weights_unique)
                     massbaltotal_TMS_model_annual_gta_weighted = np.average(massbaltotal_TMS_model_array_annual_gta_post,axis =1,weights = Weights_unique)
                     FA_mwea_TMS_model_annual_weighted = np.average(FA_mwea_TMS_model_array_annual_post,axis =1,weights = Weights_unique)
-                    area_km2_TMS_model_annual_weighted = np.average(area_km2_TMS_model_array_annual_post,axis =1,weights = Weights_unique)   
+                    area_km2_TMS_model_annual_weighted = np.average(area_km2_TMS_model_array_annual_post,axis =1,weights = Weights_unique)
                     velocity_at_calvingfront_model_array_annual_weighted = np.average(velocity_at_calvingfront_model_array_annual_post,axis =1,weights = Weights_unique)
                     thickness_at_calvingfront_model_array_annual_weighted = np.average(thickness_at_calvingfront_model_array_annual_post,axis =1,weights = Weights_unique)
                     width_at_calvingfront_model_array_annual_weighted = np.average(width_at_calvingfront_model_array_annual_post,axis =1,weights = Weights_unique)
@@ -2821,16 +3146,16 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                     lengthchange_m_TMS_model_array_annual_post_repeat = np.repeat(lengthchange_m_TMS_model_array_annual_post,unique_counts,axis = 1)
                     massbalclim_model_array_post_repeat = np.repeat(massbalclim_model_array_post,unique_counts,axis =0)
                     try:
-                        # accoording to the unique counts, and the weights, recoverty the output array 
+                        # accoording to the unique counts, and the weights, recoverty the output array
                         if Visualize_Index:
                             Visualization_timeseries.plot_model_vs_observation(np.concatenate([calving_flux_Gta_average_model_array_post_repeat,[[calving_flux_Gta_average_model_weighted]]], axis=0).tolist(),
                                                                             fa_gta_obs_ind_array, plot_type='point', model_label='Modeled frontal ablation (Gt a⁻¹)', obs_label='Observed frontal ablation (Gt a⁻¹)',
                                                                                 model_legends=[f"Particle {i+1}" for i in range(Sample_N)] + ["Weighted Avg"], start_date=2000,
                                                                                 title='Calving flux comparison model vs observation', observation_error=fa_gta_obs_unc_ind,
                                                                                 save_path=save_path_figure_glac, save_name='Calving flux(20-year average) comparison model vs observation (weighted)')
-                            
+
                             # length change rate dLdt vs observation
-                            Visualization_timeseries.plot_model_vs_observation([*lengthchange_dLdt_model_array_annual_post_repeat.T, lengthchange_dLdt_model_annual_weighted], 
+                            Visualization_timeseries.plot_model_vs_observation([*lengthchange_dLdt_model_array_annual_post_repeat.T, lengthchange_dLdt_model_annual_weighted],
                                                                             lengthchange_dLdt_obs_ind, plot_type='timeseries',
                                                                             model_legends=[f"Particle {i+1}" for i in range(Sample_N)] + ["Weighted Avg"],
                                                                             title='Length Change Rate (dLdt) Comparison: Model vs Observation', xlabel='Year',
@@ -2878,7 +3203,7 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                         with open(output_fp_monthly, 'r') as f:
                             output_data_dict_monthly = json.load(f)
 
-                        # remove outliers based on the length change rate 
+                        # remove outliers based on the length change rate
                         lengthchange_dLdt_model_array_monthly_post = np.array(output_data_dict_monthly['lengthchange_dLdt_model_array_monthly'])
                         lengthchange_m_TMS_model_array_monthly_post = np.array(output_data_dict_monthly['lengthchange_m_TMS_model_array_monthly'])
                         calving_flux_Gta_TMS_model_array_monthly_post = np.array(output_data_dict_monthly['calving_flux_Gta_TMS_model_array_monthly'])
@@ -2975,8 +3300,8 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                         output_df_all.loc[nglac,'iterations'] = j
                         output_df_all.loc[nglac,'Neff_k'] = Neff_k
                         Bad_AMIS.append(rgiid_ind)
-                        N_bad_AMIS += 1 
-                        N_bad_iterations.append(j+1)                      
+                        N_bad_AMIS += 1
+                        N_bad_iterations.append(j+1)
 
                 else :
                     # the AMIS failed, we didn't get the converged result
@@ -3025,7 +3350,7 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                 for glacier, N_iters in zip(Good_AMIS, N_good_iterations):
                     f.write(f"{glacier}, with {N_iters} iterations\n")
                 f.write("\n================\n")
-        
+
         if Bad_AMIS:
             bad_amis_fp = os.path.join(save_path_statistics_reg, 'Bad_AMIS.txt')
             file_exists_bad = os.path.exists(bad_amis_fp)
@@ -3036,9 +3361,9 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                     f.write("====================\n")
                 f.write(f'There are {N_bad_AMIS} glaciers that failed calibration\n')
                 for glacier, N_iters in zip(Bad_AMIS, N_bad_iterations):
-                    f.write(f"{glacier}, with {N_iters} iterations\n")   
+                    f.write(f"{glacier}, with {N_iters} iterations\n")
                 f.write("\n================\n")
-            
+
         #%% Save the output dataframe to a CSV file
         output_file_path = os.path.join(save_path_summary, output_fn)
 
@@ -3074,7 +3399,7 @@ def main():
     # Unpack variables
     args = getparser().parse_args()
     debug = args.debug == 1
-    
+
     # Set up logging based on user input
     log_level = args.log_level
 
@@ -3116,7 +3441,7 @@ def main():
                        args = args,
                        frontalablation_fp = frontalablation_fp,
                        frontalablation_fn = frontalablation_fn,
-                       output_fp = output_fp, 
+                       output_fp = output_fp,
                       hugonnet_fp = hugonnet_fp,
                       hugonnet_fn = hugonnet_fn,
                       lengthchange_annual_fp = lengthchange_annual_fp,
@@ -3126,8 +3451,8 @@ def main():
                       Visualize_Index = args.Visualize_Index,
                       store_monthly_step = args.store_monthly_step,
                       debug = debug,
-                      log_level = log_level) 
-                      
+                      log_level = log_level)
+
 
     #%% update the MB  #TODO Check the function for the update_mbdata
     # update reference mass balance data accordingly
@@ -3140,7 +3465,7 @@ def main():
 #%% PARALLEL PROCESSING
 if __name__ == '__main__':
     time_start = time.time()
-    
+
     main()
 
     print('Total processing time:', time.time()-time_start, 's')
