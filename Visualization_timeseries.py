@@ -512,7 +512,7 @@ def animate_time_series(gdir, filesuffix ='',variable='thickness_m', group='fl_0
 def plot_model_vs_observation(models_output, observation_data, dates=None, start_date = None,plot_type='point', 
                               model_legends= None, model_label ='Model Output', obs_label='Observation', 
                               title='Model vs Observation Comparison', ylabel=None, xlabel='Time/Points', 
-                              save_path=None,save_name=None,observation_error=None,save_name_legend=None):
+                              save_path=None,save_name=None,observation_error=None,save_name_legend= False):
     """
     Plots the comparison between model output and observation data.
     
@@ -530,7 +530,7 @@ def plot_model_vs_observation(models_output, observation_data, dates=None, start
     - xlabel: Label for the x-axis.
     - save_path (str, optional): The file path to save the figure. If None, the figure will not be saved.
     - save_name (str, optional): The file name to save the figure. If None, the figure will not be saved.
-    - save_name_legend (str, optional): The file name to save the legend. If None, the legend will not be saved.
+    - save_name_legend (bool, optional):  if True, saves the legend as a separate file with this name. if False, the legend will not be saved.
     - observation_error: Optional list or array of error values associated with the observation data.
  
     Returns:
@@ -674,32 +674,29 @@ def plot_model_vs_observation(models_output, observation_data, dates=None, start
 
     # Save the figure if save_path is provided
     if save_path and save_name:
-        save_name_legend = save_name_legend if save_name_legend else save_name + '_legend.png'
         # Ensure the directory exists
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         save_path_full = os.path.join(save_path, save_name)
         plt.savefig(save_path_full, bbox_inches='tight')
         print(f"Figure saved to {save_path_full}")
+        plt.close() # Close the figure to free up memory
+        # save the legend as a separate file
+        if save_name_legend:
 
-
-        # Display the plot
-        #plt.show()
-    # save the legend as a separate file
-    if save_path and save_name_legend:
-        # Ensure the directory exists
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        save_path_legend_full = os.path.join(save_path, save_name_legend)
-            # Retrieve handles and labels from the current plot
-        handles, labels = plt.gca().get_legend_handles_labels()
-        # Create a new figure for the legend
-        legend_fig = plt.figure(figsize=(10, 6))
-        legend_ax = legend_fig.add_subplot(111)
-        legend_ax.axis('off')  # Turn off axes for the legend-only figure
-        legend = legend_ax.legend(handles, labels, loc='center', frameon=True)
-            # Save the legend
-        legend_fig.savefig(save_path_legend_full, bbox_inches='tight')
-        print(f"Legend saved to {save_path_legend_full}")
-        plt.close(legend_fig)  # Close the legend figure
+            name_legend = save_name + '_legend.png'
+            # Ensure the directory exists
+            save_path_legend_full = os.path.join(save_path, name_legend)
+                # Retrieve handles and labels from the current plot
+            handles, labels = plt.gca().get_legend_handles_labels()
+            # Create a new figure for the legend
+            legend_fig = plt.figure(figsize=(10, 6))
+            legend_ax = legend_fig.add_subplot(111)
+            legend_ax.axis('off')  # Turn off axes for the legend-only figure
+            legend = legend_ax.legend(handles, labels, loc='center', frameon=True)
+                # Save the legend
+            legend_fig.savefig(save_path_legend_full, bbox_inches='tight')
+            print(f"Legend saved to {save_path_legend_full}")
+            plt.close(legend_fig)  # Close the legend figure
 
 
 
