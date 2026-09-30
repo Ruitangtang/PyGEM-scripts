@@ -868,7 +868,8 @@ def regularize_proposal_covariance(
     return covariance_regularized
 
 # Adapted PBS ( AMIS) , Ruitang revising from the original code by K. Aalstad (22.02.2025)
-def AMIS(obs, pred, R, prim, pric, propm, propc, props):
+def AMIS(obs, pred, R, prim, pric, propm, propc, props,
+         log_weights_out=None):
     """
     AMIS: Adaptive Multiple Importance Sampling
     Inputs:
@@ -878,10 +879,13 @@ def AMIS(obs, pred, R, prim, pric, propm, propc, props):
         prim: The mean (vector) of the prior (Np x 1 array)
         pric: The covariance (matrix) of the prior (Np x Np array)
         propm: Means of the DM proposal (Np x Nl)
-        propc: Covariances of the DM proposal (Np x Nl)
-        proposal: Samples from the DM proposal (Np x Ne x Nl array)
+        propc: Covariances of the DM proposals (Np x Np x Nl)
+        props: Normal-space samples (Np x Ne x Nl)
+        log_weights_out: Optional dictionary populated with normalized
+            log weights in "values"; invalid particles have -inf.
     Outputs:
-        w: Posterior weights (Ne x 1 array)
+        w: Normalized pooled weights (Ne * Nl), flattened in Fortran order
+        Neff: Effective sample size of the pooled weights
     Dimensions
         Ne is the number of ensemble members, Np is the number of state
         variables and/or parameters, No is the number of observations, Nl
@@ -1083,11 +1087,16 @@ def AMIS(obs, pred, R, prim, pric, propm, propc, props):
         Neff = 1.0 / np.sum(w**2)
 
     except Exception:
-        print(traceback.format_exc())
+        logging.getLogger("main").exception("AMIS weight calculation failed")
         return np.zeros(
             Ne * Nl,
             dtype=float,
         ), 0.0
+
+    if log_weights_out is not None:
+        logw_full = np.full((Ne, Nl), -np.inf)
+        logw_full[valid] = logw_valid
+        log_weights_out["values"] = logw_full.flatten(order="F")
 
     return w, Neff
 
@@ -1465,9 +1474,12 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                     else:
                         diag = ev_model.run_until_and_store(nyears,store_monthly_step= True)
                         print('diag is :',diag)
-                except:
-                    print("something is wrong with the run_until_and_store")
-                    print(traceback.format_exc())
+                except Exception as exc:
+                    raise RuntimeError(
+                        f"run_until_and_store failed: "
+                        f"glacier={glacier_str}, "
+                        f"particle={index_particles}"
+                    ) from exc
                 # print("the volume_3 in the diag is :",diag.volume_m3)
                 ev_model.mb_model.glac_wide_volume_annual[-1] = diag.volume_m3[-1]
                 ev_model.mb_model.glac_wide_area_annual[-1] = diag.area_m2[-1]
@@ -1725,61 +1737,15 @@ def reg_calving_flux(main_glac_rgi, modelprms_MB_FA, fa_glac_data_reg=None,
                             # print('volume_bwl [m^3]:', np.round(out_calving_forward['volume_bwl_m3'],2))
                             # print('frontal ablation model [m w.e. per year]:', np.round(out_calving_forward['frontal_ablation_mwea'],5))
                             # print('frontal ablation model timeseries [m w.e. per year]:', np.round(out_calving_forward['frontal_ablation_mwea_timeseries'],5))
-                    except:
-                        print(traceback.format_exc())
+                    except Exception as exc:
+                        raise RuntimeError(
+                            f"Forward-output construction failed: "
+                            f"glacier={glacier_str}, "
+                            f"particle={index_particles}"
+                        ) from exc
                 
-            except:
-                if gdir.is_tidewater:
-                    if debug:
-                        print('OGGM dynamics failed, using mass redistribution curves')
-                        print(traceback.format_exc())
-                                                    # Mass redistribution curves glacier dynamics model
-                        # #                     ev_model = MassRedistributionCurveModel(
-                        # #                                     nfls, mb_model=mbmod, y0=0,
-                        # #                                     glen_a=cfg.PARAMS['glen_a']*glen_a_multiplier, fs=fs,
-                        # #                                     is_tidewater=gdir.is_tidewater,
-                        # #                                     water_level=water_level
-                        # #                                     )
-                        # #                     _, diag = ev_model.run_until_and_store(nyears)
-                        # #                     ev_model.mb_model.glac_wide_volume_annual = diag.volume_m3.values
-                        # #                     ev_model.mb_model.glac_wide_area_annual = diag.area_m2.values
-                            
-                        # #                     # Record frontal ablation for tidewater glaciers and update total mass balance
-                        # #                     # Update glacier-wide frontal ablation (m3 w.e.)
-                        # #                     ev_model.mb_model.glac_wide_frontalablation = ev_model.mb_model.glac_bin_frontalablation.sum(0)
-                        # #                     # Update glacier-wide total mass balance (m3 w.e.)
-                        # #                     ev_model.mb_model.glac_wide_massbaltotal = (
-                        # #                             ev_model.mb_model.glac_wide_massbaltotal - ev_model.mb_model.glac_wide_frontalablation)
-
-                        # #                     calving_flux_km3a = (ev_model.mb_model.glac_wide_frontalablation.sum() * pygem_prms.density_water / 
-                        # #                                          pygem_prms.density_ice / nyears / 1e9)
-
-                        # # #                    if debug:
-                        # # #                        print('avg frontal ablation [Gta]:', 
-                        # # #                              np.round(ev_model.mb_model.glac_wide_frontalablation.sum() / 1e9 / nyears,4))
-                        # # #                        print('avg frontal ablation [Gta]:', 
-                        # # #                              np.round(ev_model.calving_m3_since_y0 * pygem_prms.density_ice / 1e12 / nyears,4))
-                                            
-                        # #                     # Output of calving
-                        # #                     out_calving_forward = {}
-                        # #                     # calving flux (km3 ice/yr)
-                        # #                     out_calving_forward['calving_flux'] = calving_flux_km3a
-                        # #                     # calving flux (Gt/yr)
-                        # #                     calving_flux_Gta = out_calving_forward['calving_flux'] * pygem_prms.density_ice / pygem_prms.density_water
-                        # #                     # calving front thickness at start of simulation
-                        # #                     thick = nfls[0].thick
-                        # #                     last_idx = np.nonzero(thick)[0][-1]
-                        # #                     out_calving_forward['calving_front_thick'] = thick[last_idx]
-                                            
-                        # #                     # Record in dataframe
-                        # #                     output_df.loc[nglac,'calving_flux_Gta'] = calving_flux_Gta
-                        # #                     output_df.loc[nglac,'calving_thick'] = out_calving_forward['calving_front_thick']
-                        # #                     output_df.loc[nglac,'no_errors'] = 1
-                                            
-                        # #                     if debug:          
-                        # #                         print('Mass Redistribution curve, calving_k:', np.round(calving_k,1), 'glen_a:', np.round(glen_a_multiplier,2))                       
-                        # #                         print('    calving front thickness [m]:', np.round(out_calving_forward['calving_front_thick'],0))
-                        # #                         print('    calving flux model [Gt/yr]:', np.round(calving_flux_Gta,5))
+            except Exception:
+                raise
 
 
             if calc_mb_geo_correction:
@@ -1884,6 +1850,22 @@ def processing_parameters(model_function,kwargs,modelprms_MB_FA):
             )
         )
 
+        if "calving_flux_Gta_timeseries" not in output_df.columns:
+            status_columns = [
+                name
+                for name in ("RGIId", "no_errors", "oggm_dynamics")
+                if name in output_df.columns
+            ]
+
+            status = output_df[status_columns].to_dict(orient="records")
+
+            raise RuntimeError(
+                "Forward model returned incomplete output. "
+                f"Particle={modelprms_MB_FA!r}; "
+                f"missing='calving_flux_Gta_timeseries'; "
+                f"available_columns={output_df.columns.tolist()}; "
+                f"status={status!r}"
+            )
         out_dict = {
             'modelprms_MB_FA_value': modelprms_MB_FA,
             'calving_gta_average_regionalsum': reg_calving_gta_mod_good,
@@ -2062,6 +2044,15 @@ def Visualize_parameter_paralle (model_function = None, parameters_dict = None,c
                 # Unwrap parallel outputs (NEW, REQUIRED)
                 # ----------------------------------------
                 success_flags = np.array([res["success"] for res in output])
+                main_logger.info(
+                    "Batch completed: glacier=%s iteration=%s "
+                    "attempted=%d succeeded=%d failed=%d",
+                    rgiid_ind,
+                    N_iteration,
+                    len(output),
+                    int(success_flags.sum()),
+                    int((~success_flags).sum()),
+                )
                 failed_idx = np.flatnonzero(~success_flags)
                 for idx in failed_idx:
                     result = output[idx]
@@ -2088,30 +2079,103 @@ def Visualize_parameter_paralle (model_function = None, parameters_dict = None,c
                         f"for glacier {rgiid_ind}"
                     )
 
-                # Extract only successful data dicts
-                output_success = [res["data"] for res in output if res["success"]]
+            # Keep the original particle order from pool.map().
+            if len(output) != N_sample:
+                raise RuntimeError(
+                    f"Expected {N_sample} results, received {len(output)}"
+                )
                 
-            # Ensure output is not empty
-            if not output_success:
-                raise ValueError("Processing function returned an empty output. Check 'process_func' or 'prior_samples'.")
-            # Extract the results
-            # Extract results using dictionary comprehension
-            keys = [
-                'modelprms_MB_FA_value','calving_gta_average_regionalsum', 'length_change_m_timeseries','length_change_rate_myr_dLdt',
-                'calving_thick', 'calving_flux_Gta_average','calving_flux_Gta_timeseries', 'massbal_clim_mwea',
-                'massbal_total_mwea', 'massbal_clim_mwea_timeseries', 'massbal_total_mwea_timeseries',
-                'massbal_clim_Gta', 'massbal_total_Gta', 'massbal_clim_Gta_timeseries','massbal_total_Gta_timeseries',
-                'velocity_at_calvingfront_myr','thickness_at_calvingfront_m','width_at_calvingfront_m','volume_bsl_m3','volume_bwl_m3',
-                'frontal_ablation_mwea', 'frontal_ablation_mwea_timeseries','area_km2_timeseries','mb_years', 'mb_obs_mwea','mb_obs_mwea_err'] # TODO ADD THE 'dates_table' to the keys, 'modelprms_MB_FA_value'
-            # Convert extracted values to NumPy arrays
-            #output_data = {key: np.array([out_dict[key] for out_dict in output]) for key in keys}
-            output_data = {
-                            key: np.asarray(
-                                [out[key] for out in output_success],
-                                dtype=object
-                            )
-                            for key in keys
-                        }
+            successful_indices = np.flatnonzero(success_flags)
+
+            if successful_indices.size == 0:
+                raise RuntimeError(
+                    f"All parameter samples failed for glacier {rgiid_ind}"
+                )
+
+            reference = output[successful_indices[0]]["data"]
+
+            numerical_keys = [
+                "calving_gta_average_regionalsum",
+                "length_change_m_timeseries",
+                "length_change_rate_myr_dLdt",
+                "calving_thick",
+                "calving_flux_Gta_average",
+                "calving_flux_Gta_timeseries",
+                "massbal_clim_mwea",
+                "massbal_total_mwea",
+                "massbal_clim_mwea_timeseries",
+                "massbal_total_mwea_timeseries",
+                "massbal_clim_Gta",
+                "massbal_total_Gta",
+                "massbal_clim_Gta_timeseries",
+                "massbal_total_Gta_timeseries",
+                "velocity_at_calvingfront_myr",
+                "thickness_at_calvingfront_m",
+                "width_at_calvingfront_m",
+                "volume_bsl_m3",
+                "volume_bwl_m3",
+                "frontal_ablation_mwea",
+                "frontal_ablation_mwea_timeseries",
+                "area_km2_timeseries",
+            ]
+
+            output_data = {}
+
+            for key in numerical_keys:
+                template = np.asarray(reference[key], dtype=float)
+
+                # Preserve the particle axis, including failed members.
+                values = np.full(
+                    (N_sample,) + template.shape,
+                    np.nan,
+                    dtype=float,
+                )
+
+                for i in successful_indices:
+                    value = np.asarray(output[i]["data"][key], dtype=float)
+
+                    if value.shape != template.shape:
+                        raise RuntimeError(
+                            f"Inconsistent shape for {key}, member {i}: "
+                            f"{value.shape}, expected {template.shape}"
+                        )
+
+                    values[i] = value
+
+                output_data[key] = values
+
+            # Preserve the actual input parameters for every attempted member.
+            output_data["modelprms_MB_FA_value"] = np.asarray(
+                [dict(parameters) for parameters in prior_samples_list],
+                dtype=object,
+            )
+
+            # These describe the glacier and observation period, not a particle.
+            # Replicate them so existing downstream indexing remains valid,
+            # including when the first particle failed.
+            for key in ("mb_years", "mb_obs_mwea", "mb_obs_mwea_err"):
+                shared_value = np.asarray(reference[key], dtype=float)
+
+                for i in successful_indices:
+                    other = np.asarray(output[i]["data"][key], dtype=float)
+
+                    if (
+                        other.shape != shared_value.shape
+                        or not np.array_equal(
+                            other, shared_value, equal_nan=True
+                        )
+                    ):
+                        raise RuntimeError(
+                            f"Inconsistent shared field {key}, member {i}"
+                        )
+
+                output_data[key] = np.repeat(
+                    shared_value[None, ...],
+                    N_sample,
+                    axis=0,
+                )
+
+            output_data["success_flags"] = success_flags.copy()
             if log_level == 'DEBUG':
                 print("output is :",output)
                 print("output_data is:",output_data)
@@ -2171,6 +2235,7 @@ def Visualize_parameter_paralle (model_function = None, parameters_dict = None,c
         except Exception as e:
             print(f"An error occurred during parallel processing: {e}")
             print(traceback.format_exc())
+            raise
     else:
         reg_calving_gta_mod_good = []
         for i, modelprms_mb_fa in enumerate(modelprms_MB_FA):
@@ -3049,10 +3114,6 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                         propmall[:] = np.nan
                         propsall_model = np.zeros([Np, Ne, Nl])
                         propsall_model[:] = np.nan
-                        print('Np:', Np)
-                        print('Ne:', Ne)
-                        print('Nl:', Nl)
-                        print('priormean :', priormean)
                         #pdb.set_trace()
                         propmall[:, j] = priormean
                         propcall = np.zeros([Np, Np, Nl])
@@ -3062,14 +3123,16 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                     #pdb.set_trace()
                     propsall[:, :, j] = proposal
                     # handle the failures in the model runs with nan values
-                    n_expected = predall.shape[1]
-                    n_actual = predicted.shape[1]
+                    predicted = np.asarray(predicted, dtype=float)
+                    expected_shape = predall[:, :, j].shape
 
-                    if n_actual != n_expected:
-                        print(f"[WARNING] Sample {j} for glacier {rgiid_ind} has unexpected length: {n_actual} instead of {n_expected}")
-                        predicted_padded = np.full((predicted.shape[0], n_expected), np.nan)
-                        predicted_padded[:, :min(n_actual, n_expected)] = predicted[:, :min(n_actual, n_expected)]
-                        predicted = predicted_padded
+                    if predicted.shape != expected_shape:
+                        raise RuntimeError(
+                            f"Prediction shape mismatch for glacier "
+                            f"{rgiid_ind}, iteration {j}: "
+                            f"received {predicted.shape}, "
+                            f"expected {expected_shape}"
+                        )
                     
                     predall[:, :, j] = predicted
                     ells = np.arange(j+1)
@@ -3078,13 +3141,14 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                     propsall_model [:, :, j] = proposal_model
                     #priormean =priormean.reshape(-1,1)
                     #pdb.set_trace()
-                    Weights_k, Neff_k = AMIS(obs, predall[:, :, ells],
-                                    r_cov, priormean, priorcov,
-                                    propmall[:, ells], propcall[:, :, ells],
-                                    propsall[:, :, ells])
-
-                    print('Neff: {Neff_k} in j:{j}'.format(Neff_k=int(Neff_k),j=j))
-                    print('Weights_k is :', Weights_k)
+                    log_weights_info = {}
+                    Weights_k, Neff_k = AMIS(
+                        obs, predall[:, :, ells],
+                        r_cov, priormean, priorcov,
+                        propmall[:, ells], propcall[:, :, ells],
+                        propsall[:, :, ells],
+                        log_weights_out=log_weights_info,
+                    )
 
                     w = Weights_k.flatten(order="F")
                     thetap = propsall[:, :, ells]
@@ -3135,6 +3199,57 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                             f"Neff={Neff_k}, Nw={Nw}"
                         )
 
+                    valid_current = (
+                        np.all(np.isfinite(predicted), axis=0)
+                        & np.all(np.isfinite(proposal), axis=0)
+                    )
+                    logging.getLogger("main").info(
+                        "AMIS: glacier=%s iteration=%d pooled=%d "
+                        "Neff=%.6g relative_ess=%.6g max_weight=%.6g "
+                        "valid_current=%d invalid_current=%d",
+                        rgiid_ind, j, Nw, Neff_k, Neff_k / Nw,
+                        float(np.max(Weights_k)),
+                        int(np.count_nonzero(valid_current)),
+                        int(np.count_nonzero(~valid_current)),
+                    )
+
+                    best_index = int(np.argmax(Weights_k))
+                    best_iteration, best_member = divmod(best_index, Ne)
+
+                    observations = np.asarray(obs, dtype=float).reshape(-1)
+                    variances = np.asarray(r_cov, dtype=float).reshape(-1)
+
+                    if variances.size == 1:
+                        variances = np.full(observations.size, variances.item())
+
+                    prediction = predall[:, best_member, best_iteration]
+                    standardized_residual = (
+                        observations - prediction
+                    ) / np.sqrt(variances)
+
+                    diagnostics = pd.DataFrame({
+                        "observation": observations,
+                        "prediction": prediction,
+                        "sigma": np.sqrt(variances),
+                        "standardized_residual": standardized_residual,
+                        "chi2_contribution": standardized_residual**2,
+                    })
+                    diagnostic_path = os.path.join(
+                        save_path_log_glac,
+                        f"dominant_particle_diagnostics_iteration_{j}.csv",
+                    )
+
+                    diagnostics["source_iteration"] = best_iteration
+                    diagnostics["source_member"] = best_member
+                    diagnostics["pooled_index"] = best_index
+                    diagnostics["weight"] = Weights_k[best_index]
+
+                    diagnostics.to_csv(diagnostic_path, index=False)
+
+                    logging.getLogger("main").info(
+                        "Particle diagnostics saved: %s", diagnostic_path,
+                    )
+
                     # Normalized ESS uses all accumulated AMIS samples
                     diversity = Neff_k / Nw
 
@@ -3160,35 +3275,27 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                     with open(output_fp_AMIS, 'w') as f:
                         json.dump(output_data_dict_AMIS, f, indent=4, default=convert_to_serializable)
 
-                    # ==== Can instead always set clip to 1 if you don't want to clip
+                    # Clip only adaptation weights, before exponentiation.
+                    # Posterior weights in Weights_k remain unchanged.
                     doclip = doadapt and notlast
 
                     if doclip:
-                        clip = int(
-                            np.ceil(
-                                adapt_thresh * Nw
-                            )
-                        )
-
-                        clip = max(
-                            1,
-                            min(clip, Nw),
-                        )
-
-                        sorted_weights = np.sort(w)[::-1]
-                        clipping_threshold = (
-                            sorted_weights[clip - 1]
-                        )
-
-                        if clipping_threshold > 0:
-                            w = np.minimum(
-                                w,
-                                clipping_threshold,
+                        logw = np.asarray(log_weights_info["values"], dtype=float)
+                        finite = np.isfinite(logw)
+                        n_valid = int(np.count_nonzero(finite))
+                        if n_valid == 0:
+                            raise RuntimeError(
+                                "No finite AMIS log weights for adaptation."
                             )
 
-                            w /= np.sum(w)
-                        else:
-                            doclip = False
+                        clip = int(np.ceil(adapt_thresh * Nw))
+                        clip = max(1, min(clip, n_valid))
+                        log_threshold = np.sort(logw[finite])[::-1][clip - 1]
+                        logw_adapt = np.full_like(logw, -np.inf)
+                        logw_adapt[finite] = np.minimum(
+                            logw[finite], log_threshold,
+                        )
+                        w = np.exp(logw_adapt - logsumexp(logw_adapt))
 
                     pinds = np.arange(Nw)
 
@@ -3241,9 +3348,10 @@ def cali_PBS_MB_FA_RT(regions, args, frontalablation_fp='', frontalablation_fn='
                     pc = regularize_proposal_covariance(
                         covariance=pc_raw,
                         prior_covariance=priorcov,
-                        minimum_prior_variance=1e-3,
+                        # Adaptation setting retained from the tested candidate;
+                        # this floor is not a posterior convergence criterion.
+                        minimum_prior_variance=0.1,
                     )
-                    # print("pc after AMIS is",pc)
 
                     # Draw from this Gaussian for the next adaptive iteration
                     # if there will be one
